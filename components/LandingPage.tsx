@@ -182,21 +182,23 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
          ---------------------------------------------------------------------- */}
       <header className="relative min-h-[640px] lg:min-h-[720px] flex items-center pt-12 pb-24 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto z-10 my-4 rounded-3xl overflow-hidden shadow-2xl border border-emerald-500/30 bg-emerald-950/20">
 
-        {/* ARRIÈRE-PLAN VIDÉO DYNAMIQUE BIEN VISIBLE (/Public/videoh.mp4) */}
+        {/* ARRIÈRE-PLAN VIDÉO DYNAMIQUE BIEN VISIBLE (/public/videoh.mp4) */}
         <div className="absolute inset-0 w-full h-full overflow-hidden bg-slate-900">
           <video
             ref={videoRef}
             autoPlay
             loop
-            muted={isMuted}
+            muted
             playsInline
+            preload="auto"
             onPlay={(e) => { e.currentTarget.playbackRate = 1.35; }}
             onLoadedMetadata={(e) => { e.currentTarget.playbackRate = 1.35; }}
             className="w-full h-full object-cover object-[35%_center] sm:object-center scale-105 sm:scale-100 transition-all duration-700 opacity-95"
           >
-            <source src="/Public/videoh.mp4" type="video/mp4" />
             <source src="/videoh.mp4" type="video/mp4" />
-            <source src="Public/videoh.mp4" type="video/mp4" />
+            <source src="videoh.mp4" type="video/mp4" />
+            <source src="/public/videoh.mp4" type="video/mp4" />
+            <source src="/Public/videoh.mp4" type="video/mp4" />
           </video>
 
           {/* Overlays Verts Très Transparents pour laisser voir la vidéo en arrière-plan */}
