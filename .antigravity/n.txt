@@ -1,0 +1,29 @@
+{
+  "mcpServers": {
+    "supabase": {
+      "command": "npx",
+      "args": ["-y", "@supabase/mcp-server"],
+      "env": {
+        "SUPABASE_URL": "https://supabasekong-fw08c8sw84kowgkogko84ksk.188.241.58.227.sslip.io", 
+        "SUPABASE_SERVICE_ROLE_KEY": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJzdXBhYmFzZSIsImlhdCI6MTc3MjUyODM0MCwiZXhwIjo0OTI4MjAxOTQwLCJyb2xlIjoic2VydmljZV9yb2xlIn0.pZd0FGu9XgkL7o4pQ3Pr-pvEBvDw5il487SNXGRfx98"
+      }
+    }
+  }
+}
+
+
+{
+  "mcpServers": {
+    "supabase": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@supabase/mcp-server-postgres"
+      ],
+      "env": {
+        "SUPABASE_URL": "https://supabasekong-fw08c8sw84kowgkogko84ksk.188.241.58.227.sslip.io",
+        "SUPABASE_SERVICE_ROLE_KEY": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJzdXBhYmFzZSIsImlhdCI6MTc3MjUyODM0MCwiZXhwIjo0OTI4MjAxOTQwLCJyb2xlIjoic2VydmljZV9yb2xlIn0.pZd0FGu9XgkL7o4pQ3Pr-pvEBvDw5il487SNXGRfx98"
+      }
+    }
+  }
+}

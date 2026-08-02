@@ -1,0 +1,8 @@
+{
+  "name": "225 Chrétien",
+  "description": "Plateforme de rencontres chrétiennes, de discernement vocationnel et d'échanges spirituels pour la communauté catholique de Côte d'Ivoire et de la diaspora.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
