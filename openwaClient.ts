@@ -141,12 +141,10 @@ export async function sendWhatsAppMessageApi(config: OpenWAConfig, formattedPhon
   const proxyBase = '/openwa-proxy';
   const proxyEndpoint = `${proxyBase}/api/sessions/${session}/messages/send-text`;
 
-  // 🌐 En local on utilise le proxy Vite (/openwa-proxy). En production, appel direct du serveur OpenWA.
-  const targetUrls = isLocalHost ? [
-    { url: proxyEndpoint, label: 'Proxy Vite Local' },
+  // 🌐 Le proxy /openwa-proxy est géré nativement en local (Vite) et en production (Cloudflare Worker _worker.js / Pages Function)
+  const targetUrls = [
+    { url: proxyEndpoint, label: 'Proxy Natif Cloudflare/Vite' },
     { url: endpoint, label: 'Serveur Direct' }
-  ] : [
-    { url: endpoint, label: 'Serveur Direct Production' }
   ];
 
   for (const target of targetUrls) {
