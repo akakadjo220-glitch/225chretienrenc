@@ -977,8 +977,8 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages }) => {
                                         )}
                                         {currentProfile.badges && currentProfile.badges.map((badge, idx) => (
                                             badge === 'COMMUNITY_CERTIFIED' ? (
-                                                <span key={idx} className="flex items-center gap-1 bg-amber-500/90 backdrop-blur-md text-white border border-amber-300/60 text-[9px] sm:text-[10px] font-bold px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full shadow-lg shadow-amber-500/30 animate-pulse">
-                                                    🛡️ Certifié
+                                                <span key={idx} className="flex items-center gap-1 bg-gradient-to-r from-amber-500 to-emerald-600 backdrop-blur-md text-white border border-amber-300/60 text-[9px] sm:text-[10px] font-extrabold px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full shadow-lg shadow-amber-500/30 animate-pulse">
+                                                    🛡️✨ Certifié Communauté (Niveau 3)
                                                 </span>
                                             ) : badge === 'PARISH_BOOSTED' ? (
                                                 <span key={idx} className="flex items-center gap-1 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[9px] sm:text-[10px] font-bold px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full shadow-lg shadow-amber-400/40 border border-amber-300/50">

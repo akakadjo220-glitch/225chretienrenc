@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Message, Conversation } from '../types';
-import { Search, Send, ArrowLeft, ShieldCheck, Mail, Image as ImageIcon, Mic, X, Loader, AlertCircle, StopCircle, Trash2, Sparkles, HeartHandshake, Phone, Video as VideoIcon, PhoneOff } from 'lucide-react';
+import { Search, Send, ArrowLeft, ShieldCheck, Mail, Image as ImageIcon, Mic, X, Loader, AlertCircle, StopCircle, Trash2, Sparkles, HeartHandshake, Phone, Video as VideoIcon, PhoneOff, ShieldAlert, Award, Star, CheckCircle } from 'lucide-react';
 import { supabase } from '../supabaseClient';
-import { generateIcebreakers, generateAntiGhostingMessage, moderateMessage, moderateImage } from '../aiClient';
+import { generateIcebreakers, generateAntiGhostingMessage, moderateMessage, moderateImage, detectFinancialScam } from '../aiClient';
 import { VideoCall } from './VideoCall';
 import { sanitizeInput, validateImageFile } from '../utils/security';
 
@@ -37,7 +37,7 @@ export const Messages: React.FC<MessagesProps> = ({ initialContactId }) => {
     const [conversations, setConversations] = useState<Conversation[]>([]);
     const [messages, setMessages] = useState<Message[]>([]);
 
-    // Community Certified IDs (Anti-Brouteurs)
+    // Community Certified IDs (Anti-Brouteurs - Niveau 3)
     const [communityCertifiedIds, setCommunityCertifiedIds] = useState<Set<string>>(new Set());
 
     useEffect(() => {
@@ -46,6 +46,15 @@ export const Messages: React.FC<MessagesProps> = ({ initialContactId }) => {
             setCommunityCertifiedIds(new Set(ids));
         } catch { setCommunityCertifiedIds(new Set()); }
     }, []);
+
+    // 🛡️ États Bouclier Anti-Arnaque Financière
+    const [dismissScamWarning, setDismissScamWarning] = useState(false);
+
+    // ⭐ États Recommandation Communautaire (Niveau 3)
+    const [showRecommendationModal, setShowRecommendationModal] = useState(false);
+    const [recommendationReason, setRecommendationReason] = useState('FOI_ASSIDUE');
+    const [recommendationNote, setRecommendationNote] = useState('');
+    const [isSubmittingRecommendation, setIsSubmittingRecommendation] = useState(false);
 
     // États de chargement
     const [isLoadingList, setIsLoadingList] = useState(true);
@@ -593,7 +602,73 @@ export const Messages: React.FC<MessagesProps> = ({ initialContactId }) => {
     useEffect(() => {
         setIcebreakers([]);
         setAntiGhostingSuggestion(null);
+        setDismissScamWarning(false);
     }, [activeContactId]);
+
+    // 🛡️ Signaler Arnaque Financière (Wave / Mobile Money)
+    const handleReportScam = async () => {
+        if (!activeContactId || !activeUser) return;
+        const scamMsg = messages.find(m => m.senderId === activeContactId && m.text && detectFinancialScam(m.text).isScamRisk);
+        try {
+            await supabase.from('reports').insert({
+                reporter_name: currentUser?.name || 'Membre 225 Chrétien',
+                reported_user_name: activeUser.contactName,
+                reported_user_id: activeContactId,
+                reason: `SOLICITATION_FINANCIERE: ${scamMsg?.text || 'Tentative de demande d\'argent / Wave / Mobile Money'}`,
+                date: new Date().toISOString(),
+                status: 'OPEN',
+                type: 'MESSAGE'
+            });
+        } catch (e) { console.error("Erreur signalement arnaque:", e); }
+        alert(`🚨 Signalement transmis ! La tentative d'arnaque financière de ${activeUser.contactName} a été enregistrée par l'équipe de sécurité.`);
+        setShowDeleteModal(true);
+    };
+
+    // ⭐ Soumettre une Recommandation Communautaire (Niveau 3)
+    const handleAddCommunityRecommendation = async () => {
+        if (!activeContactId || !currentUser) return;
+        setIsSubmittingRecommendation(true);
+
+        const reasonLabels: Record<string, string> = {
+            'FOI_ASSIDUE': '✝️ Membre engagé(e) et assidu(e) dans sa foi',
+            'VALEURS_CHRETIENNES': '🕊️ Personne respectueuse et de grandes valeurs',
+            'PAROISSE_RECOMMANDEE': '⛪ Recommandé(e) par la communauté chrétienne'
+        };
+
+        const newRec = {
+            id: 'rec-' + Date.now(),
+            authorId: currentUserId,
+            authorName: currentUser.name || currentUser.full_name || 'Membre Vérifié',
+            targetId: activeContactId,
+            reason: reasonLabels[recommendationReason] || 'Membre Recommandé',
+            note: recommendationNote || 'Je recommande ce membre dans la foi.',
+            date: new Date().toLocaleDateString('fr-FR')
+        };
+
+        try {
+            const { data } = await supabase.from('system_settings').select('value').eq('key', 'community_recommendations').maybeSingle();
+            let recList: any[] = (data?.value && Array.isArray(data.value)) ? data.value : [];
+            recList.push(newRec);
+
+            await supabase.from('system_settings').upsert({
+                key: 'community_recommendations',
+                value: recList,
+                updated_at: new Date().toISOString()
+            }, { onConflict: 'key' });
+        } catch (e) { console.error("Erreur recommandation:", e); }
+
+        const updatedSet = new Set(communityCertifiedIds);
+        updatedSet.add(activeContactId);
+        setCommunityCertifiedIds(updatedSet);
+        try {
+            localStorage.setItem('community_certified_users_v1', JSON.stringify(Array.from(updatedSet)));
+        } catch {}
+
+        setIsSubmittingRecommendation(false);
+        setShowRecommendationModal(false);
+        setRecommendationNote('');
+        alert(`Merci ! Votre recommandation (Niveau 3) pour ${activeUser?.contactName} a été enregistrée avec succès ! 🛡️✨`);
+    };
 
     // --- MODE PRIÈRE ---
     const DAILY_VERSES = [
@@ -918,6 +993,82 @@ export const Messages: React.FC<MessagesProps> = ({ initialContactId }) => {
                 </div>
             )}
 
+            {/* --- MODALE RECOMMANDATION COMMUNAUTAIRE (NIVEAU 3) --- */}
+            {showRecommendationModal && activeUser && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm animate-in fade-in" onClick={() => !isSubmittingRecommendation && setShowRecommendationModal(false)} />
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md relative z-10 p-6 md:p-8 animate-in zoom-in-95 duration-200">
+                        <div className="flex justify-between items-start mb-6">
+                            <div className="flex items-center gap-3">
+                                <div className="bg-amber-100 text-amber-700 p-3 rounded-2xl shadow-inner">
+                                    <Award size={24} className="text-amber-600" />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-extrabold text-slate-900 leading-tight">Recommander {activeUser.contactName}</h3>
+                                    <p className="text-xs text-amber-700 font-semibold mt-0.5">⭐ Certification Communautaire (Niveau 3)</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setShowRecommendationModal(false)} className="text-slate-400 hover:text-slate-600 p-1.5 bg-slate-100 rounded-full">
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div className="bg-gradient-to-r from-amber-50 to-emerald-50 border border-amber-200 rounded-2xl p-4 text-xs text-slate-700 leading-relaxed">
+                                <strong className="text-amber-900 font-bold block mb-1">Témoignage de Fraternité Chrétienne 🛡️✨</strong>
+                                Vos recommandations aident la communauté à identifier les membres sérieux, sincères et engagés dans leur parcours de foi.
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">Motif de recommandation</label>
+                                <select
+                                    value={recommendationReason}
+                                    onChange={(e) => setRecommendationReason(e.target.value)}
+                                    className="w-full rounded-2xl border-slate-200 text-sm focus:ring-amber-500 focus:border-amber-500 p-3 bg-slate-50 font-medium"
+                                >
+                                    <option value="FOI_ASSIDUE">✝️ Membre engagé(e) et assidu(e) dans sa foi</option>
+                                    <option value="VALEURS_CHRETIENNES">🕊️ Personne respectueuse et de grandes valeurs</option>
+                                    <option value="PAROISSE_RECOMMANDEE">⛪ Recommandé(e) par la communauté chrétienne</option>
+                                </select>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">Note personnelle (Optionnelle)</label>
+                                <textarea
+                                    value={recommendationNote}
+                                    onChange={(e) => setRecommendationNote(e.target.value)}
+                                    placeholder="Ex : Je confirme le sérieux et la sincérité de la démarche de ce frère / cette sœur..."
+                                    rows={3}
+                                    className="w-full rounded-2xl border-slate-200 text-sm focus:ring-amber-500 focus:border-amber-500 p-3 bg-slate-50 resize-none"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="mt-6 pt-4 border-t border-slate-100 flex gap-3">
+                            <button
+                                onClick={() => setShowRecommendationModal(false)}
+                                disabled={isSubmittingRecommendation}
+                                className="flex-1 px-4 py-3 rounded-xl border border-slate-200 text-slate-700 font-bold hover:bg-slate-50 transition text-sm"
+                            >
+                                Annuler
+                            </button>
+                            <button
+                                onClick={handleAddCommunityRecommendation}
+                                disabled={isSubmittingRecommendation}
+                                className="flex-1 px-4 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-emerald-600 text-white font-bold hover:from-amber-600 hover:to-emerald-700 shadow-lg shadow-amber-500/20 transition active:scale-95 text-sm flex items-center justify-center gap-2"
+                            >
+                                {isSubmittingRecommendation ? <Loader className="animate-spin h-5 w-5" /> : (
+                                    <>
+                                        <Award size={18} />
+                                        <span>Certifier (Niveau 3)</span>
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* --- LISTE DES MATCHS (GAUCHE) --- */}
             {/* Mobile Logic: Hidden if chat is active. Desktop: Always visible. */}
             <div className={`w-full md:w-80 border-r border-slate-200 flex flex-col bg-white ${activeContactId ? 'hidden md:flex' : 'flex'}`}>
@@ -1008,8 +1159,8 @@ export const Messages: React.FC<MessagesProps> = ({ initialContactId }) => {
                                     {activeUser.contactName}
                                     <ShieldCheck size={14} className="text-emerald-500" />
                                     {communityCertifiedIds.has(activeContactId!) && (
-                                        <span className="flex items-center gap-0.5 bg-amber-500/15 text-amber-700 border border-amber-400/40 text-[9px] font-bold px-1.5 py-0.5 rounded-full animate-pulse">
-                                            🛡️ Certifié
+                                        <span className="flex items-center gap-1 bg-amber-500/15 text-amber-800 border border-amber-400/50 text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow-sm animate-pulse">
+                                            🛡️✨ Certifié Communauté (Niveau 3)
                                         </span>
                                     )}
                                 </h3>
@@ -1024,6 +1175,13 @@ export const Messages: React.FC<MessagesProps> = ({ initialContactId }) => {
                                 <VideoIcon size={18} />
                             </button>
                             <div className="w-px h-5 bg-slate-200 mx-1"></div>
+                            <button
+                                onClick={() => setShowRecommendationModal(true)}
+                                className="p-2 text-amber-600 hover:bg-amber-50 rounded-full transition"
+                                title="Recommander ce membre (Niveau 3 - Certifié Communauté) ⭐"
+                            >
+                                <Award size={20} />
+                            </button>
                             <button
                                 onClick={sendPrayerInvitation}
                                 disabled={isSending}
@@ -1048,6 +1206,40 @@ export const Messages: React.FC<MessagesProps> = ({ initialContactId }) => {
                             </button>
                         </div>
                     </div>
+
+                    {/* 🛡️ BOUCLIER SÉCURITÉ ANTI-ARNAQUE FINANCIÈRE (BANNER DE DÉTECTION EN TEMPS RÉEL) */}
+                    {messages.some(m => m.senderId === activeContactId && m.text && detectFinancialScam(m.text).isScamRisk) && !dismissScamWarning && (
+                        <div className="bg-gradient-to-r from-red-600 via-amber-600 to-red-700 text-white px-4 py-3 shadow-md flex items-center justify-between border-b border-red-400 z-20 animate-in slide-in-from-top-2">
+                            <div className="flex items-center space-x-3">
+                                <div className="bg-white/20 p-2 rounded-xl shrink-0">
+                                    <ShieldAlert size={22} className="text-amber-200 animate-pulse" />
+                                </div>
+                                <div className="text-left">
+                                    <p className="text-xs font-extrabold uppercase tracking-wider text-amber-200 flex items-center gap-1.5">
+                                        <span>🛡️ BOUCLIER SÉCURITÉ ANTI-ARNAQUE FINANCIÈRE ACTIVÉ</span>
+                                    </p>
+                                    <p className="text-xs text-white/95 font-medium leading-tight">
+                                        Ce contact sollicite un transfert d'argent ou Mobile Money (Wave / Orange Money / Urgence). Ne transférez <strong>JAMAIS</strong> de sous ni de code OTP.
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex items-center space-x-2 shrink-0 ml-2">
+                                <button
+                                    onClick={handleReportScam}
+                                    className="bg-white text-red-700 font-bold px-3 py-1.5 rounded-xl text-xs shadow-md hover:bg-red-50 transition active:scale-95 shrink-0"
+                                >
+                                    🚨 Signaler & Bloquer
+                                </button>
+                                <button
+                                    onClick={() => setDismissScamWarning(true)}
+                                    className="text-white/70 hover:text-white p-1 rounded-full hover:bg-white/10"
+                                    title="Masquer l'avertissement"
+                                >
+                                    <X size={16} />
+                                </button>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Messages Container - Flex Grow to take available space */}
                     <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#e5ddd5] bg-opacity-30 custom-scrollbar relative">
@@ -1149,10 +1341,26 @@ export const Messages: React.FC<MessagesProps> = ({ initialContactId }) => {
                                 );
                             }
 
+                            const isScamRiskMsg = !isMe && msg.text ? detectFinancialScam(msg.text).isScamRisk : false;
+
                             return (
                                 <div key={msg.id} className={`flex w-full ${isMe ? 'justify-end' : 'justify-start'} ${idx > 0 && messages[idx - 1].senderId === msg.senderId ? 'mt-1' : 'mt-3'}`}>
-                                    <div className={`relative max-w-[75%] md:max-w-[60%] px-3 py-2 shadow-sm ${isMe ? 'bg-emerald-600 text-white rounded-l-2xl rounded-tr-2xl rounded-br-md' : 'bg-white text-slate-800 rounded-r-2xl rounded-tl-2xl rounded-bl-md'
+                                    <div className={`relative max-w-[75%] md:max-w-[60%] px-3 py-2 shadow-sm ${
+                                        isMe 
+                                            ? 'bg-emerald-600 text-white rounded-l-2xl rounded-tr-2xl rounded-br-md' 
+                                            : isScamRiskMsg 
+                                                ? 'bg-red-50 text-red-900 border-2 border-red-400 rounded-r-2xl rounded-tl-2xl rounded-bl-md' 
+                                                : 'bg-white text-slate-800 rounded-r-2xl rounded-tl-2xl rounded-bl-md'
                                         }`}>
+                                        {isScamRiskMsg && (
+                                            <div className="mb-2 p-2 bg-red-100/80 border border-red-300 rounded-xl text-xs text-red-800 font-medium flex items-start gap-1.5">
+                                                <ShieldAlert size={16} className="text-red-600 shrink-0 mt-0.5 animate-pulse" />
+                                                <div>
+                                                    <strong className="block font-bold">⚠️ Alerte Sécurité Anti-Arnaque :</strong>
+                                                    <span>Ce message contient une demande d'argent ou transfert Mobile Money / Wave. Ne versez aucun fonds.</span>
+                                                </div>
+                                            </div>
+                                        )}
                                         {msg.type === 'IMAGE' && msg.attachmentUrl && (
                                             <div className="mb-2 rounded-lg overflow-hidden bg-slate-200 min-h-[150px] relative group">
                                                 <img

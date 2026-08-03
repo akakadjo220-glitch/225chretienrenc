@@ -198,3 +198,63 @@ export const moderateImage = async (base64Image: string): Promise<'SAFE' | 'NSFW
     }
 };
 
+/**
+ * 🛡️ Bouclier Anti-Arnaque Financière (Détection IA & Motifs de Fraude)
+ * Détecte en temps réel les demandes de transfert Mobile Money / Wave / Urgence
+ */
+export interface FinancialScamCheckResult {
+    isScamRisk: boolean;
+    riskScore: number;
+    matchedKeywords: string[];
+    warningMessage: string;
+}
+
+export const detectFinancialScam = (text: string): FinancialScamCheckResult => {
+    if (!text || typeof text !== 'string') {
+        return { isScamRisk: false, riskScore: 0, matchedKeywords: [], warningMessage: '' };
+    }
+
+    const lower = text.toLowerCase();
+    
+    // Mots-clés de transfert financier
+    const transferKeywords = [
+        'wave', 'orange money', 'om', 'momo', 'mtn money', 'moov money', 
+        'western union', 'moneygram', 'rib', 'virement', 'compte bancaire', 
+        'crypto', 'usdt', 'bitcoin', 'depannage', 'dépannage'
+    ];
+
+    // Motifs de sollicitation d'argent / urgence
+    const requestPhrases = [
+        'envoie moi', 'envoie-moi', 'donne moi', 'donne-moi', 'besoin d\'argent', 
+        'besoin de sous', 'urgence medicale', 'urgence médicale', 'ordonnance', 
+        'malade a l\'hopital', 'malade à l\'hôpital', 'pret moi', 'prête moi', 
+        'transfert moi', 'transfert-moi', 'aide financiere', 'aide financière',
+        'paye moi', 'paye-moi', 'recharge moi', 'solde', 'portefeuille'
+    ];
+
+    const matchedKeywords: string[] = [];
+
+    transferKeywords.forEach(kw => {
+        if (lower.includes(kw)) matchedKeywords.push(kw);
+    });
+
+    requestPhrases.forEach(phrase => {
+        if (lower.includes(phrase)) matchedKeywords.push(phrase);
+    });
+
+    let riskScore = 0;
+    if (matchedKeywords.length > 0) riskScore += 50;
+    if (matchedKeywords.length >= 2) riskScore += 35;
+
+    const isScamRisk = riskScore >= 50;
+    const warningMessage = isScamRisk 
+        ? "Alerte de sécurité : Ce message contient une sollicitation financière ou de transfert d'argent (Wave / Mobile Money)."
+        : '';
+
+    return {
+        isScamRisk,
+        riskScore: Math.min(100, riskScore),
+        matchedKeywords,
+        warningMessage
+    };
+};
