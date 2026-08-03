@@ -132,26 +132,13 @@ export async function sendWhatsAppMessageApi(config: OpenWAConfig, formattedPhon
 
   secureLog('OpenWA', `Envoi message vers ${maskPhone(formattedPhone)} (Session: ${session}) sur ${cleanBaseUrl}`);
 
-  const isLocalHost = typeof window !== 'undefined' && (
-    window.location.hostname === 'localhost' ||
-    window.location.hostname === '127.0.0.1' ||
-    window.location.hostname.startsWith('192.168.')
-  );
-
   const proxyBase = '/openwa-proxy';
   const proxyEndpoint = `${proxyBase}/api/sessions/${session}/messages/send-text`;
-  const corsProxy1 = `https://corsproxy.io/?${encodeURIComponent(endpoint)}`;
-  const corsProxy2 = `https://api.allorigins.win/raw?url=${encodeURIComponent(endpoint)}`;
 
-  // 🌐 Cibles d'envoi selon l'environnement (Local Vite Proxy vs Relais CORS Production)
-  const targetUrls = isLocalHost ? [
-    { url: proxyEndpoint, label: 'Proxy Vite Local' },
-    { url: endpoint, label: 'Direct' },
-    { url: corsProxy1, label: 'CorsProxy' }
-  ] : [
-    { url: corsProxy1, label: 'CorsProxy (Prod)' },
-    { url: corsProxy2, label: 'AllOrigins (Prod)' },
-    { url: endpoint, label: 'Direct (Prod)' }
+  // 🌐 Le proxy /openwa-proxy est géré nativement en local (Vite) et en production (Cloudflare Function)
+  const targetUrls = [
+    { url: proxyEndpoint, label: 'Proxy Native Cloudflare/Vite' },
+    { url: endpoint, label: 'Direct Server' }
   ];
 
   for (const target of targetUrls) {
