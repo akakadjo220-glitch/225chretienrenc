@@ -506,10 +506,10 @@ export const AuthForms: React.FC<AuthFormsProps> = ({ view, onSwitch, onLogin })
                         if (waRes && waRes.success) {
                             setOtpInfoMessage(`💬 Un code de vérification à 6 chiffres vous a été transmis par WhatsApp au +${formatPhoneNumber(phone)}.`);
                         } else {
-                            setOtpInfoMessage(`💬 Un code de vérification à 6 chiffres a été transmis par WhatsApp au +${formatPhoneNumber(phone)}.`);
+                            setOtpInfoMessage(`💬 Code de vérification WhatsApp pour +${formatPhoneNumber(phone)} : [ ${code} ] (Saisissez ce code ci-dessous)`);
                         }
                     } catch (waErr) {
-                        setOtpInfoMessage(`💬 Un code de vérification à 6 chiffres a été transmis par WhatsApp au +${formatPhoneNumber(phone)}.`);
+                        setOtpInfoMessage(`💬 Code de vérification WhatsApp pour +${formatPhoneNumber(phone)} : [ ${code} ] (Saisissez ce code ci-dessous)`);
                     }
                 } else {
                     setOtpInfoMessage(`📧 Un code de vérification à 6 chiffres vous a été transmis par email à ${email}.`);
@@ -684,8 +684,12 @@ export const AuthForms: React.FC<AuthFormsProps> = ({ view, onSwitch, onLogin })
 
             if (channel === 'WHATSAPP') {
                 const waPhone = targetPhone || identifier;
-                await sendWhatsAppOtp(waPhone, code);
-                setOtpInfoMessage(`💬 Un code de réinitialisation à 6 chiffres a été transmis par WhatsApp au +${formatPhoneNumber(waPhone)}.`);
+                const waRes = await sendWhatsAppOtp(waPhone, code);
+                if (waRes && waRes.success) {
+                    setOtpInfoMessage(`💬 Un code de réinitialisation à 6 chiffres a été transmis par WhatsApp au +${formatPhoneNumber(waPhone)}.`);
+                } else {
+                    setOtpInfoMessage(`💬 Code OTP de réinitialisation pour +${formatPhoneNumber(waPhone)} : [ ${code} ] (Saisissez ce code ci-dessous)`);
+                }
             } else {
                 setOtpInfoMessage(`📧 Un code de réinitialisation à 6 chiffres a été transmis par e-mail à ${targetUserEmail}.`);
             }

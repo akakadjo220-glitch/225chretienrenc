@@ -132,19 +132,27 @@ export async function sendWhatsAppMessageApi(config: OpenWAConfig, formattedPhon
 
   secureLog('OpenWA', `Envoi message vers ${maskPhone(formattedPhone)} (Session: ${session}) sur ${cleanBaseUrl}`);
 
-  // ✅ Passage par le proxy Vite (/openwa-proxy) avec x-target-url dynamique
+  const isLocalHost = typeof window !== 'undefined' && (
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1' ||
+    window.location.hostname.startsWith('192.168.')
+  );
+
   const proxyBase = '/openwa-proxy';
   const proxyEndpoint = `${proxyBase}/api/sessions/${session}/messages/send-text`;
 
-  const targetUrls = [
-    { url: proxyEndpoint, isProxy: true, label: 'Proxy Vite' },
+  // 🌐 En local on teste le proxy Vite d'abord. En production, on appelle le serveur directement.
+  const targetUrls = isLocalHost ? [
+    { url: proxyEndpoint, isProxy: true, label: 'Proxy Vite Local' },
     { url: endpoint, isProxy: false, label: 'Direct' }
+  ] : [
+    { url: endpoint, isProxy: false, label: 'Direct Production' }
   ];
 
   for (const target of targetUrls) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s timeout
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
       try {
         const response = await fetch(target.url, {
           method: 'POST',
