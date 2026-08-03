@@ -115,16 +115,16 @@ export const AuthForms: React.FC<AuthFormsProps> = ({ view, onSwitch, onLogin })
         }
     };
 
-    // Décompte de temps pour l'expiration du code OTP
+    // Décompte automatique du Timer OTP (60s)
     useEffect(() => {
         let interval: NodeJS.Timeout;
-        if (isOtpMode && timerSeconds > 0) {
+        if ((isOtpMode || (isForgotPasswordMode && forgotStep === 2)) && timerSeconds > 0) {
             interval = setInterval(() => {
                 setTimerSeconds((prev) => prev - 1);
             }, 1000);
         }
         return () => clearInterval(interval);
-    }, [isOtpMode, timerSeconds]);
+    }, [isOtpMode, isForgotPasswordMode, forgotStep, timerSeconds]);
 
     const formatTime = (seconds: number) => {
         const mins = Math.floor(seconds / 60);

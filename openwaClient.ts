@@ -140,13 +140,18 @@ export async function sendWhatsAppMessageApi(config: OpenWAConfig, formattedPhon
 
   const proxyBase = '/openwa-proxy';
   const proxyEndpoint = `${proxyBase}/api/sessions/${session}/messages/send-text`;
+  const corsProxy1 = `https://corsproxy.io/?${encodeURIComponent(endpoint)}`;
+  const corsProxy2 = `https://api.allorigins.win/raw?url=${encodeURIComponent(endpoint)}`;
 
-  // 🌐 En local on teste le proxy Vite d'abord. En production, on appelle le serveur directement.
+  // 🌐 Cibles d'envoi selon l'environnement (Local Vite Proxy vs Relais CORS Production)
   const targetUrls = isLocalHost ? [
-    { url: proxyEndpoint, isProxy: true, label: 'Proxy Vite Local' },
-    { url: endpoint, isProxy: false, label: 'Direct' }
+    { url: proxyEndpoint, label: 'Proxy Vite Local' },
+    { url: endpoint, label: 'Direct' },
+    { url: corsProxy1, label: 'CorsProxy' }
   ] : [
-    { url: endpoint, isProxy: false, label: 'Direct Production' }
+    { url: corsProxy1, label: 'CorsProxy (Prod)' },
+    { url: corsProxy2, label: 'AllOrigins (Prod)' },
+    { url: endpoint, label: 'Direct (Prod)' }
   ];
 
   for (const target of targetUrls) {
@@ -162,11 +167,10 @@ export async function sendWhatsAppMessageApi(config: OpenWAConfig, formattedPhon
         });
         clearTimeout(timeoutId);
 
-        const responseText = await response.text();
         secureLog('OpenWA', `Statut [Session ${session} ${target.label}]: ${response.status}`);
 
         if (response.ok || response.status === 201) {
-          secureLog('OpenWA', `✅ Message WhatsApp transmis avec succès à +${maskPhone(formattedPhone)}`);
+          secureLog('OpenWA', `✅ Message WhatsApp transmis avec succès à +${maskPhone(formattedPhone)} via ${target.label}`);
           return { success: true, message: `Message transmis avec succès à +${maskPhone(formattedPhone)}`, statusCode: response.status };
         }
 
@@ -187,10 +191,10 @@ export async function sendWhatsAppMessageApi(config: OpenWAConfig, formattedPhon
         }
       } catch (innerErr: any) {
         clearTimeout(timeoutId);
-        throw innerErr;
+        secureWarn('OpenWA', `Échec cible [Session ${session} ${target.label}]:`, innerErr.message);
       }
     } catch (e: any) {
-      secureWarn('OpenWA', `Échec d'envoi [Session ${session} ${target.label}]:`, e.message);
+      secureWarn('OpenWA', `Erreur envoi [Session ${session} ${target.label}]:`, e.message);
     }
   }
 
