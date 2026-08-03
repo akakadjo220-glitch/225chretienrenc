@@ -352,6 +352,17 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
     }
   };
 
+  const CHRISTIAN_VERSES = [
+    { text: "L'amour est patient, il est plein de bonté. Il n'est point envieux ; l'amour ne se vante point, il ne s'enfle point d'orgueil.", ref: "1 Corinthiens 13:4-5" },
+    { text: "Nous savons, du reste, que toutes choses concourent au bien de ceux qui aiment Dieu.", ref: "Romains 8:28" },
+    { text: "Marchez dans l'amour, à l'exemple de Christ, qui nous a aimés et qui s'est livré lui-même à Dieu.", ref: "Éphésiens 5:2" },
+    { text: "Revêtez-vous de l'amour, qui est le lien de la perfection. Et que la paix de Christ règne dans vos cœurs.", ref: "Colossiens 3:14-15" },
+    { text: "Confie-toi en l'Éternel de tout ton cœur, et ne t'appuie pas sur ton intelligence.", ref: "Proverbes 3:5" },
+    { text: "Que le Seigneur dirige vos cœurs vers l'amour de Dieu et la patience de Christ.", ref: "2 Thessaloniciens 3:5" }
+  ];
+
+  const currentVerse = CHRISTIAN_VERSES[new Date().getDate() % CHRISTIAN_VERSES.length];
+
   const SidebarContent = () => (
     <div className="flex flex-col h-full bg-gradient-to-b from-white via-slate-50/50 to-emerald-50/10">
       <div className="p-6">
@@ -422,15 +433,38 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
         </nav>
       </div>
 
-      {/* Pensée du jour premium or gold glow card */}
-      <div className="mt-auto p-5 border-t border-slate-100">
-        <div className="thought-card-premium p-4 rounded-2xl relative">
-          <div className="flex items-center space-x-1.5 mb-1.5">
-            <Sparkles size={13} className="text-amber-500" />
-            <span className="text-[10px] text-amber-600 font-bold uppercase tracking-wider">Méditation divine</span>
+      {/* Méditation Divine Card - Ultra Sublime Gold & Emerald */}
+      <div className="mt-auto p-4 pt-3 pb-28 md:pb-6 border-t border-slate-100/80 shrink-0">
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-950 via-emerald-900 to-teal-950 text-white p-4 shadow-xl border border-amber-400/50 group hover:border-amber-400 transition-all duration-300">
+          
+          {/* Subtle background glow & light beam */}
+          <div className="absolute -top-10 -right-10 w-28 h-28 bg-amber-400/20 rounded-full blur-xl pointer-events-none group-hover:scale-125 transition-transform duration-500" />
+          <div className="absolute -bottom-10 -left-10 w-24 h-24 bg-emerald-500/20 rounded-full blur-xl pointer-events-none" />
+
+          {/* Header Badge */}
+          <div className="flex items-center justify-between mb-2 relative z-10">
+            <div className="flex items-center space-x-1.5 bg-amber-400/20 px-2.5 py-1 rounded-full border border-amber-400/40 shadow-xs">
+              <Sparkles size={12} className="text-amber-300 animate-pulse shrink-0" />
+              <span className="text-[10px] text-amber-200 font-extrabold uppercase tracking-widest">Méditation Divine</span>
+            </div>
+            <BookOpen size={14} className="text-emerald-300/70" />
           </div>
-          <p className="text-xs text-slate-700 italic leading-relaxed">"L'amour est patient, il est plein de bonté."</p>
-          <p className="text-[10px] text-slate-500 font-bold mt-1 text-right">— 1 Corinthiens 13:4</p>
+
+          {/* Verse Content */}
+          <div className="relative z-10 my-2">
+            <p className="text-[11px] sm:text-xs text-emerald-50/95 italic leading-relaxed font-serif font-medium drop-shadow-xs">
+              « {currentVerse.text} »
+            </p>
+          </div>
+
+          {/* Scripture Reference Tag */}
+          <div className="mt-2.5 flex items-center justify-between pt-2 border-t border-emerald-800/60 relative z-10">
+            <span className="text-[9px] text-emerald-300/80 font-semibold tracking-wider uppercase">Parole de Foi</span>
+            <span className="text-[10px] bg-amber-400/20 text-amber-300 font-bold px-2 py-0.5 rounded-md border border-amber-400/40 shadow-xs">
+              📖 {currentVerse.ref}
+            </span>
+          </div>
+
         </div>
       </div>
     </div>
