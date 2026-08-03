@@ -235,8 +235,8 @@ export const sendWhatsAppOtp = async (phone: string, code: string): Promise<{ su
     return { success: true, message: `Code envoyé avec succès via WhatsApp à ${maskPhone(formattedPhone)}` };
   } else {
     return {
-      success: true,
-      message: `[Code WhatsApp généré pour ${maskPhone(formattedPhone)}]`
+      success: false,
+      message: res.message || `Impossible d'envoyer le message WhatsApp. Veuillez vérifier le serveur OpenWA.`
     };
   }
 };
