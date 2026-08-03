@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { AppView } from '../types';
-import { Lock, Mail, User, ShieldAlert, Sparkles, RefreshCw, Loader, AlertCircle, CheckCircle2, ChevronRight, MapPin, Heart, ShieldCheck, HelpCircle, Eye, EyeOff, Calendar, Phone, ArrowLeft, MessageCircle, Clock, Check, Cross } from 'lucide-react';
+import { Lock, Mail, User, ShieldAlert, Sparkles, RefreshCw, Loader, AlertCircle, CheckCircle2, ChevronRight, MapPin, Heart, ShieldCheck, HelpCircle, Eye, EyeOff, Calendar, Phone, ArrowLeft, ArrowRight, MessageCircle, Clock, Check, Cross } from 'lucide-react';
 import { AVAILABLE_INTERESTS } from '../constants';
 import { supabase, supabaseAdmin } from '../supabaseClient';
 import { sendWhatsAppOtp, formatPhoneNumber } from '../openwaClient';
