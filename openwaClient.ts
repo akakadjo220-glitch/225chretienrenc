@@ -123,8 +123,8 @@ export async function sendWhatsAppMessageApi(config: OpenWAConfig, formattedPhon
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    'X-API-Key': apiKey,
-    'x-target-url': cleanBaseUrl
+    'Authorization': `Bearer ${apiKey}`,
+    'X-API-Key': apiKey
   };
 
   const endpoint = `${cleanBaseUrl}/api/sessions/${session}/messages/send-text`;
@@ -140,19 +140,13 @@ export async function sendWhatsAppMessageApi(config: OpenWAConfig, formattedPhon
 
   const proxyBase = '/openwa-proxy';
   const proxyEndpoint = `${proxyBase}/api/sessions/${session}/messages/send-text`;
-  const corsProxySh = `https://proxy.cors.sh/${endpoint}`;
-  const corsEuOrg = `https://cors.eu.org/${endpoint}`;
 
-  // 🌐 Cibles d'envoi réseau dynamique (Local Vite, Relais CORS SH, Direct)
+  // 🌐 En local on utilise le proxy Vite (/openwa-proxy). En production, appel direct du serveur OpenWA.
   const targetUrls = isLocalHost ? [
     { url: proxyEndpoint, label: 'Proxy Vite Local' },
-    { url: corsProxySh, label: 'Proxy CORS SH' },
-    { url: endpoint, label: 'Direct Server' }
+    { url: endpoint, label: 'Serveur Direct' }
   ] : [
-    { url: corsProxySh, label: 'Proxy CORS SH (Prod)' },
-    { url: corsEuOrg, label: 'Proxy CORS EU (Prod)' },
-    { url: proxyEndpoint, label: 'Proxy Relative' },
-    { url: endpoint, label: 'Direct Server' }
+    { url: endpoint, label: 'Serveur Direct Production' }
   ];
 
   for (const target of targetUrls) {
