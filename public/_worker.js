@@ -24,11 +24,14 @@ export default {
       }
 
       try {
+        const customTarget = request.headers.get('x-target-url');
+        const baseUrl = customTarget ? customTarget.replace(/\/$/, '') : 'https://193-29-187-66.sslip.io';
         const subPath = url.pathname.replace(/^\/openwa-proxy/, '');
-        const targetUrl = `https://193-29-187-66.sslip.io${subPath}${url.search}`;
+        const targetUrl = `${baseUrl}${subPath}${url.search}`;
 
         const headers = new Headers(request.headers);
-        headers.set('host', '193-29-187-66.sslip.io');
+        const targetHost = new URL(baseUrl).host;
+        headers.set('host', targetHost);
 
         const body = ['GET', 'HEAD'].includes(request.method) ? undefined : await request.arrayBuffer();
 

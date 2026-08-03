@@ -23,12 +23,15 @@ export async function onRequest(context: any): Promise<Response> {
   try {
     // 2. Extraire le chemin relatif de la sous-requête
     const url = new URL(request.url);
+    const customTarget = request.headers.get('x-target-url');
+    const baseUrl = customTarget ? customTarget.replace(/\/$/, '') : 'https://193-29-187-66.sslip.io';
     const subPath = url.pathname.replace(/^\/openwa-proxy/, '');
-    const targetUrl = `https://193-29-187-66.sslip.io${subPath}${url.search}`;
+    const targetUrl = `${baseUrl}${subPath}${url.search}`;
 
     // 3. Préparer les en-têtes pour le serveur OpenWA
     const headers = new Headers(request.headers);
-    headers.set('host', '193-29-187-66.sslip.io');
+    const targetHost = new URL(baseUrl).host;
+    headers.set('host', targetHost);
 
     const body = ['GET', 'HEAD'].includes(request.method) ? undefined : await request.arrayBuffer();
 

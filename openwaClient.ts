@@ -124,7 +124,8 @@ export async function sendWhatsAppMessageApi(config: OpenWAConfig, formattedPhon
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'Authorization': `Bearer ${apiKey}`,
-    'X-API-Key': apiKey
+    'X-API-Key': apiKey,
+    'X-Target-Url': cleanBaseUrl
   };
 
   const endpoint = `${cleanBaseUrl}/api/sessions/${session}/messages/send-text`;

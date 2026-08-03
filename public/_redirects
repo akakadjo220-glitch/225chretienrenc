@@ -1,1 +1,2 @@
-/openwa-proxy/* https://193-29-187-66.sslip.io/:splat 200
+# Cloudflare Pages / Workers redirects configuration
+# /openwa-proxy is handled dynamically by _worker.js / functions to support HTTP POST without 405 errors
