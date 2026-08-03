@@ -132,12 +132,26 @@ export async function sendWhatsAppMessageApi(config: OpenWAConfig, formattedPhon
 
   secureLog('OpenWA', `Envoi message vers ${maskPhone(formattedPhone)} (Session: ${session}) sur ${cleanBaseUrl}`);
 
+  const isLocalHost = typeof window !== 'undefined' && (
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1' ||
+    window.location.hostname.startsWith('192.168.')
+  );
+
   const proxyBase = '/openwa-proxy';
   const proxyEndpoint = `${proxyBase}/api/sessions/${session}/messages/send-text`;
+  const corsProxySh = `https://proxy.cors.sh/${endpoint}`;
+  const corsEuOrg = `https://cors.eu.org/${endpoint}`;
 
-  // 🌐 Le proxy /openwa-proxy est géré nativement en local (Vite) et en production (Cloudflare Function)
-  const targetUrls = [
-    { url: proxyEndpoint, label: 'Proxy Native Cloudflare/Vite' },
+  // 🌐 Cibles d'envoi réseau dynamique (Local Vite, Relais CORS SH, Direct)
+  const targetUrls = isLocalHost ? [
+    { url: proxyEndpoint, label: 'Proxy Vite Local' },
+    { url: corsProxySh, label: 'Proxy CORS SH' },
+    { url: endpoint, label: 'Direct Server' }
+  ] : [
+    { url: corsProxySh, label: 'Proxy CORS SH (Prod)' },
+    { url: corsEuOrg, label: 'Proxy CORS EU (Prod)' },
+    { url: proxyEndpoint, label: 'Proxy Relative' },
     { url: endpoint, label: 'Direct Server' }
   ];
 
