@@ -502,14 +502,10 @@ export const AuthForms: React.FC<AuthFormsProps> = ({ view, onSwitch, onLogin })
 
                 if (channelChoice === 'WHATSAPP') {
                     try {
-                        const waRes = await sendWhatsAppOtp(phone, code);
-                        if (waRes && waRes.success) {
-                            setOtpInfoMessage(`💬 Un code de vérification à 6 chiffres vous a été transmis par WhatsApp au +${formatPhoneNumber(phone)}.`);
-                        } else {
-                            setOtpInfoMessage(`💬 Code de vérification WhatsApp pour +${formatPhoneNumber(phone)} : [ ${code} ] (Saisissez ce code ci-dessous)`);
-                        }
+                        await sendWhatsAppOtp(phone, code);
+                        setOtpInfoMessage(`💬 Un code de vérification à 6 chiffres vous a été transmis par WhatsApp au +${formatPhoneNumber(phone)}.`);
                     } catch (waErr) {
-                        setOtpInfoMessage(`💬 Code de vérification WhatsApp pour +${formatPhoneNumber(phone)} : [ ${code} ] (Saisissez ce code ci-dessous)`);
+                        setOtpInfoMessage(`💬 Un code de vérification à 6 chiffres vous a été transmis par WhatsApp au +${formatPhoneNumber(phone)}.`);
                     }
                 } else {
                     setOtpInfoMessage(`📧 Un code de vérification à 6 chiffres vous a été transmis par email à ${email}.`);
@@ -684,12 +680,8 @@ export const AuthForms: React.FC<AuthFormsProps> = ({ view, onSwitch, onLogin })
 
             if (channel === 'WHATSAPP') {
                 const waPhone = targetPhone || identifier;
-                const waRes = await sendWhatsAppOtp(waPhone, code);
-                if (waRes && waRes.success) {
-                    setOtpInfoMessage(`💬 Un code de réinitialisation à 6 chiffres a été transmis par WhatsApp au +${formatPhoneNumber(waPhone)}.`);
-                } else {
-                    setOtpInfoMessage(`💬 Code OTP de réinitialisation pour +${formatPhoneNumber(waPhone)} : [ ${code} ] (Saisissez ce code ci-dessous)`);
-                }
+                await sendWhatsAppOtp(waPhone, code);
+                setOtpInfoMessage(`💬 Un code de réinitialisation à 6 chiffres a été transmis par WhatsApp au +${formatPhoneNumber(waPhone)}.`);
             } else {
                 setOtpInfoMessage(`📧 Un code de réinitialisation à 6 chiffres a été transmis par e-mail à ${targetUserEmail}.`);
             }
