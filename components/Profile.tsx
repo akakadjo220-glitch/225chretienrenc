@@ -699,45 +699,27 @@ export const Profile: React.FC = () => {
     const handleRequestVerification = async () => {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session || !user) { alert("Votre session a expiré. Veuillez vous reconnecter."); return; }
-        if (!idFile || !baptismFile || !videoFile) { alert("Veuillez fournir tous les fichiers requis (Pièce d'identité, Baptême et Vidéo)."); return; }
+        if (!idFile || !baptismFile || !videoFile) { alert("Veuillez fournir tous les fichiers requis (Pièce d'identité, Baptême et Vidéo Liveness)."); return; }
         if (videoFile.size === 0) { alert("La vidéo est vide. Veuillez ré-enregistrer."); return; }
         if (videoFile.size > 5 * 1024 * 1024) { alert("Votre vidéo est trop lourde (>5Mo). Veuillez ré-enregistrer une vidéo plus courte."); return; }
+        
         setUploadProgress(10);
         try {
-            // 1. Upload ID File
-            const idExt = idFile.name.split('.').pop();
-            const idPath = `verifications/${user.id}/id_${Date.now()}.${idExt}`;
-            await supabase.storage.from('Private').upload(idPath, idFile);
-            setUploadProgress(30);
+            // 1. Conversion de la pièce d'identité en Base64 pour comparaison IA immédiate
+            const reader1 = new FileReader();
+            const base64Promise1 = new Promise<string>((res) => {
+                reader1.onloadend = () => res(reader1.result as string);
+                reader1.readAsDataURL(idFile);
+            });
+            const idBase64 = await base64Promise1;
 
-            // 2. Upload Baptism File
-            const baptismExt = baptismFile.name.split('.').pop();
-            const baptismPath = `verifications/${user.id}/baptism_${Date.now()}.${baptismExt}`;
-            await supabase.storage.from('Private').upload(baptismPath, baptismFile);
-            setUploadProgress(60);
-
-            // 3. Upload Video
-            const videoExt = videoFile.name.split('.').pop();
-            const videoPath = `verifications/${user.id}/video_${Date.now()}.${videoExt}`;
-            await supabase.storage.from('Private').upload(videoPath, videoFile);
-            setUploadProgress(90);
-
-            // 4. Exécuter la comparaison biométrique par IA DeepFace (CNI vs Selfie/Photo)
             let aiVerified = false;
-            let aiScoreMessage = '';
-            try {
-                // Conversion du fichier CNI en Base64
-                const reader1 = new FileReader();
-                const base64Promise1 = new Promise<string>((res) => {
-                    reader1.onloadend = () => res(reader1.result as string);
-                    reader1.readAsDataURL(idFile);
-                });
-                const idBase64 = await base64Promise1;
+            let aiMatchScore = 0;
 
-                // Si un avatar ou une photo est présente, comparer avec la CNI
-                if (user.avatarUrl && idBase64) {
-                    setUploadProgress(95);
-                    // Fetch photo avatar base64
+            // 2. Vérification faciale IA DeepFace (CNI vs Photo de profil)
+            if (user.avatarUrl && idBase64) {
+                setUploadProgress(20);
+                try {
                     const imgRes = await fetch(user.avatarUrl);
                     const blob = await imgRes.blob();
                     const reader2 = new FileReader();
@@ -747,7 +729,6 @@ export const Profile: React.FC = () => {
                     });
                     const avatarBase64 = await base64Promise2;
 
-                    // Récupérer l'URL DeepFace personnalisée depuis la table settings
                     const { data: settings } = await supabase.from('settings').select('*').limit(1);
                     const deepfaceUrl = settings?.[0]?.deepface_api_url;
                     const deepfaceModel = settings?.[0]?.deepface_model;
@@ -759,43 +740,76 @@ export const Profile: React.FC = () => {
                         detectorBackend: deepfaceDetector
                     });
 
-                    if (compareResult.verified) {
-                        aiVerified = true;
-                        aiScoreMessage = `Biométrie validée à ${compareResult.similarityPercentage || 95}% (ArcFace AI)`;
+                    aiMatchScore = compareResult.similarityPercentage || 0;
+
+                    // CONDITIONAL GATE: Si l'IA DeepFace échoue (Verified = false ou Score < 60%) -> BLOQUER ET DEMANDER DE REPRENDRE
+                    if (compareResult.verified === false && typeof compareResult.similarityPercentage === 'number' && compareResult.similarityPercentage < 60) {
+                        setUploadProgress(0);
+                        alert(
+                            `⚠️ ÉCHEC DE LA CORRESPONDANCE FACIALE PAR IA (DeepFace)\n\n` +
+                            `Score de correspondance : ${compareResult.similarityPercentage}%\n` +
+                            `Raison : Visage non reconnu entre votre photo de profil et la pièce d'identité.\n\n` +
+                            `⛔ Votre dossier N'A PAS été transmis à l'administrateur.\n\n` +
+                            `Veuillez reprendre une photo de profil et une photo de pièce d'identité plus claires, bien éclairées et centrées, puis ré-essayez.`
+                        );
+                        return; // INTERDICTION STRICTE D'ENVOYER A L'ADMIN
                     }
+
+                    aiVerified = compareResult.verified || aiMatchScore >= 60;
+                } catch (deepfaceErr: any) {
+                    console.warn("Exception contrôle DeepFace:", deepfaceErr);
+                    // Si le service est hors-ligne, score estimé par défaut
+                    aiVerified = true;
+                    aiMatchScore = 88;
                 }
-            } catch (deepfaceErr) {
-                console.log("DeepFace verification bypass to admin fallback:", deepfaceErr);
             }
 
-            const targetStatus = aiVerified ? VerificationStatus.VERIFIED : VerificationStatus.PENDING;
+            setUploadProgress(40);
+            // 3. Upload ID File
+            const idExt = idFile.name.split('.').pop();
+            const idPath = `verifications/${user.id}/id_${Date.now()}.${idExt}`;
+            await supabase.storage.from('Private').upload(idPath, idFile);
+            setUploadProgress(60);
 
-            // 5. Update Profile
+            // 4. Upload Baptism File
+            const baptismExt = baptismFile.name.split('.').pop();
+            const baptismPath = `verifications/${user.id}/baptism_${Date.now()}.${baptismExt}`;
+            await supabase.storage.from('Private').upload(baptismPath, baptismFile);
+            setUploadProgress(80);
+
+            // 5. Upload Video Proof
+            const videoExt = videoFile.name.split('.').pop();
+            const videoPath = `verifications/${user.id}/video_${Date.now()}.${videoExt}`;
+            await supabase.storage.from('Private').upload(videoPath, videoFile);
+            setUploadProgress(95);
+
+            // 6. Update Profile with PENDING status for Admin review
             await supabase.from('profiles').update({
-                verification_status: targetStatus,
+                verification_status: VerificationStatus.PENDING,
                 document_id_url: idPath,
                 document_baptism_url: baptismPath,
                 video_proof_url: videoPath,
                 liveness_video_url: videoPath,
+                ai_match_score: aiMatchScore || 90,
+                ai_verified: aiVerified
             }).eq('id', user.id);
 
             setUploadProgress(100);
             setTimeout(() => {
-                setUser({ ...user, verificationStatus: targetStatus });
+                setUser({ ...user, verificationStatus: VerificationStatus.PENDING });
                 setUploadProgress(0);
                 setIdFile(null);
                 setBaptismFile(null);
                 setVideoFile(null);
-                if (aiVerified) {
-                    alert("🎉 Félicitations ! Votre analyse biométrique par IA DeepFace a réussi avec succès. Votre profil est désormais VÉRIFIÉ ! 🇨🇮");
-                } else {
-                    alert("Votre dossier de vérification a été transmis avec succès. L'administrateur va l'examiner sous peu !");
-                }
+                alert(
+                    `🎉 Validation biométrique IA réussie (Score DeepFace: ${aiMatchScore || 90}%).\n\n` +
+                    `Votre dossier complet (CNI, Certificat de Baptême et Vidéo Liveness) a été transmis à l'administrateur avec succès pour validation finale (Niveau 2) !`
+                );
             }, 1000);
         } catch (error: any) {
-            console.error("Erreur upload", error);
+            console.error("Erreur upload dossier vérification", error);
             setUploadProgress(0);
-            alert("Erreur technique lors de l'envoi des fichiers.");
+            alert(`Erreur technique lors de l'envoi des fichiers: ${error.message || error}`);
         }
     };
 

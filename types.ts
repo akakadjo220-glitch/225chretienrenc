@@ -93,6 +93,7 @@ export interface VerificationRequest {
   id: string;
   userId: string;
   userName: string;
+  userEmail?: string;
   userAvatar: string;
   baptismYear: number;
   parish: string;
@@ -100,6 +101,8 @@ export interface VerificationRequest {
   submittedDate: string;
   verificationCode?: string;
   videoProofUrl?: string;
+  aiMatchScore?: number;
+  aiVerified?: boolean;
   documents: {
     type: 'ID' | 'BAPTISM';
     name: string;

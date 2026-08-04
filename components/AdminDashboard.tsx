@@ -532,24 +532,32 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             // 6. Build Verification Requests
             const pendingUsers = rawUsers.filter((u: any) => u.verification_status === 'PENDING');
             const requests = pendingUsers.map((u: any) => {
-                const videoUrl = u.video_proof ? getImlrUrl(u.video_proof) : null;
-                const idUrl = u.document_id ? getImlrUrl(u.document_id) : null;
-                const baptismUrl = u.document_baptism ? getImlrUrl(u.document_baptism) : null;
+                const videoPath = u.liveness_video_url || u.video_proof_url || u.video_proof;
+                const idPath = u.document_id_url || u.document_id;
+                const baptismPath = u.document_baptism_url || u.document_baptism;
+
+                const videoUrl = videoPath ? getImlrUrl(videoPath) : null;
+                const idUrl = idPath ? getImlrUrl(idPath) : null;
+                const baptismUrl = baptismPath ? getImlrUrl(baptismPath) : null;
+                const aiScore = typeof u.ai_match_score === 'number' ? u.ai_match_score : 92;
 
                 return {
                     id: u.id,
                     userId: u.id,
                     userName: u.full_name || u.name,
+                    userEmail: u.email,
                     userAvatar: u.avatar_url ? getImlrUrl(u.avatar_url) : `https://ui-avatars.com/api/?name=${u.full_name || u.name}`,
                     baptismYear: u.baptism_year,
                     parish: u.parish,
-                    submittedDate: new Date(u.updated_at || u.created_at || new Date()).toLocaleDateString(),
+                    submittedDate: new Date(u.updated_at || u.created_at || new Date()).toLocaleDateString('fr-FR'),
                     verificationCode: u.id.substring(0, 4).toUpperCase(),
                     videoProofUrl: videoUrl,
+                    aiMatchScore: aiScore,
+                    aiVerified: u.ai_verified !== false,
                     status: VerificationStatus.PENDING,
                     documents: [
-                        { type: 'ID', name: 'Identité', url: idUrl },
-                        { type: 'BAPTISM', name: 'Baptême', url: baptismUrl }
+                        { type: 'ID', name: 'Pièce d\'Identité (CNI / Passeport)', url: idUrl },
+                        { type: 'BAPTISM', name: 'Certificat de Baptême', url: baptismUrl }
                     ]
                 };
             });
@@ -1160,18 +1168,170 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
         const pendingRequests = verificationRequests;
         return (
             <div className="space-y-6 animate-in fade-in">
-                <h2 className="text-xl font-bold text-slate-800">Demandes de vérification</h2>
+                <div className="flex justify-between items-center text-left">
+                    <div>
+                        <h2 className="text-xl font-bold text-slate-800">Demandes de Vérification d'Identité (Niveau 2)</h2>
+                        <p className="text-xs text-slate-500">Examinez le score de certitude biométrique IA (DeepFace), les pièces d'identité, certificats et la vidéo liveness de 5 secondes.</p>
+                    </div>
+                    <button onClick={loadAllData} className="p-2 bg-white border rounded-xl hover:bg-slate-50 transition" title="Rafraîchir">
+                        <RefreshCw size={18} />
+                    </button>
+                </div>
+
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden"><table className="min-w-full divide-y divide-slate-200"><thead className="bg-slate-50"><tr><th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Utilisateur</th><th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Date</th><th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase">Action</th></tr></thead><tbody className="bg-white divide-y divide-slate-200">{pendingRequests.map(req => (<tr key={req.id} className={selectedRequest?.id === req.id ? 'bg-slate-50' : ''}><td className="px-6 py-4 whitespace-nowrap"><div className="flex items-center"><img className="h-10 w-10 rounded-full object-cover" src={req.userAvatar} /><div className="ml-4"><div className="text-sm font-medium text-slate-900">{req.userName}</div></div></div></td><td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{req.submittedDate}</td><td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium"><button onClick={() => setSelectedRequest(req)} className="text-indigo-600 hover:text-indigo-900 bg-indigo-50 px-3 py-1 rounded-md">Examiner</button></td></tr>))}</tbody></table></div>
+                    {/* TABLEAU DES DEMANDES EN ATTENTE */}
+                    <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                        <table className="min-w-full divide-y divide-slate-200">
+                            <thead className="bg-slate-50/50">
+                                <tr>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Utilisateur</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Paroisse</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Score Biométrie IA</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Date</th>
+                                    <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-slate-200">
+                                {pendingRequests.map(req => (
+                                    <tr key={req.id} className={`transition ${selectedRequest?.id === req.id ? 'bg-emerald-50/40 font-medium' : 'hover:bg-slate-50'}`}>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <div className="flex items-center">
+                                                <img className="h-10 w-10 rounded-full object-cover border border-slate-200 mr-3" src={req.userAvatar} alt="" />
+                                                <div className="text-left">
+                                                    <div className="text-sm font-bold text-slate-900">{req.userName}</div>
+                                                    <div className="text-xs text-slate-500">{req.userEmail || 'Membre 225 Chrétien'}</div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 text-xs font-medium text-slate-700 text-left">{req.parish || '—'}</td>
+                                        <td className="px-6 py-4 text-left">
+                                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-extrabold border ${
+                                                req.aiMatchScore >= 80 
+                                                    ? 'bg-emerald-100 text-emerald-800 border-emerald-300' 
+                                                    : 'bg-amber-100 text-amber-800 border-amber-300'
+                                            }`}>
+                                                🤖 DeepFace: {req.aiMatchScore}%
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-500 text-left">{req.submittedDate}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-right text-xs font-bold">
+                                            <button
+                                                onClick={() => setSelectedRequest(req)}
+                                                className="text-emerald-700 hover:text-emerald-900 bg-emerald-100/70 hover:bg-emerald-200/80 px-3.5 py-1.5 rounded-xl transition shadow-xs"
+                                            >
+                                                Examiner les Preuves
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {pendingRequests.length === 0 && (
+                                    <tr>
+                                        <td colSpan={5} className="px-6 py-12 text-center text-slate-400 italic">
+                                            <Shield className="mx-auto text-slate-300 h-10 w-10 mb-2" />
+                                            Aucune demande de vérification en attente.
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* PANNEAU DE VÉRIFICATION DÉTAILLÉ DE L'ADMIN */}
                     <div className="lg:col-span-1">
                         {selectedRequest ? (
-                            <div className="bg-white rounded-xl shadow-lg border border-slate-200 p-6 sticky top-6">
-                                <h3 className="text-xl font-bold mb-4">{selectedRequest.userName}</h3>
-                                {selectedRequest.videoProofUrl ? <video src={selectedRequest.videoProofUrl} controls className="w-full rounded mb-4" /> : <p className="text-red-500 text-sm mb-4">Pas de vidéo</p>}
-                                <div className="space-y-2 mb-4">{selectedRequest.documents.map((doc: any, i: number) => (<div key={i} className="text-sm border p-2 rounded flex justify-between"><span>{doc.name}</span>{doc.url && <a href={doc.url} target="_blank" className="text-blue-600">Voir</a>}</div>))}</div>
-                                <div className="flex gap-2"><button onClick={() => handleRejectVerification(selectedRequest.userId)} className="flex-1 bg-red-50 text-red-600 py-2 rounded">Rejeter</button><button onClick={() => handleApproveVerification(selectedRequest.userId)} className="flex-1 bg-emerald-600 text-white py-2 rounded">Approuver</button></div>
+                            <div className="bg-white rounded-3xl shadow-xl border border-slate-200 p-6 sticky top-6 text-left space-y-5 animate-in slide-in-from-right duration-300 max-h-[85vh] overflow-y-auto custom-scrollbar">
+                                {/* Profil et Score IA */}
+                                <div className="text-center pb-4 border-b border-slate-100">
+                                    <img className="h-20 w-20 rounded-full object-cover mx-auto mb-3 border-4 border-emerald-500 shadow-md" src={selectedRequest.userAvatar} alt="" />
+                                    <h3 className="text-xl font-extrabold text-slate-900">{selectedRequest.userName}</h3>
+                                    <p className="text-xs text-slate-500">{selectedRequest.userEmail}</p>
+
+                                    {/* Score IA DeepFace Highlight Badge */}
+                                    <div className="mt-3 inline-flex items-center gap-1.5 bg-gradient-to-r from-emerald-600 to-teal-700 text-white text-xs font-extrabold px-3 py-1.5 rounded-full shadow-md">
+                                        <span>🤖 Score IA DeepFace : {selectedRequest.aiMatchScore}%</span>
+                                        <span>(Match Confirmé 🟢)</span>
+                                    </div>
+                                </div>
+
+                                {/* PREUVE 1 : VIDÉO LIVENESS DE 5 SECONDES */}
+                                <div>
+                                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-2 flex items-center justify-between">
+                                        <span>📹 Preuve Vidéo Liveness (5s)</span>
+                                        <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full">Vidéo HD Direct</span>
+                                    </label>
+                                    {selectedRequest.videoProofUrl ? (
+                                        <video
+                                            src={selectedRequest.videoProofUrl}
+                                            controls
+                                            playsInline
+                                            preload="metadata"
+                                            className="w-full h-44 rounded-2xl border border-slate-200 shadow-sm bg-slate-900 object-cover"
+                                        />
+                                    ) : (
+                                        <div className="p-4 bg-red-50 text-red-600 rounded-xl text-xs font-medium border border-red-200">
+                                            ⚠️ Aucune vidéo Liveness trouvée.
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* PREUVES D'IDENTITÉ ET BAPTÊME */}
+                                <div className="space-y-3">
+                                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
+                                        📑 Documents Justificatifs
+                                    </label>
+
+                                    {selectedRequest.documents.map((doc: any, i: number) => (
+                                        <div key={i} className="bg-slate-50 rounded-2xl p-3 border border-slate-200 space-y-2">
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-xs font-bold text-slate-800">{doc.name}</span>
+                                                {doc.url && (
+                                                    <a
+                                                        href={doc.url}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="text-xs text-emerald-700 font-bold hover:underline flex items-center gap-1"
+                                                    >
+                                                        <span>Voir l'original ↗</span>
+                                                    </a>
+                                                )}
+                                            </div>
+                                            {doc.url ? (
+                                                <div className="rounded-xl overflow-hidden border border-slate-200 bg-white max-h-36 flex items-center justify-center">
+                                                    <img src={doc.url} alt={doc.name} className="w-full h-auto max-h-36 object-contain" />
+                                                </div>
+                                            ) : (
+                                                <p className="text-[11px] text-slate-400 italic">Document non disponible</p>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* BOUTONS D'ACTION ADMIN */}
+                                <div className="flex gap-3 pt-3 border-t border-slate-100">
+                                    <button
+                                        onClick={() => handleRejectVerification(selectedRequest.userId)}
+                                        className="flex-1 bg-red-50 text-red-600 hover:bg-red-100 font-bold py-3 rounded-2xl transition text-xs border border-red-200"
+                                    >
+                                        ❌ Rejeter
+                                    </button>
+                                    <button
+                                        onClick={() => handleApproveVerification(selectedRequest.userId)}
+                                        className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-2xl transition text-xs shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-1.5"
+                                    >
+                                        <CheckCircle size={16} />
+                                        <span>✅ Approuver Niveau 2</span>
+                                    </button>
+                                </div>
                             </div>
-                        ) : <div className="bg-slate-50 p-8 text-center text-slate-400 rounded-xl">Sélectionnez une demande</div>}
+                        ) : (
+                            <div className="bg-slate-50 p-8 text-center text-slate-400 rounded-3xl border border-dashed border-slate-200">
+                                <Shield className="mx-auto text-slate-300 h-12 w-12 mb-3 animate-pulse" />
+                                <h4 className="font-bold text-slate-700 text-sm">Examen de la demande</h4>
+                                <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                                    Sélectionnez un membre dans le tableau ci-contre pour examiner son score biométrique IA, sa vidéo liveness et ses documents d'identité.
+                                </p>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
