@@ -4,6 +4,7 @@ import { Lock, Mail, User, ShieldAlert, Sparkles, RefreshCw, Loader, AlertCircle
 import { AVAILABLE_INTERESTS } from '../constants';
 import { supabase, supabaseAdmin } from '../supabaseClient';
 import { sendWhatsAppOtp, formatPhoneNumber } from '../openwaClient';
+import { getDeviceFingerprint, getClientIp, fetchBannedIdentifiers, checkIsBlacklisted } from '../utils/deviceFingerprint';
 
 /**
  * Génère un code OTP à 6 chiffres hautement sécurisé (Cryptographically Secure PRNG)
@@ -317,6 +318,29 @@ export const AuthForms: React.FC<AuthFormsProps> = ({ view, onSwitch, onLogin })
         }
 
         try {
+            // ---------------------------------------------------------
+            // PARE-FEU CYBERSÉCURITÉ : VÉRIFICATION BLACKLIST (IP, APPAREIL, EMAIL, TÉLÉPHONE)
+            // ---------------------------------------------------------
+            const clientIp = await getClientIp();
+            const fingerprint = getDeviceFingerprint();
+            const blacklist = await fetchBannedIdentifiers();
+
+            const targetPhone = phone || phoneInput || rawEmail;
+            const targetEmail = email || rawEmail;
+
+            const banCheck = checkIsBlacklisted(blacklist, {
+                phone: targetPhone,
+                email: targetEmail,
+                ip: clientIp,
+                fingerprint: fingerprint
+            });
+
+            if (banCheck.isBanned) {
+                setIsLoading(false);
+                setError(`⛔ ACCÈS / INSCRIPTION REFUSÉE PAR LA SÉCURITÉ : ${banCheck.reason} (${banCheck.matchType} bloqué).`);
+                return;
+            }
+
             // ---------------------------------------------------------
             // CAS 1 : CONNEXION ADMIN
             // ---------------------------------------------------------

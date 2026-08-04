@@ -13,6 +13,7 @@ import { MobileBottomNav } from './components/MobileBottomNav';
 import { SessionTimeoutManager } from './components/SessionTimeoutManager';
 import { UserRole, AppView } from './types';
 import { supabase } from './supabaseClient';
+import { getDeviceFingerprint, getClientIp, fetchBannedIdentifiers, checkIsBlacklisted } from './utils/deviceFingerprint';
 
 const App: React.FC = () => {
   const [currentUserRole, setCurrentUserRole] = useState<UserRole>(UserRole.GUEST);
@@ -68,14 +69,39 @@ const App: React.FC = () => {
       if (session?.user) {
         const user = session.user;
 
+        // 🛡️ CYBERSÉCURITÉ : VÉRIFICATION DE LA LISTE NOIRE (BAN / SUPPRESSION PAR IP + FINGERPRINT + EMAIL + TEL)
+        const clientIp = await getClientIp();
+        const fingerprint = getDeviceFingerprint();
+        const blacklist = await fetchBannedIdentifiers();
+
+        const userPhone = user.user_metadata?.phone || user.phone || (user.email?.startsWith('wa_') ? user.email.replace('wa_', '').replace('@225chretien.ci', '') : '');
+
+        const banCheck = checkIsBlacklisted(blacklist, {
+          userId: user.id,
+          email: user.email,
+          phone: userPhone,
+          ip: clientIp,
+          fingerprint: fingerprint
+        });
+
         const { data: profile } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', user.id)
           .maybeSingle();
 
-        if (!profile) {
+        // SI LE PROFIL A ÉTÉ SUPPRIMÉ EN DB OU BANNI OU EN LISTE NOIRE -> EXPULSION IMMÉDIATE & PURGE DES TOKENS
+        if (!profile || profile.status === 'BANNED' || banCheck.isBanned) {
+          await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+          if (typeof window !== 'undefined') {
+            sessionStorage.removeItem('225_otp_verified');
+            localStorage.removeItem('supabase.auth.token');
+          }
+          setCurrentUserRole(UserRole.GUEST);
+          setCurrentView(AppView.AUTH_LOGIN);
           setIsAuthLoading(false);
+          const reason = banCheck.reason || (profile?.status === 'BANNED' ? "Ce compte a été banni par l'administration." : "Ce compte a été supprimé par l'administrateur.");
+          alert(`⛔ ACCÈS REFUSÉ PAR LA SÉCURITÉ (225 CHRÉTIEN)\n\n${reason}\n\nToute tentative de réinscription ou de connexion depuis ce numéro, email ou appareil est strictement bloquée.`);
           return;
         }
 

@@ -3,11 +3,12 @@ import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { AlertTriangle, UserCheck, DollarSign, Users, LayoutDashboard, Shield, Check, X, Eye, Ban, Trash2, Search, Flag, MapPin, PlusCircle, Settings, LogOut, Play, Calendar, LinkIcon, Edit, FileText, Download, Crown, RefreshCw, CreditCard, CheckCircle, Save, Phone, MessageCircle, Send, Sparkles } from 'lucide-react';
 import { VerificationStatus, User, UserStatus, Report, Parish, AppEvent, PaymentSettings, PaymentTransaction, DashboardTab, PriestContact } from '../types';
-import { supabase } from '../supabaseClient';
+import { supabase, supabaseAdmin } from '../supabaseClient';
 import { getOpenWAConfig, saveOpenWAConfig, testOpenWAConnection, OpenWAConfig, DEFAULT_OPENWA_CONFIG } from '../openwaClient';
 import { secureLog, maskSecret } from '../securityUtils';
 import { whatsAppQueue } from '../whatsappQueue';
 import { checkDeepFaceHealth, DEFAULT_DEEPFACE_URL } from '../utils/deepfaceClient';
+import { getDeviceFingerprint, getClientIp, banIdentifiers, fetchBannedIdentifiers } from '../utils/deviceFingerprint';
 import { AVAILABLE_INTERESTS } from '../constants';
 
 const getImlrUrl = (path: string) => {
@@ -654,13 +655,88 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
         }
     };
 
-    const deleteUser = async (userId: string) => {
-        if (window.confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur définitivement ? L\'utilisateur sera également supprimé de l\'authentification, qui nécessite des droits spécifiques via la console de base de données. Il sera retiré de la table des profils néanmoins.')) {
+    const toggleUserBan = async (userId: string, currentStatus: UserStatus, targetUserObj?: any) => {
+        const isBanning = currentStatus !== UserStatus.BANNED;
+        const confirmMsg = isBanning 
+            ? "⛔ Êtes-vous sûr de vouloir BANNIR cet utilisateur et BLOQUER son numéro, son email, son IP et son appareil ?" 
+            : "Êtes-vous sûr de vouloir débannir cet utilisateur ?";
+        
+        if (!window.confirm(confirmMsg)) return;
+
+        const newStatus = isBanning ? UserStatus.BANNED : UserStatus.ACTIVE;
+
+        // Optimistic UI update
+        setUsers(prev => prev.map(u => u.id === userId ? { ...u, status: newStatus } : u));
+
+        try {
+            // 1. Update profiles table
+            await supabase.from('profiles').update({ status: newStatus }).eq('id', userId);
+
+            if (isBanning) {
+                // 2. Extrait le téléphone, l'email, l'IP et l'empreinte appareil
+                const phone = targetUserObj?.phone || targetUserObj?.name;
+                const email = targetUserObj?.email;
+                const clientIp = await getClientIp();
+                const fingerprint = getDeviceFingerprint();
+
+                const itemsToBan: any[] = [
+                    { type: 'USER_ID', value: userId, reason: `Banni par l'admin (${targetUserObj?.name || 'Membre'})` }
+                ];
+                if (phone) itemsToBan.push({ type: 'PHONE', value: phone, reason: `Numéro banni (${targetUserObj?.name || 'Membre'})` });
+                if (email) itemsToBan.push({ type: 'EMAIL', value: email, reason: `Email banni (${targetUserObj?.name || 'Membre'})` });
+                if (clientIp) itemsToBan.push({ type: 'IP', value: clientIp, reason: `IP bannie (${targetUserObj?.name || 'Membre'})` });
+                if (fingerprint) itemsToBan.push({ type: 'FINGERPRINT', value: fingerprint, reason: `Appareil banni (${targetUserObj?.name || 'Membre'})` });
+
+                await banIdentifiers(itemsToBan);
+                alert(`⛔ Utilisateur ${targetUserObj?.name || userId} BANNÍ et BLACKLISTÉ avec succès !\n\nNuméro (${phone || 'N/A'}), Email, IP et Appareil bloqués.`);
+            }
+        } catch (error: any) {
+            console.error("Erreur changement statut ban", error);
+            setUsers(prev => prev.map(u => u.id === userId ? { ...u, status: currentStatus } : u));
+            alert("Erreur lors de la mise à jour du statut.");
+        }
+    };
+
+    const deleteUser = async (userId: string, targetUserObj?: any) => {
+        if (window.confirm('🚨 ATTENTION CYBERSÉCURITÉ :\n\nÊtes-vous sûr de vouloir SUPPRIMER et BLACKLISTER cet utilisateur définitivement ?\n\nLe numéro de téléphone, l\'email, l\'adresse IP et l\'appareil seront bloqués dans la liste noire de sécurité pour empêcher toute réinscription ou reconnexion !')) {
             try {
-                // Delete from profiles (auth deletion is tricky via public api)
+                // 1. Supprimer de profiles DB
                 await supabase.from('profiles').delete().eq('id', userId);
+
+                // 2. Tenter la suppression dans Supabase Auth s'il y a les droits admin
+                try {
+                    await supabaseAdmin.auth.admin.deleteUser(userId);
+                } catch (authErr) {
+                    console.warn("Notice: Suppression auth direct via client restreinte, la liste noire assure l'expulsion totale.", authErr);
+                }
+
+                // 3. Ajouter à la Liste Noire (Blacklist) pour bloquer IP, Fingerprint, Téléphone & Email
+                const phone = targetUserObj?.phone || targetUserObj?.name;
+                const email = targetUserObj?.email;
+                const clientIp = await getClientIp();
+                const fingerprint = getDeviceFingerprint();
+
+                const itemsToBan: any[] = [
+                    { type: 'USER_ID', value: userId, reason: `Supprimé et banni (${targetUserObj?.name || 'Membre'})` }
+                ];
+                if (phone) itemsToBan.push({ type: 'PHONE', value: phone, reason: `Numéro banni (${targetUserObj?.name || 'Membre'})` });
+                if (email) itemsToBan.push({ type: 'EMAIL', value: email, reason: `Email banni (${targetUserObj?.name || 'Membre'})` });
+                if (clientIp) itemsToBan.push({ type: 'IP', value: clientIp, reason: `IP bannie (${targetUserObj?.name || 'Membre'})` });
+                if (fingerprint) itemsToBan.push({ type: 'FINGERPRINT', value: fingerprint, reason: `Appareil banni (${targetUserObj?.name || 'Membre'})` });
+
+                // Viser également spécifiquement le numéro 0779604919 s'il s'agit du compte supprimé
+                if (phone?.includes('0779604919') || email?.includes('0779604919') || targetUserObj?.name?.includes('0779604919')) {
+                    itemsToBan.push({ type: 'PHONE', value: '0779604919', reason: 'Numéro 0779604919 banni' });
+                    itemsToBan.push({ type: 'EMAIL', value: 'wa_0779604919@225chretien.ci', reason: 'Email 0779604919 banni' });
+                }
+
+                await banIdentifiers(itemsToBan);
+
                 setUsers(prev => prev.filter(u => u.id !== userId));
-            } catch (e) { alert("Erreur suppression"); }
+                alert(`🗑️ Compte ${targetUserObj?.name || userId} SUPPRIMÉ et BLACKLISTÉ !\n\nLe numéro (${phone || 'N/A'}), l'email, l'adresse IP et l'appareil ont été bloqués définitivement.`);
+            } catch (e: any) {
+                alert(`Erreur suppression: ${e.message || e}`);
+            }
         }
     };
 
@@ -1155,11 +1231,128 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     };
 
     const renderUsers = () => {
-        const filteredUsers = users.filter(u => u.name.toLowerCase().includes(searchUserQuery.toLowerCase()) || u.email.toLowerCase().includes(searchUserQuery.toLowerCase()));
+        const filteredUsers = users.filter(u => 
+            u.name.toLowerCase().includes(searchUserQuery.toLowerCase()) || 
+            u.email.toLowerCase().includes(searchUserQuery.toLowerCase()) ||
+            (u.phone && u.phone.includes(searchUserQuery))
+        );
         return (
             <div className="space-y-6 animate-in fade-in">
-                <div className="flex justify-between items-center"><h2 className="text-xl font-bold text-slate-800">Utilisateurs</h2><div className="flex gap-2"><button onClick={loadAllData} className="p-2 bg-white border rounded-lg hover:bg-slate-50"><RefreshCw size={20} /></button><div className="relative"><input type="text" placeholder="Rechercher..." value={searchUserQuery} onChange={(e) => setSearchUserQuery(e.target.value)} className="pl-9 pr-4 py-2 border rounded-lg text-sm" /><Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" /></div></div></div>
-                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden"><table className="min-w-full divide-y divide-slate-200"><thead className="bg-slate-50"><tr><th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Membre</th><th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Statut</th><th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Vérification</th><th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Abonnement</th><th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase">Actions</th></tr></thead><tbody className="bg-white divide-y divide-slate-200">{filteredUsers.map(user => (<tr key={user.id}><td className="px-6 py-4 whitespace-nowrap"><div className="flex items-center"><img className="h-10 w-10 rounded-full object-cover" src={user.avatarUrl} alt="" /><div className="ml-4"><div className="text-sm font-medium text-slate-900">{user.name}</div><div className="text-sm text-slate-500">{user.email}</div></div></div></td><td className="px-6 py-4 whitespace-nowrap"><span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${user.status === UserStatus.ACTIVE ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{user.status === UserStatus.ACTIVE ? 'Actif' : 'Banni'}</span></td><td className="px-6 py-4 whitespace-nowrap">{user.verificationStatus === VerificationStatus.VERIFIED ? <span className="flex items-center text-emerald-600 text-xs font-bold"><Shield className="h-4 w-4 mr-1" /> Vérifié</span> : user.verificationStatus === VerificationStatus.REJECTED ? <span className="text-red-500 text-xs">Rejeté</span> : <span className="text-slate-400 text-xs">Non vérifié</span>}</td><td className="px-6 py-4 whitespace-nowrap"><button type="button" onClick={(e) => toggleUserPremium(e, user.id, user.isPremium)} className={`flex items-center px-3 py-1.5 rounded-full text-xs font-bold border transition transform active:scale-95 cursor-pointer z-10 ${user.isPremium ? 'bg-amber-100 text-amber-700 border-amber-300 hover:bg-amber-200 shadow-sm' : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200 hover:text-slate-700'}`}><Crown size={14} className={`mr-1 ${user.isPremium ? 'fill-amber-700' : ''}`} />{user.isPremium ? 'PREMIUM' : 'STANDARD'}<Edit size={12} className="ml-2 opacity-50" /></button></td><td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium"><button onClick={() => deleteUser(user.id)} className="text-red-600 hover:text-red-900 bg-red-50 p-2 rounded-lg"><Trash2 size={18} /></button></td></tr>))}</tbody></table></div>
+                <div className="flex justify-between items-center text-left">
+                    <div>
+                        <h2 className="text-xl font-bold text-slate-800">Gestion des Membres & Liste Noire de Sécurité</h2>
+                        <p className="text-xs text-slate-500">Gérez les comptes, appliquez des abonnements ou bloquez définitivement des brouteurs par IP, Empreinte & Numéro.</p>
+                    </div>
+                    <div className="flex gap-2">
+                        <button onClick={loadAllData} className="p-2 bg-white border rounded-xl hover:bg-slate-50 transition" title="Rafraîchir">
+                            <RefreshCw size={18} />
+                        </button>
+                        <div className="relative">
+                            <input 
+                                type="text" 
+                                placeholder="Rechercher par nom, email ou 07796..." 
+                                value={searchUserQuery} 
+                                onChange={(e) => setSearchUserQuery(e.target.value)} 
+                                className="pl-9 pr-4 py-2 border rounded-xl text-sm w-64 shadow-xs" 
+                            />
+                            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                        </div>
+                    </div>
+                </div>
+
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <table className="min-w-full divide-y divide-slate-200">
+                        <thead className="bg-slate-50/60">
+                            <tr>
+                                <th className="px-6 py-3.5 text-left text-xs font-medium text-slate-500 uppercase">Membre</th>
+                                <th className="px-6 py-3.5 text-left text-xs font-medium text-slate-500 uppercase">Statut Sécurité</th>
+                                <th className="px-6 py-3.5 text-left text-xs font-medium text-slate-500 uppercase">Vérification</th>
+                                <th className="px-6 py-3.5 text-left text-xs font-medium text-slate-500 uppercase">Abonnement</th>
+                                <th className="px-6 py-3.5 text-right text-xs font-medium text-slate-500 uppercase">Actions Cybersécurité</th>
+                            </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-slate-200">
+                            {filteredUsers.map(user => (
+                                <tr key={user.id} className="hover:bg-slate-50/80 transition">
+                                    <td className="px-6 py-4 whitespace-nowrap text-left">
+                                        <div className="flex items-center">
+                                            <img className="h-10 w-10 rounded-full object-cover border border-slate-200 mr-3" src={user.avatarUrl} alt="" />
+                                            <div>
+                                                <div className="text-sm font-bold text-slate-900">{user.name}</div>
+                                                <div className="text-xs text-slate-500">{user.email || user.phone || 'Sans email'}</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-left">
+                                        <button
+                                            onClick={() => toggleUserBan(user.id, user.status, user)}
+                                            className={`px-3 py-1 inline-flex text-xs font-bold rounded-full border shadow-xs transition ${
+                                                user.status === UserStatus.ACTIVE 
+                                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-red-50 hover:text-red-700 hover:border-red-200' 
+                                                    : 'bg-red-100 text-red-800 border-red-300 hover:bg-emerald-50 hover:text-emerald-700'
+                                            }`}
+                                            title="Cliquez pour changer le statut ou débannir"
+                                        >
+                                            {user.status === UserStatus.ACTIVE ? '🟢 Actif (Cliquer pour Bannir)' : '⛔ BANNI (Cliquer pour Débannir)'}
+                                        </button>
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-left">
+                                        {user.verificationStatus === VerificationStatus.VERIFIED ? (
+                                            <span className="flex items-center text-emerald-600 text-xs font-bold bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 w-fit">
+                                                <Shield className="h-3.5 w-3.5 mr-1" /> Niveau 2 Vérifié
+                                            </span>
+                                        ) : user.verificationStatus === VerificationStatus.REJECTED ? (
+                                            <span className="text-red-600 text-xs font-bold bg-red-50 px-2.5 py-1 rounded-full border border-red-200 w-fit">Rejeté</span>
+                                        ) : (
+                                            <span className="text-slate-400 text-xs bg-slate-100 px-2.5 py-1 rounded-full w-fit">Non vérifié</span>
+                                        )}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-left">
+                                        <button 
+                                            type="button" 
+                                            onClick={(e) => toggleUserPremium(e, user.id, user.isPremium)} 
+                                            className={`flex items-center px-3 py-1.5 rounded-full text-xs font-bold border transition transform active:scale-95 cursor-pointer z-10 ${user.isPremium ? 'bg-amber-100 text-amber-700 border-amber-300 hover:bg-amber-200 shadow-sm' : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200 hover:text-slate-700'}`}
+                                        >
+                                            <Crown size={14} className={`mr-1 ${user.isPremium ? 'fill-amber-700' : ''}`} />
+                                            {user.isPremium ? 'PREMIUM' : 'STANDARD'}
+                                            <Edit size={12} className="ml-2 opacity-50" />
+                                        </button>
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-right text-xs font-bold">
+                                        <div className="flex justify-end gap-2">
+                                            <button 
+                                                onClick={() => toggleUserBan(user.id, user.status, user)} 
+                                                className={`px-3 py-1.5 rounded-xl border font-bold transition flex items-center gap-1 ${
+                                                    user.status === UserStatus.ACTIVE 
+                                                        ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100' 
+                                                        : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                                                }`}
+                                            >
+                                                <Ban size={14} />
+                                                <span>{user.status === UserStatus.ACTIVE ? 'Bannir' : 'Débannir'}</span>
+                                            </button>
+                                            <button 
+                                                onClick={() => deleteUser(user.id, user)} 
+                                                className="text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-xl border border-red-200 transition flex items-center gap-1"
+                                                title="Supprimer & Blacklister l'IP + Appareil + Numéro"
+                                            >
+                                                <Trash2 size={14} />
+                                                <span>Supprimer & Blacklister</span>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                            {filteredUsers.length === 0 && (
+                                <tr>
+                                    <td colSpan={5} className="px-6 py-8 text-center text-slate-400 italic">
+                                        Aucun utilisateur ne correspond à la recherche.
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         );
     };
