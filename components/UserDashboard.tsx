@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { DashboardTab, AppView } from '../types';
-import { Heart, MessageCircle, Users, BookOpen, User, Home, X, Calendar, Lock, Shield, WifiOff, Star, Sparkles, Zap } from 'lucide-react';
+import { Heart, MessageCircle, Users, BookOpen, User, Home, X, Calendar, Lock, Shield, WifiOff, Star, Sparkles, Zap, Flame, Trophy } from 'lucide-react';
 import { Matches } from './Matches';
 import { Forum } from './Forum';
 import { Vocation } from './Vocation';
@@ -10,6 +10,7 @@ import { Events } from './Events';
 import { LikesYou } from './LikesYou';
 import { SpeedDate } from './SpeedDate';
 import { supabase } from '../supabaseClient';
+import { updateDailyStreak } from '../utils/streakManager';
 
 const getImlrUrl = (path: string) => {
   if (!path) return '';
@@ -107,12 +108,19 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
   // Profile data
   const [currentUser, setCurrentUser] = useState<any>(null);
 
+  // 🔥 GESTION DE LA SÉRIE DE FOI (DAILY STREAK)
+  const [streakCount, setStreakCount] = useState<number>(1);
+
   useEffect(() => {
     const initUser = async (session: any) => {
       if (session?.user) {
         try {
           const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle();
           setCurrentUser({ ...session.user, ...(profile || {}) });
+
+          // Mettre à jour la série de foi quotidienne
+          const streakInfo = await updateDailyStreak(session.user.id);
+          setStreakCount(streakInfo.streakCount);
         } catch (e) {
           setCurrentUser(session.user);
         }
@@ -368,7 +376,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
       <div className="p-6">
         <div className="flex items-center mb-6 pb-4 border-b border-slate-100">
           <img src={userAvatar} alt="Profile" className="h-12 w-12 rounded-full object-cover mr-3 border-2 border-emerald-500 shadow-md shadow-emerald-500/10" />
-          <div className="overflow-hidden">
+          <div className="overflow-hidden flex-1">
             <p className="font-bold text-slate-800 truncate text-sm" title={userName}>{userName}</p>
             <div className="flex items-center space-x-1.5 mt-0.5">
               <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${isPremium ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-slate-100 text-slate-600'}`}>
@@ -377,6 +385,20 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
               {isVerified && <Shield size={12} className="text-emerald-500" fill="currentColor" />}
             </div>
           </div>
+        </div>
+
+        {/* 🔥 BADGE SÉRIE DE FOI (DAILY FAITH STREAK) */}
+        <div className="mb-5 p-3 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white shadow-md shadow-amber-500/20 border border-amber-300/40 text-left flex items-center justify-between animate-in zoom-in duration-300">
+          <div className="flex items-center space-x-2.5">
+            <div className="bg-white/20 p-2 rounded-xl shrink-0">
+              <Flame size={18} className="text-amber-100 fill-amber-200 animate-pulse" />
+            </div>
+            <div>
+              <p className="text-[10px] font-extrabold uppercase tracking-wider text-amber-100">Série de Foi</p>
+              <p className="text-xs font-black text-white">{streakCount} {streakCount > 1 ? 'Jours consécutifs' : 'Premier jour'}</p>
+            </div>
+          </div>
+          <span className="text-xs font-black bg-white/20 px-2 py-0.5 rounded-full backdrop-blur-md">🔥</span>
         </div>
         <nav className="space-y-1.5">
           <SidebarItem

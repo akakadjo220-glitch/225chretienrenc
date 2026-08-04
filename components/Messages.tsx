@@ -1,11 +1,12 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Message, Conversation } from '../types';
-import { Search, Send, ArrowLeft, ShieldCheck, Mail, Image as ImageIcon, Mic, X, Loader, AlertCircle, StopCircle, Trash2, Sparkles, HeartHandshake, Phone, Video as VideoIcon, PhoneOff, ShieldAlert, Award, Star, CheckCircle } from 'lucide-react';
+import { Search, Send, ArrowLeft, ShieldCheck, Mail, Image as ImageIcon, Mic, X, Loader, AlertCircle, StopCircle, Trash2, Sparkles, HeartHandshake, Phone, Video as VideoIcon, PhoneOff, ShieldAlert, Award, Star, CheckCircle, BookOpen, Trophy } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { generateIcebreakers, generateAntiGhostingMessage, moderateMessage, moderateImage, detectFinancialScam } from '../aiClient';
 import { VideoCall } from './VideoCall';
 import { AudioPlayer } from './AudioPlayer';
+import { BibleQuizModal } from './BibleQuizModal';
 import { sanitizeInput, validateImageFile } from '../utils/security';
 
 const getImlrUrl = (path: string) => {
@@ -92,6 +93,74 @@ export const Messages: React.FC<MessagesProps> = ({ initialContactId }) => {
     const [loadingMentors, setLoadingMentors] = useState(false);
     const [selectedMentorId, setSelectedMentorId] = useState('');
     const [mentorshipNotes, setMentorshipNotes] = useState('');
+
+    // États Quiz Biblique Duo 📖
+    const [showQuizModal, setShowQuizModal] = useState(false);
+    const [quizOpponentName, setQuizOpponentName] = useState('Votre ami(e)');
+    const [isChallengingQuiz, setIsChallengingQuiz] = useState(false);
+    const [originalQuizScore, setOriginalQuizScore] = useState<number | undefined>(undefined);
+    const [activeQuizMsgId, setActiveQuizMsgId] = useState<string | null>(null);
+
+    const handleStartNewQuiz = () => {
+        setIsChallengingQuiz(false);
+        setOriginalQuizScore(undefined);
+        const activeUser = conversations.find(c => c.contactId === activeContactId);
+        setQuizOpponentName(activeUser?.contactName || 'Votre ami(e)');
+        setShowQuizModal(true);
+    };
+
+    const handleStartQuizChallenge = (msgId: string, name: string, score: number) => {
+        setActiveQuizMsgId(msgId);
+        setIsChallengingQuiz(true);
+        setOriginalQuizScore(score);
+        setQuizOpponentName(name);
+        setShowQuizModal(true);
+    };
+
+    const handleCompleteQuiz = async (score: number, total: number) => {
+        if (!currentUserId || !activeContactId) return;
+
+        if (isChallengingQuiz && activeQuizMsgId) {
+            try {
+                const { data: msgRow } = await supabase.from('messages').select('content').eq('id', activeQuizMsgId).maybeSingle();
+                let quizData = { score: originalQuizScore || 0, total: 5, sender_name: quizOpponentName, result_score: score };
+                if (msgRow?.content) {
+                    try {
+                        const parsed = JSON.parse(msgRow.content);
+                        quizData = { ...parsed, result_score: score };
+                    } catch {}
+                }
+                await supabase.from('messages').update({ content: JSON.stringify(quizData) }).eq('id', activeQuizMsgId);
+
+                await supabase.from('messages').insert({
+                    sender_id: currentUserId,
+                    receiver_id: activeContactId,
+                    type: 'TEXT',
+                    content: `🏆 Défi Quiz Biblique relevé ! Mon score : ${score}/5 🆚 Score de ${quizOpponentName} : ${originalQuizScore || 0}/5. Que la parole du Christ habite en nous en abondance ! 🕊️`
+                });
+            } catch (e) {
+                console.error("Erreur mise à jour quiz result", e);
+            }
+        } else {
+            try {
+                const quizPayload = JSON.stringify({
+                    score: score,
+                    total: total,
+                    sender_name: currentUser?.name || currentUser?.full_name || 'Un membre',
+                    result_score: null
+                });
+
+                await supabase.from('messages').insert({
+                    sender_id: currentUserId,
+                    receiver_id: activeContactId,
+                    type: 'QUIZ_CHALLENGE',
+                    content: quizPayload
+                });
+            } catch (e) {
+                console.error("Erreur création quiz challenge", e);
+            }
+        }
+    };
 
     // Refs
     const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -1192,6 +1261,13 @@ export const Messages: React.FC<MessagesProps> = ({ initialContactId }) => {
                                 <HeartHandshake size={20} />
                             </button>
                             <button
+                                onClick={handleStartNewQuiz}
+                                className="p-2 text-amber-600 hover:bg-amber-50 rounded-full transition flex items-center gap-1"
+                                title="Lancer un Quiz Biblique Duo 📖"
+                            >
+                                <BookOpen size={20} className="text-amber-600" />
+                            </button>
+                            <button
                                 onClick={() => setShowMentorshipModal(true)}
                                 className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-full transition mr-1"
                                 title="Demander un parrainage conjugal 🤝"
@@ -1396,7 +1472,7 @@ export const Messages: React.FC<MessagesProps> = ({ initialContactId }) => {
                                                 <AudioPlayer src={msg.attachmentUrl} isMe={isMe} />
                                             </div>
                                         )}
-                                        {msg.text && msg.type !== 'PRAYER' && <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{msg.text}</p>}
+                                        {msg.text && msg.type !== 'PRAYER' && msg.type !== 'QUIZ_CHALLENGE' && <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{msg.text}</p>}
                                         <div className={`text-[10px] text-right mt-1 opacity-70 flex justify-end items-center space-x-1 ${isMe ? 'text-emerald-100' : 'text-slate-400'}`}>
                                             <span>{msg.timestamp}</span>
                                             {isMe && <span>{msg.isRead ? '••' : '•'}</span>}
@@ -1555,6 +1631,16 @@ export const Messages: React.FC<MessagesProps> = ({ initialContactId }) => {
                     <p>Sélectionnez un profil pour discuter.</p>
                 </div>
             )}
+
+            {/* MODALE DE QUIZ BIBLIQUE DUO 📖 */}
+            <BibleQuizModal
+                isOpen={showQuizModal}
+                onClose={() => setShowQuizModal(false)}
+                onCompleteQuiz={handleCompleteQuiz}
+                opponentName={quizOpponentName}
+                isChallenging={isChallengingQuiz}
+                originalScore={originalQuizScore}
+            />
         </div>
     );
 };
