@@ -14,12 +14,37 @@ import { SessionTimeoutManager } from './components/SessionTimeoutManager';
 import { UserRole, AppView } from './types';
 import { supabase } from './supabaseClient';
 import { getDeviceFingerprint, getClientIp, fetchBannedIdentifiers, checkIsBlacklisted } from './utils/deviceFingerprint';
+import { initPrivacyShield } from './utils/privacyShield';
+import { PinLockModal } from './components/PinLockModal';
+import { Shield, EyeOff } from 'lucide-react';
 
 const App: React.FC = () => {
   const [currentUserRole, setCurrentUserRole] = useState<UserRole>(UserRole.GUEST);
   const [currentView, setCurrentView] = useState<AppView>(AppView.LANDING);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
+
+  // 🔒 États de Sécurité (Bouclier Privacy & PIN Lock)
+  const [isPrivacyBlurred, setIsPrivacyBlurred] = useState(false);
+  const [isPinLocked, setIsPinLocked] = useState(false);
+  const [savedPinHash, setSavedPinHash] = useState<string | null>(null);
+
+  // Initialisation du Bouclier Anti-Capture et du Code PIN
+  useEffect(() => {
+    const pin = localStorage.getItem('_225_security_pin');
+    setSavedPinHash(pin);
+    if (pin && currentUserRole === UserRole.USER) {
+      setIsPinLocked(true);
+    }
+
+    const cleanup = initPrivacyShield((blurred) => {
+      setIsPrivacyBlurred(blurred);
+    });
+
+    return () => {
+      cleanup();
+    };
+  }, [currentUserRole]);
 
   // Enregistrement du Service Worker pour la PWA
   useEffect(() => {
@@ -381,6 +406,32 @@ const App: React.FC = () => {
         <MobileBottomNav
           currentView={currentView}
           onChangeView={handleNavigate}
+        />
+      )}
+
+      {/* 🛡️ BOUCLIER ANTI-CAPTURE & MASQUE PRIVACY SUR PERTE DE FOCUS */}
+      {isPrivacyBlurred && (
+        <div className="fixed inset-0 z-[200] bg-slate-950/95 backdrop-blur-2xl flex flex-col items-center justify-center text-white p-6 text-center animate-in fade-in duration-200 select-none">
+          <div className="w-20 h-20 bg-emerald-500/20 border border-emerald-400/40 rounded-full flex items-center justify-center mb-4 animate-pulse">
+            <Shield size={40} className="text-emerald-400" />
+          </div>
+          <h3 className="text-2xl font-black text-white">Espace Chrétien Sécurisé 🛡️</h3>
+          <p className="text-xs text-slate-300 mt-2 max-w-sm leading-relaxed">
+            Pour protéger la vie privée et les conversations confidentielles des membres, l'écran est temporairement flouté lors d'un changement d'onglet ou d'une capture.
+          </p>
+          <div className="mt-6 text-[10px] uppercase font-mono tracking-widest text-emerald-400 bg-emerald-950/80 px-4 py-2 rounded-full border border-emerald-800/50">
+            225 Chrétien • Données Protégées
+          </div>
+        </div>
+      )}
+
+      {/* 🔒 MODALE DE DÉVERROUILLAGE PIN */}
+      {isPinLocked && (
+        <PinLockModal
+          isOpen={isPinLocked}
+          mode="UNLOCK"
+          savedPinHash={savedPinHash}
+          onSuccess={() => setIsPinLocked(false)}
         />
       )}
     </div>

@@ -5,6 +5,7 @@ import { supabase } from '../supabaseClient';
 import { compressImage } from '../utils/imageCompressor';
 import { UserCheck, ShieldCheck, Shield, Camera, AlertCircle, CheckCircle, Clock, Lock, Plus, X, Tag, FileText, CreditCard, Zap, Video, Play, Loader, Info, StopCircle, RefreshCw, Image as ImageIcon, Trash2, Phone, CalendarClock, AlertTriangle, Mic, EyeOff, Eye } from 'lucide-react';
 import { compareFaces } from '../utils/deepfaceClient';
+import { PinLockModal } from './PinLockModal';
 
 const getImlrUrl = (path: string) => {
     if (!path) return '';
@@ -65,6 +66,15 @@ export const Profile: React.FC = () => {
     const [hasPendingCertification, setHasPendingCertification] = useState(false);
     const [certNotes, setCertNotes] = useState('');
     const [pendingCertNotes, setPendingCertNotes] = useState('');
+
+    // États Code PIN 🔒
+    const [showSetPinModal, setShowSetPinModal] = useState(false);
+    const [hasPin, setHasPin] = useState<boolean>(() => !!localStorage.getItem('_225_security_pin'));
+
+    const handleRemovePin = () => {
+        localStorage.removeItem('_225_security_pin');
+        setHasPin(false);
+    };
 
     // Helper function to split parish string
     const getDenominationAndChurch = (fullParish?: string) => {
@@ -1303,6 +1313,46 @@ export const Profile: React.FC = () => {
                         </div>
                     </div>
 
+                    {/* 🔒 CODE PIN DE SÉCURITÉ */}
+                    <div className="md:col-span-2 border-t border-slate-100 pt-4 mt-2">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <label className="block text-sm font-bold text-slate-800 flex items-center mb-1">
+                                    <Lock size={16} className="mr-2 text-emerald-600" /> Verrouillage par Code PIN (4 Chiffres)
+                                </label>
+                                <p className="text-xs text-slate-500 max-w-sm">Protège vos conversations et votre profil avec un code PIN secret à 4 chiffres.</p>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                {hasPin ? (
+                                    <>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowSetPinModal(true)}
+                                            className="text-xs bg-emerald-100 text-emerald-800 font-bold px-3 py-1.5 rounded-lg hover:bg-emerald-200 transition"
+                                        >
+                                            Modifier PIN
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={handleRemovePin}
+                                            className="text-xs bg-red-50 text-red-600 font-bold px-3 py-1.5 rounded-lg hover:bg-red-100 transition"
+                                        >
+                                            Désactiver
+                                        </button>
+                                    </>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowSetPinModal(true)}
+                                        className="text-xs bg-emerald-600 text-white font-bold px-3.5 py-2 rounded-xl shadow-sm hover:bg-emerald-700 transition"
+                                    >
+                                        Configurer un PIN 🔒
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
             </div>
 
@@ -1474,6 +1524,17 @@ export const Profile: React.FC = () => {
                     </div>
                 )
             }
-        </div >
+
+            {/* MODALE CONFIGURATION CODE PIN 🔒 */}
+            <PinLockModal
+                isOpen={showSetPinModal}
+                mode="SET_PIN"
+                onClose={() => setShowSetPinModal(false)}
+                onSavePin={() => {
+                    setHasPin(true);
+                    setShowSetPinModal(false);
+                }}
+            />
+        </div>
     );
 };
