@@ -41,7 +41,8 @@ export enum DashboardTab {
   SUBSCRIPTIONS = 'SUBSCRIPTIONS',
   PAYMENTS = 'PAYMENTS',
   GLOBAL_CONFIG = 'GLOBAL_CONFIG',
-  INTERESTS = 'INTERESTS'
+  INTERESTS = 'INTERESTS',
+  PRAYERS = 'PRAYERS'
 }
 
 export enum VerificationStatus {

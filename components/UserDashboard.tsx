@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { DashboardTab, AppView } from '../types';
-import { Heart, MessageCircle, Users, BookOpen, User, Home, X, Calendar, Lock, Shield, WifiOff, Star, Sparkles, Zap, Flame, Trophy } from 'lucide-react';
+import { Heart, MessageCircle, Users, BookOpen, User, Home, X, Calendar, Lock, Shield, WifiOff, Star, Sparkles, Zap, Flame, Trophy, HeartHandshake } from 'lucide-react';
 import { Matches } from './Matches';
 import { Forum } from './Forum';
 import { Vocation } from './Vocation';
@@ -9,6 +9,7 @@ import { Profile } from './Profile';
 import { Events } from './Events';
 import { LikesYou } from './LikesYou';
 import { SpeedDate } from './SpeedDate';
+import { IntercessionCircle } from './IntercessionCircle';
 import { supabase } from '../supabaseClient';
 import { updateDailyStreak } from '../utils/streakManager';
 
@@ -63,6 +64,10 @@ const TAB_HEADERS: Record<DashboardTab, { title: string; subtitle: string }> = {
   [DashboardTab.MESSAGES]: {
     title: 'Messagerie Privée',
     subtitle: 'Échanges fraternels et sincères pour apprendre à vous connaître dans la foi.'
+  },
+  [DashboardTab.PRAYERS]: {
+    title: 'Cercle d\'Intercession 🙏',
+    subtitle: 'Déposez vos intensions de prière et allumez une bougie virtuelle pour vos frères et sœurs.'
   },
   [DashboardTab.PROFILE]: {
     title: 'Mon Espace & Engagement',
@@ -344,6 +349,8 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
         }} />;
       case DashboardTab.FORUM:
         return <Forum />;
+      case DashboardTab.PRAYERS:
+        return <IntercessionCircle />;
       case DashboardTab.EVENTS:
         return <Events />;
       case DashboardTab.VOCATION:
@@ -432,6 +439,12 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
             label="Forum & Communauté"
             active={activeTab === DashboardTab.FORUM}
             onClick={() => handleTabChange(DashboardTab.FORUM)}
+          />
+          <SidebarItem
+            icon={<HeartHandshake size={18} className="text-amber-500" />}
+            label="Cercle d'Intercession 🙏"
+            active={activeTab === DashboardTab.PRAYERS}
+            onClick={() => handleTabChange(DashboardTab.PRAYERS)}
           />
           <SidebarItem
             icon={<BookOpen size={18} />}
