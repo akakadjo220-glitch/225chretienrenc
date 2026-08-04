@@ -5,6 +5,7 @@ import { Search, Send, ArrowLeft, ShieldCheck, Mail, Image as ImageIcon, Mic, X,
 import { supabase } from '../supabaseClient';
 import { generateIcebreakers, generateAntiGhostingMessage, moderateMessage, moderateImage, detectFinancialScam } from '../aiClient';
 import { VideoCall } from './VideoCall';
+import { AudioPlayer } from './AudioPlayer';
 import { sanitizeInput, validateImageFile } from '../utils/security';
 
 const getImlrUrl = (path: string) => {
@@ -1391,7 +1392,9 @@ export const Messages: React.FC<MessagesProps> = ({ initialContactId }) => {
                                             </div>
                                         )}
                                         {msg.type === 'AUDIO' && msg.attachmentUrl && (
-                                            <audio controls className={`h-8 w-48 ${isMe ? 'brightness-125' : ''}`} src={msg.attachmentUrl} />
+                                            <div className="my-1">
+                                                <AudioPlayer src={msg.attachmentUrl} isMe={isMe} />
+                                            </div>
                                         )}
                                         {msg.text && msg.type !== 'PRAYER' && <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{msg.text}</p>}
                                         <div className={`text-[10px] text-right mt-1 opacity-70 flex justify-end items-center space-x-1 ${isMe ? 'text-emerald-100' : 'text-slate-400'}`}>
@@ -1433,19 +1436,38 @@ export const Messages: React.FC<MessagesProps> = ({ initialContactId }) => {
                         )}
                         {/* Saisie */}
                         <div className="p-2 md:p-3">
-                            {(attachedFile || audioBlob) && (
-                                <div className="flex items-center justify-between bg-slate-100 p-2 rounded-lg mb-2 mx-2 border border-slate-200">
+                            {attachedFile && (
+                                <div className="flex items-center justify-between bg-slate-100 p-2 rounded-xl mb-2 mx-2 border border-slate-200">
                                     <div className="flex items-center text-xs font-medium text-slate-700">
-                                        {attachedFile?.type === 'IMAGE' && <ImageIcon size={16} className="mr-2 text-blue-500" />}
-                                        {attachedFile?.type === 'VIDEO' && <VideoIcon size={16} className="mr-2 text-purple-500" />}
-                                        {audioBlob && <Mic size={16} className="mr-2 text-red-500" />}
-                                        <span className="truncate">{attachedFile ? attachedFile.file.name : "Vocal prêt"}</span>
+                                        {attachedFile.type === 'IMAGE' && <ImageIcon size={16} className="mr-2 text-blue-500" />}
+                                        {attachedFile.type === 'VIDEO' && <VideoIcon size={16} className="mr-2 text-purple-500" />}
+                                        <span className="truncate">{attachedFile.file.name}</span>
                                     </div>
-                                    <button onClick={() => { setAttachedFile(null); setAudioBlob(null); }} className="p-1 hover:bg-slate-200 rounded-full"><X size={16} /></button>
+                                    <button onClick={() => setAttachedFile(null)} className="p-1 hover:bg-slate-200 rounded-full"><X size={16} /></button>
                                 </div>
                             )}
+
+                            {/* BARRE DE PRÉ-ÉCOUTE DU VOCAL S'IL EST ENREGISTRÉ */}
+                            {audioBlob && !isRecording && (
+                                <div className="flex items-center justify-between bg-gradient-to-r from-emerald-50 to-teal-50 p-2.5 rounded-2xl mb-2.5 mx-1 border border-emerald-200 shadow-sm animate-in slide-in-from-bottom-2">
+                                    <div className="flex-1 mr-2">
+                                        <p className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider mb-1 flex items-center gap-1">
+                                            <span>🎙️ Note Vocale Enregistrée (Pré-écoute)</span>
+                                        </p>
+                                        <AudioPlayer src={URL.createObjectURL(audioBlob)} isMe={true} />
+                                    </div>
+                                    <button
+                                        onClick={() => setAudioBlob(null)}
+                                        className="p-2 text-red-500 hover:bg-red-100 rounded-full transition"
+                                        title="Supprimer la note vocale"
+                                    >
+                                        <X size={18} />
+                                    </button>
+                                </div>
+                            )}
+
                             <div className="flex items-end gap-2">
-                                {!isRecording && (
+                                {!isRecording && !audioBlob && (
                                     <button onClick={() => fileInputRef.current?.click()} className="p-3 text-slate-400 hover:bg-slate-100 rounded-full" title="Ajouter une photo ou vidéo">
                                         <ImageIcon size={24} />
                                     </button>
@@ -1463,18 +1485,64 @@ export const Messages: React.FC<MessagesProps> = ({ initialContactId }) => {
                                         }
                                     }}
                                 />
-                                <div className="flex-1 bg-slate-100 rounded-2xl px-4 min-h-[48px] flex items-center">
+
+                                <div className="flex-1 bg-slate-100 rounded-2xl px-4 min-h-[48px] flex items-center border border-slate-200">
                                     {isRecording ? (
-                                        <div className="flex items-center justify-between w-full text-red-500 font-mono font-bold">
-                                            <span>{formatDuration(recordingDuration)}</span>
-                                            <button onClick={cancelRecording} className="text-xs font-bold text-slate-400 uppercase">Annuler</button>
+                                        <div className="flex items-center justify-between w-full">
+                                            <div className="flex items-center space-x-2 text-red-600 font-mono font-extrabold text-sm">
+                                                <span className="w-3 h-3 rounded-full bg-red-600 animate-ping inline-block" />
+                                                <span>🔴 Enregistrement {formatDuration(recordingDuration)}</span>
+                                            </div>
+
+                                            {/* Equalizer animation */}
+                                            <div className="flex items-center gap-0.5 h-4 mx-2">
+                                                <div className="w-1 bg-red-500 h-full animate-pulse" />
+                                                <div className="w-1 bg-red-400 h-3 animate-bounce" />
+                                                <div className="w-1 bg-red-600 h-full animate-pulse" />
+                                            </div>
+
+                                            <button
+                                                type="button"
+                                                onClick={cancelRecording}
+                                                className="text-xs font-extrabold text-slate-500 hover:text-red-600 uppercase bg-slate-200 hover:bg-red-100 px-3 py-1.5 rounded-full transition"
+                                            >
+                                                Annuler
+                                            </button>
                                         </div>
                                     ) : (
-                                        <textarea value={inputText} onChange={(e) => setInputText(e.target.value)} placeholder="Message..." className="w-full bg-transparent border-none focus:ring-0 text-sm resize-none py-3" rows={1} />
+                                        <textarea
+                                            value={inputText}
+                                            onChange={(e) => setInputText(e.target.value)}
+                                            placeholder={audioBlob ? "Note vocale prête à être envoyée..." : "Tapez un message..."}
+                                            disabled={!!audioBlob}
+                                            className="w-full bg-transparent border-none focus:ring-0 text-sm resize-none py-3 disabled:opacity-50"
+                                            rows={1}
+                                        />
                                     )}
                                 </div>
-                                <button onClick={inputText.trim() || attachedFile || audioBlob ? handleSendMessage : (isRecording ? stopRecording : startRecording)} className={`p-3 rounded-full shadow-lg ${inputText.trim() || attachedFile || audioBlob ? 'bg-emerald-600 text-white' : (isRecording ? 'bg-red-500 text-white' : 'bg-slate-200 text-slate-500')}`}>
-                                    {isSending ? <Loader className="animate-spin" size={20} /> : (inputText.trim() || attachedFile || audioBlob ? <Send size={20} /> : (isRecording ? <StopCircle size={24} /> : <Mic size={24} />))}
+
+                                <button
+                                    onClick={
+                                        inputText.trim() || attachedFile || audioBlob 
+                                            ? handleSendMessage 
+                                            : (isRecording ? stopRecording : startRecording)
+                                    }
+                                    className={`p-3 rounded-full shadow-lg transition transform active:scale-95 flex items-center justify-center ${
+                                        inputText.trim() || attachedFile || audioBlob 
+                                            ? 'bg-emerald-600 text-white hover:bg-emerald-700' 
+                                            : (isRecording ? 'bg-red-500 text-white hover:bg-red-600 animate-pulse' : 'bg-emerald-600 text-white hover:bg-emerald-700')
+                                    }`}
+                                    title={isRecording ? "Arrêter l'enregistrement" : (inputText.trim() || attachedFile || audioBlob ? "Envoyer" : "Enregistrer un message vocal")}
+                                >
+                                    {isSending ? (
+                                        <Loader className="animate-spin" size={20} />
+                                    ) : (inputText.trim() || attachedFile || audioBlob ? (
+                                        <Send size={20} />
+                                    ) : (isRecording ? (
+                                        <StopCircle size={24} />
+                                    ) : (
+                                        <Mic size={22} />
+                                    )))}
                                 </button>
                             </div>
                         </div>
