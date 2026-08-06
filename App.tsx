@@ -324,7 +324,7 @@ const App: React.FC = () => {
   const isUserDashboard = currentView === AppView.USER_DASHBOARD;
 
   return (
-    <div className={`bg-slate-50 font-sans ${isUserDashboard ? 'h-screen h-[100dvh] overflow-hidden flex flex-col' : 'min-h-screen'}`}>
+    <div className={`bg-slate-50 font-sans ${isPrivacyBlurred ? 'privacy-blur-active' : ''} ${isUserDashboard ? 'h-screen h-[100dvh] overflow-hidden flex flex-col' : 'min-h-screen'}`}>
       {/* Gestionnaire de Notifications & Gestionnaire de Session Inactive */}
       <NotificationManager />
       <SessionTimeoutManager

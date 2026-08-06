@@ -307,3 +307,49 @@ body {
   position: relative;
   overflow: hidden;
 }
+
+/* ==========================================================================
+   🛡️ ANTI-SCREENSHOT & PRIVACY SHIELD SYSTEM (PC + MOBILE + TABLET)
+   ========================================================================== */
+
+/* 1. Désactiver la sélection de texte & téléchargement d'images sur mobile/tablette/desktop */
+.no-select, .no-download, img, video {
+  -webkit-touch-callout: none !important; /* Empêche le menu "Enregistrer l'image" sur iOS & Android Safari/Chrome */
+  -webkit-user-select: none !important;
+  -khtml-user-select: none !important;
+  -moz-user-select: none !important;
+  -ms-user-select: none !important;
+  user-select: none !important;
+  -webkit-user-drag: none !important;
+}
+
+/* 2. Protection à l'impression & Capture d'écran PDF (@media print) */
+@media print {
+  html, body {
+    display: none !important;
+    visibility: hidden !important;
+  }
+}
+
+/* 3. Filigrane de Confidentialité en fond des conversations et profils */
+.privacy-watermark-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+  opacity: 0.04;
+  background-image: repeating-linear-gradient(
+    -45deg,
+    #059669,
+    #059669 15px,
+    transparent 15px,
+    transparent 80px
+  );
+}
+
+/* 4. Masque de floutage vie privée ultra réactif */
+.privacy-blur-active {
+  filter: blur(25px) brightness(0.4) !important;
+  transition: filter 0.15s ease-in-out !important;
+  pointer-events: none !important;
+}
