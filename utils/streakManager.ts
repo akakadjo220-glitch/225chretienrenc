@@ -2,7 +2,6 @@
  * 🔥 Gestionnaire de Séries de Foi (Daily Faith Streaks) pour 225 Chrétien
  * Calcule et conserve les jours consécutifs de méditation et de présence.
  */
-import { supabase } from '../supabaseClient';
 
 export interface StreakInfo {
   streakCount: number;
@@ -33,20 +32,14 @@ export const updateDailyStreak = async (userId: string): Promise<StreakInfo> => 
   const yesterday = getYesterdayDateString();
 
   let streakCount = 1;
-  let lastStreakDate = '';
+  let lastStreakDate = today;
   let isNewStreakToday = false;
   let milestoneReached: number | null = null;
 
   try {
-    // 1. Lire les métadonnées de streak du profil
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('streak_count, last_streak_date')
-      .eq('id', userId)
-      .maybeSingle();
-
-    const storedCount = profile?.streak_count || Number(localStorage.getItem(`_225_streak_${userId}`)) || 0;
-    const storedDate = profile?.last_streak_date || localStorage.getItem(`_225_streak_date_${userId}`) || '';
+    // Lecture sécurisée des métadonnées de streak dans localStorage
+    const storedCount = Number(localStorage.getItem(`_225_streak_${userId}`)) || 0;
+    const storedDate = localStorage.getItem(`_225_streak_date_${userId}`) || '';
 
     if (storedDate === today) {
       // Déjà validé aujourd'hui
@@ -65,19 +58,14 @@ export const updateDailyStreak = async (userId: string): Promise<StreakInfo> => 
       isNewStreakToday = true;
     }
 
-    // Vérification des paliers (3, 7, 30, 90, 365 jours)
+    // Vérification des paliers (3, 7, 14, 30, 60, 90, 180, 365 jours)
     if (isNewStreakToday && [3, 7, 14, 30, 60, 90, 180, 365].includes(streakCount)) {
       milestoneReached = streakCount;
     }
 
-    // 2. Sauvegarde en local et Supabase
+    // Sauvegarde fiable en stockage local
     localStorage.setItem(`_225_streak_${userId}`, streakCount.toString());
     localStorage.setItem(`_225_streak_date_${userId}`, today);
-
-    await supabase.from('profiles').update({
-      streak_count: streakCount,
-      last_streak_date: today
-    }).eq('id', userId);
 
   } catch (e) {
     console.warn("Notice mise à jour Série de Foi:", e);
