@@ -395,7 +395,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
         </div>
 
         {/* 🔥 BADGE SÉRIE DE FOI (DAILY FAITH STREAK) */}
-        <div className="mb-5 p-3 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white shadow-md shadow-amber-500/20 border border-amber-300/40 text-left flex items-center justify-between animate-in zoom-in duration-300">
+        <div className="mb-3 p-3 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white shadow-md shadow-amber-500/20 border border-amber-300/40 text-left flex items-center justify-between animate-in zoom-in duration-300">
           <div className="flex items-center space-x-2.5">
             <div className="bg-white/20 p-2 rounded-xl shrink-0">
               <Flame size={18} className="text-amber-100 fill-amber-200 animate-pulse" />
@@ -406,6 +406,25 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
             </div>
           </div>
           <span className="text-xs font-black bg-white/20 px-2 py-0.5 rounded-full backdrop-blur-md">🔥</span>
+        </div>
+
+        {/* 💎 SOLDE DE POINTS & CRÉDITS */}
+        <div className="mb-5 p-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow-md border border-emerald-500/30 text-left flex items-center justify-between">
+          <div className="flex items-center space-x-2.5">
+            <div className="bg-white/20 p-2 rounded-xl shrink-0">
+              <span className="text-base">💎</span>
+            </div>
+            <div>
+              <p className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-100">Solde de Points</p>
+              <p className="text-xs font-black text-white">{currentUser?.points ?? 150} Pts • {currentUser?.credits ?? 3} Crédits</p>
+            </div>
+          </div>
+          <button
+            onClick={() => handleTabChange(DashboardTab.PROFILE)}
+            className="text-[10px] font-bold bg-white text-emerald-800 px-2.5 py-1 rounded-lg hover:bg-emerald-50 transition shadow-sm cursor-pointer"
+          >
+            Voir
+          </button>
         </div>
         <nav className="space-y-1.5">
           <SidebarItem

@@ -59,6 +59,45 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     const [txSearchQuery, setTxSearchQuery] = useState<string>('');
     const [txStatusFilter, setTxStatusFilter] = useState<string>('ALL');
 
+    // Configuration des Points, Crédits et Abonnements
+    const [pointsConfig, setPointsConfig] = useState({
+        premiumMonthlyPrice: 2500,
+        premiumQuarterlyPrice: 5000,
+        spotlightPriceFcfa: 500,
+        pointsPerSpotlight: 50,
+        pointsDailyStreak: 10,
+        pointsVerification: 100,
+        pointsReferral: 150
+    });
+    const [isSavingPointsConfig, setIsSavingPointsConfig] = useState(false);
+
+    const loadPointsConfig = async () => {
+        try {
+            const { data } = await supabase.from('system_settings').select('value').eq('key', 'points_pricing_config').maybeSingle();
+            if (data?.value) {
+                setPointsConfig(prev => ({ ...prev, ...data.value }));
+            }
+        } catch (e) {
+            console.error("Error loading points config:", e);
+        }
+    };
+
+    const handleSavePointsConfig = async () => {
+        setIsSavingPointsConfig(true);
+        try {
+            await supabase.from('system_settings').upsert({
+                key: 'points_pricing_config',
+                value: pointsConfig,
+                updated_at: new Date().toISOString()
+            }, { onConflict: 'key' });
+            alert("✅ Configuration des points, abonnements et tarifs enregistrée avec succès !");
+        } catch (e: any) {
+            alert("Erreur lors de la sauvegarde : " + e.message);
+        } finally {
+            setIsSavingPointsConfig(false);
+        }
+    };
+
     // Selection & Modal States
     const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
     const [searchUserQuery, setSearchUserQuery] = useState('');
@@ -223,6 +262,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
     useEffect(() => {
         loadCertificationRequests();
+        loadPointsConfig();
     }, [activeTab]);
 
     const handleApproveCertification = async (reqId: string, userId: string) => {
@@ -1852,17 +1892,154 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     );
 
     const renderSubscriptions = () => (
-        <div className="space-y-6 animate-in fade-in">
-            <div className="flex justify-between items-center mb-6"><h2 className="text-xl font-bold text-slate-800">Plans d'Abonnement</h2></div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+        <div className="space-y-8 animate-in fade-in text-left">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-100 pb-4">
+                <div>
+                    <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                        <Crown className="text-amber-500" />
+                        Configuration des Abonnements, Points & Tarifs
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-1">
+                        Définissez les tarifs des abonnements Premium, les crédits Spotlight et les bonus de points membres.
+                    </p>
+                </div>
+                <button
+                    onClick={handleSavePointsConfig}
+                    disabled={isSavingPointsConfig}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md transition flex items-center gap-2 cursor-pointer"
+                >
+                    <Save size={16} />
+                    <span>{isSavingPointsConfig ? 'Sauvegarde...' : 'Enregistrer la Config'}</span>
+                </button>
+            </div>
+
+            {/* GRILLE DES REGLAGES DE TARIFS ET POINTS */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* BLOC 1 : ABONNEMENTS PREMIUM */}
+                <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
+                    <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2 border-b border-slate-100 pb-3">
+                        <Sparkles className="text-amber-500" size={18} />
+                        Tarifs des Formules Premium (FCFA)
+                    </h3>
+                    <div className="space-y-3">
+                        <div>
+                            <label className="text-xs font-bold text-slate-700 block mb-1">Abonnement Mensuel (1 Mois)</label>
+                            <div className="relative">
+                                <input
+                                    type="number"
+                                    value={pointsConfig.premiumMonthlyPrice}
+                                    onChange={(e) => setPointsConfig({ ...pointsConfig, premiumMonthlyPrice: Number(e.target.value) })}
+                                    className="w-full p-2.5 text-xs font-bold rounded-xl border border-slate-200 focus:ring-emerald-500 focus:border-emerald-500"
+                                />
+                                <span className="absolute right-3 top-2.5 text-xs font-extrabold text-slate-400">FCFA</span>
+                            </div>
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-slate-700 block mb-1">Abonnement Trimestriel (3 Mois)</label>
+                            <div className="relative">
+                                <input
+                                    type="number"
+                                    value={pointsConfig.premiumQuarterlyPrice}
+                                    onChange={(e) => setPointsConfig({ ...pointsConfig, premiumQuarterlyPrice: Number(e.target.value) })}
+                                    className="w-full p-2.5 text-xs font-bold rounded-xl border border-slate-200 focus:ring-emerald-500 focus:border-emerald-500"
+                                />
+                                <span className="absolute right-3 top-2.5 text-xs font-extrabold text-slate-400">FCFA</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* BLOC 2 : SPOTLIGHT & CONVERSION */}
+                <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
+                    <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2 border-b border-slate-100 pb-3">
+                        <Zap className="text-orange-500" size={18} />
+                        Boost de Paroisse (Spotlight)
+                    </h3>
+                    <div className="space-y-3">
+                        <div>
+                            <label className="text-xs font-bold text-slate-700 block mb-1">Prix par Crédit Boost (Achat direct)</label>
+                            <div className="relative">
+                                <input
+                                    type="number"
+                                    value={pointsConfig.spotlightPriceFcfa}
+                                    onChange={(e) => setPointsConfig({ ...pointsConfig, spotlightPriceFcfa: Number(e.target.value) })}
+                                    className="w-full p-2.5 text-xs font-bold rounded-xl border border-slate-200 focus:ring-emerald-500 focus:border-emerald-500"
+                                />
+                                <span className="absolute right-3 top-2.5 text-xs font-extrabold text-slate-400">FCFA</span>
+                            </div>
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-slate-700 block mb-1">Équivalence en Points pour 1 Boost</label>
+                            <div className="relative">
+                                <input
+                                    type="number"
+                                    value={pointsConfig.pointsPerSpotlight}
+                                    onChange={(e) => setPointsConfig({ ...pointsConfig, pointsPerSpotlight: Number(e.target.value) })}
+                                    className="w-full p-2.5 text-xs font-bold rounded-xl border border-slate-200 focus:ring-emerald-500 focus:border-emerald-500"
+                                />
+                                <span className="absolute right-3 top-2.5 text-xs font-extrabold text-slate-400">Points</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* BLOC 3 : SYSTEME D'ATTRIBUTION DES POINTS */}
+                <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4 md:col-span-2">
+                    <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2 border-b border-slate-100 pb-3">
+                        <span>💎</span>
+                        Règles d'Attribution Automatique des Points
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label className="text-xs font-bold text-slate-700 block mb-1">Connexion Quotidienne (Série de Foi)</label>
+                            <div className="relative">
+                                <input
+                                    type="number"
+                                    value={pointsConfig.pointsDailyStreak}
+                                    onChange={(e) => setPointsConfig({ ...pointsConfig, pointsDailyStreak: Number(e.target.value) })}
+                                    className="w-full p-2.5 text-xs font-bold rounded-xl border border-slate-200 focus:ring-emerald-500 focus:border-emerald-500"
+                                />
+                                <span className="absolute right-3 top-2.5 text-xs font-extrabold text-slate-400">pts / jour</span>
+                            </div>
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-slate-700 block mb-1">Vérification de Profil Réussie</label>
+                            <div className="relative">
+                                <input
+                                    type="number"
+                                    value={pointsConfig.pointsVerification}
+                                    onChange={(e) => setPointsConfig({ ...pointsConfig, pointsVerification: Number(e.target.value) })}
+                                    className="w-full p-2.5 text-xs font-bold rounded-xl border border-slate-200 focus:ring-emerald-500 focus:border-emerald-500"
+                                />
+                                <span className="absolute right-3 top-2.5 text-xs font-extrabold text-slate-400">pts (Bonus)</span>
+                            </div>
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-slate-700 block mb-1">Parrainage d'un Membre</label>
+                            <div className="relative">
+                                <input
+                                    type="number"
+                                    value={pointsConfig.pointsReferral}
+                                    onChange={(e) => setPointsConfig({ ...pointsConfig, pointsReferral: Number(e.target.value) })}
+                                    className="w-full p-2.5 text-xs font-bold rounded-xl border border-slate-200 focus:ring-emerald-500 focus:border-emerald-500"
+                                />
+                                <span className="absolute right-3 top-2.5 text-xs font-extrabold text-slate-400">pts / ami</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* CARD APERÇU OFFRES */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto pt-4">
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 flex flex-col relative overflow-hidden">
                     <div className="mb-4"><h3 className="text-lg font-bold text-slate-500 uppercase tracking-widest">Gratuit</h3><div className="mt-2 flex items-baseline"><span className="text-4xl font-extrabold text-slate-900">0</span><span className="ml-1 text-xl font-medium text-slate-500">FCFA / mois</span></div></div>
-                    <ul className="space-y-4 mb-8 flex-1"><li className="flex items-start"><Check className="h-5 w-5 text-emerald-500 mr-2 flex-shrink-0" /><span className="text-slate-600 text-sm">Profil standard</span></li><li className="flex items-start"><Check className="h-5 w-5 text-emerald-500 mr-2 flex-shrink-0" /><span className="text-slate-600 text-sm">Forum</span></li></ul>
+                    <ul className="space-y-4 mb-8 flex-1"><li className="flex items-start"><Check className="h-5 w-5 text-emerald-500 mr-2 flex-shrink-0" /><span className="text-slate-600 text-sm">Profil standard</span></li><li className="flex items-start"><Check className="h-5 w-5 text-emerald-500 mr-2 flex-shrink-0" /><span className="text-slate-600 text-sm">Forum & Prières</span></li></ul>
                 </div>
                 <div className="bg-white rounded-2xl shadow-lg border-2 border-emerald-500 p-8 flex flex-col relative overflow-hidden transform md:scale-105">
                     <div className="absolute top-0 right-0 bg-emerald-500 text-white text-xs font-bold px-3 py-1 rounded-bl-lg uppercase tracking-wider">Recommandé</div>
-                    <div className="mb-4"><h3 className="text-lg font-bold text-emerald-600 uppercase tracking-widest">Premium</h3><div className="mt-2 flex items-baseline"><span className="text-4xl font-extrabold text-emerald-900">{paymentSettings.amount}</span><span className="ml-1 text-xl font-medium text-emerald-700">{paymentSettings.currency} / mois</span></div></div>
-                    <ul className="space-y-4 mb-8 flex-1"><li className="flex items-start"><CheckCircle className="h-5 w-5 text-emerald-600 mr-2 flex-shrink-0" /><span className="text-slate-800 text-sm font-medium">Message Direct</span></li><li className="flex items-start"><CheckCircle className="h-5 w-5 text-emerald-600 mr-2 flex-shrink-0" /><span className="text-slate-800 text-sm font-medium">Super Likes</span></li></ul>
+                    <div className="mb-4"><h3 className="text-lg font-bold text-emerald-600 uppercase tracking-widest">Premium</h3><div className="mt-2 flex items-baseline"><span className="text-4xl font-extrabold text-emerald-900">{pointsConfig.premiumMonthlyPrice}</span><span className="ml-1 text-xl font-medium text-emerald-700">FCFA / mois</span></div></div>
+                    <ul className="space-y-4 mb-8 flex-1"><li className="flex items-start"><CheckCircle className="h-5 w-5 text-emerald-600 mr-2 flex-shrink-0" /><span className="text-slate-800 text-sm font-medium">Message Direct illimité</span></li><li className="flex items-start"><CheckCircle className="h-5 w-5 text-emerald-600 mr-2 flex-shrink-0" /><span className="text-slate-800 text-sm font-medium">Super Likes & Mode Invisible</span></li></ul>
                 </div>
             </div>
         </div>

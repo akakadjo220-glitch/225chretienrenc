@@ -6,6 +6,7 @@ import { compressImage } from '../utils/imageCompressor';
 import { UserCheck, ShieldCheck, Shield, Camera, AlertCircle, CheckCircle, Clock, Lock, Plus, X, Tag, FileText, CreditCard, Zap, Video, Play, Loader, Info, StopCircle, RefreshCw, Image as ImageIcon, Trash2, Phone, CalendarClock, AlertTriangle, Mic, EyeOff, Eye } from 'lucide-react';
 import { compareFaces } from '../utils/deepfaceClient';
 import { PinLockModal } from './PinLockModal';
+import { getCleanDisplayContact } from '../utils/phoneFormatter';
 
 const getImlrUrl = (path: string) => {
     if (!path) return '';
@@ -15,6 +16,7 @@ const getImlrUrl = (path: string) => {
 
 export const Profile: React.FC = () => {
     const [user, setUser] = useState<User | null>(null);
+    const [profileTab, setProfileTab] = useState<'PROFIL' | 'VERIFICATION' | 'POINTS' | 'SECURITY'>('PROFIL');
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
@@ -894,240 +896,353 @@ export const Profile: React.FC = () => {
                     </div>
                     <div className="ml-4 mb-2">
                         <h1 className="text-2xl font-bold text-slate-900 flex items-center">{user.name}{user.verificationStatus === VerificationStatus.VERIFIED && (<ShieldCheck className="ml-2 text-emerald-500 h-6 w-6" />)}</h1>
-                        <p className="text-slate-500">{user.email}</p>
+                        <p className="text-sm font-semibold text-slate-600 mt-0.5">{getCleanDisplayContact(user)}</p>
                     </div>
                 </div>
                 <div className="absolute top-4 right-4">{!isEditing && (<button onClick={() => setIsEditing(true)} className="bg-white/20 backdrop-blur border border-white/40 text-white px-4 py-2 rounded-lg font-medium hover:bg-white/30 transition">Modifier</button>)}</div>
             </div>
 
-            {renderVerificationStatus()}
+            {/* 🗂️ BARRE D'ONGLETS INTUITIVE */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm mb-8">
+                <button
+                    onClick={() => setProfileTab('PROFIL')}
+                    className={`py-3 px-3 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                        profileTab === 'PROFIL' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                >
+                    <span>👤</span>
+                    <span>Profil & Galerie</span>
+                </button>
+                <button
+                    onClick={() => setProfileTab('VERIFICATION')}
+                    className={`py-3 px-3 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                        profileTab === 'VERIFICATION' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                >
+                    <span>🛡️</span>
+                    <span>Vérification & Identité</span>
+                </button>
+                <button
+                    onClick={() => setProfileTab('POINTS')}
+                    className={`py-3 px-3 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                        profileTab === 'POINTS' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                >
+                    <span>💎</span>
+                    <span>Points & Offres</span>
+                </button>
+                <button
+                    onClick={() => setProfileTab('SECURITY')}
+                    className={`py-3 px-3 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                        profileTab === 'SECURITY' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                >
+                    <span>🔒</span>
+                    <span>Sécurité & PIN</span>
+                </button>
+            </div>
 
-            {/* Section de Certification Communautaire ("Anti-Brouteur") */}
-            {user.verificationStatus === VerificationStatus.VERIFIED && (
-                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-8 animate-in fade-in">
-                    <div className="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-amber-50 to-slate-50 flex items-center justify-between">
-                        <div className="flex items-center">
-                            <div className="bg-amber-100 p-2 rounded-full mr-3"><ShieldCheck className="h-5 w-5 text-amber-600" /></div>
-                            <div>
-                                <h3 className="font-bold text-slate-800 text-sm">Certification "Anti-Brouteurs" par Ambassadeurs 🛡️</h3>
-                                <p className="text-[11px] text-slate-500">Validation physique de votre appartenance paroissiale pour le badge de confiance ultime.</p>
+            {/* 🛡️ TAB 2 : VERIFICATION & IDENTITE */}
+            {profileTab === 'VERIFICATION' && (
+                <div className="space-y-6 animate-in fade-in">
+                    {renderVerificationStatus()}
+
+                    {user.verificationStatus === VerificationStatus.VERIFIED && (
+                        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-8 animate-in fade-in">
+                            <div className="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-amber-50 to-slate-50 flex items-center justify-between">
+                                <div className="flex items-center">
+                                    <div className="bg-amber-100 p-2 rounded-full mr-3"><ShieldCheck className="h-5 w-5 text-amber-600" /></div>
+                                    <div>
+                                        <h3 className="font-bold text-slate-800 text-sm">Certification "Anti-Brouteurs" par Ambassadeurs 🛡️</h3>
+                                        <p className="text-[11px] text-slate-500">Validation physique de votre appartenance paroissiale pour le badge de confiance ultime.</p>
+                                    </div>
+                                </div>
+                                {isCommunityCertified ? (
+                                    <span className="text-xs bg-amber-100 text-amber-800 border border-amber-200 px-3 py-1 rounded-full font-bold flex items-center gap-1 shadow-sm">
+                                        🛡️ Certifié par la Communauté
+                                    </span>
+                                ) : (
+                                    <span className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-full font-semibold">Non Certifié</span>
+                                )}
+                            </div>
+                            
+                            <div className="p-6 space-y-4">
+                                {isCommunityCertified ? (
+                                    <div className="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-4 text-xs text-emerald-800 leading-relaxed text-left">
+                                        <strong className="text-emerald-950 block mb-1">Félicitations ! Votre profil est certifié par la communauté.</strong>
+                                        Les ambassadeurs de votre paroisse locale ont validé votre présence et votre engagement. Vous portez désormais le badge de confiance le plus élevé de l'application.
+                                    </div>
+                                ) : hasPendingCertification ? (
+                                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3 text-left">
+                                        <div className="flex items-center gap-2 text-amber-800 font-bold text-xs">
+                                            <Clock size={14} className="animate-pulse" />
+                                            <span>Demande de certification locale en cours d'examen...</span>
+                                        </div>
+                                        <p className="text-xs text-slate-600 leading-relaxed">
+                                            Votre demande a été transmise aux ambassadeurs de la paroisse : <strong className="text-slate-800">{formData.church || user.parish || 'Votre église'}</strong>.
+                                        </p>
+                                        <div className="bg-white/80 p-3 rounded-lg border border-amber-100 text-xs text-slate-500 italic">
+                                            Notes transmises : "{pendingCertNotes}"
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4 text-left">
+                                        <p className="text-xs text-slate-600 leading-relaxed">
+                                            Pour obtenir le badge ultime de confiance et rassurer pleinement vos futurs matchs chrétiens, demandez une certification physique auprès de l'un des ambassadeurs bénévoles de votre église locale.
+                                        </p>
+                                        
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="space-y-1.5">
+                                                <label className="text-xs font-bold text-slate-700 block">Votre paroisse / église de rattachement</label>
+                                                <input
+                                                    type="text"
+                                                    disabled
+                                                    value={user.parish || `${formData.denomination} - ${formData.church}`}
+                                                    className="w-full text-xs rounded-xl border-slate-200 bg-slate-100 text-slate-600 p-2.5 cursor-not-allowed"
+                                                />
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <label className="text-xs font-bold text-slate-700 block">Note de recommandation pour l'Ambassadeur</label>
+                                                <textarea
+                                                    value={certNotes}
+                                                    onChange={(e) => setCertNotes(e.target.value)}
+                                                    placeholder="Ex: Je suis membre de la chorale Sainte Cécile..."
+                                                    rows={2}
+                                                    className="w-full text-xs rounded-xl border-slate-200 focus:ring-emerald-500 focus:border-emerald-500 p-2.5 bg-slate-50/50 resize-none"
+                                                />
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="flex justify-end pt-2">
+                                            <button
+                                                onClick={handleRequestCommunityCertification}
+                                                className="bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition shadow-md flex items-center gap-1.5 cursor-pointer"
+                                            >
+                                                <span>🛡️</span> Demander la certification
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
-                        {isCommunityCertified ? (
-                            <span className="text-xs bg-amber-100 text-amber-800 border border-amber-200 px-3 py-1 rounded-full font-bold flex items-center gap-1 shadow-sm">
-                                🛡️ Certifié par la Communauté
-                            </span>
-                        ) : (
-                            <span className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-full font-semibold">Non Certifié</span>
-                        )}
+                    )}
+                </div>
+            )}
+
+            {/* 💎 TAB 3 : POINTS & ABONNEMENTS */}
+            {profileTab === 'POINTS' && (
+                <div className="space-y-6 animate-in fade-in text-left">
+                    {/* SOLDE DE POINTS & CREDITS CARD */}
+                    <div className="bg-gradient-to-r from-emerald-800 via-teal-900 to-emerald-950 rounded-2xl p-6 text-white shadow-xl border border-emerald-500/30 flex flex-col md:flex-row items-center justify-between gap-4">
+                        <div>
+                            <div className="flex items-center gap-2 mb-1">
+                                <span className="text-2xl">💎</span>
+                                <h3 className="font-extrabold text-lg">Votre Solde de Confiance</h3>
+                            </div>
+                            <p className="text-xs text-emerald-200">Accumulez des points en méditant chaque jour et débloquez des avantages Premium.</p>
+                        </div>
+                        <div className="flex items-center gap-4 bg-white/10 px-5 py-3 rounded-xl backdrop-blur-md border border-white/10">
+                            <div className="text-center">
+                                <span className="text-2xl font-black text-amber-400">{user.points ?? 150}</span>
+                                <span className="block text-[10px] font-bold uppercase tracking-wider text-emerald-200">Points</span>
+                            </div>
+                            <div className="h-8 w-px bg-white/20" />
+                            <div className="text-center">
+                                <span className="text-2xl font-black text-amber-400">{(user as any).credits ?? 3}</span>
+                                <span className="block text-[10px] font-bold uppercase tracking-wider text-emerald-200">Crédits</span>
+                            </div>
+                        </div>
                     </div>
-                    
-                    <div className="p-6 space-y-4">
-                        {isCommunityCertified ? (
-                            <div className="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-4 text-xs text-emerald-800 leading-relaxed text-left">
-                                <strong className="text-emerald-950 block mb-1">Félicitations ! Votre profil est certifié par la communauté.</strong>
-                                Les ambassadeurs de votre paroisse locale ont validé votre présence et votre engagement. Vous portez désormais le badge de confiance le plus élevé de l'application, augmentant votre visibilité et votre crédibilité auprès des autres membres.
-                            </div>
-                        ) : hasPendingCertification ? (
-                            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3 text-left">
-                                <div className="flex items-center gap-2 text-amber-800 font-bold text-xs">
-                                    <Clock size={14} className="animate-pulse" />
-                                    <span>Demande de certification locale en cours d'examen...</span>
-                                </div>
-                                <p className="text-xs text-slate-600 leading-relaxed">
-                                    Votre demande a été transmise aux ambassadeurs de la paroisse : <strong className="text-slate-800">{formData.church || user.parish || 'Votre église'}</strong>.
-                                    Ceux-ci valideront physiquement ou sur recommandation votre appartenance à la communauté pour débloquer votre badge.
-                                </p>
-                                <div className="bg-white/80 p-3 rounded-lg border border-amber-100 text-xs text-slate-500 italic">
-                                    Notes transmises : "{pendingCertNotes}"
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="space-y-4 text-left">
-                                <p className="text-xs text-slate-600 leading-relaxed">
-                                    Pour obtenir le badge ultime de confiance et rassurer pleinement vos futurs matchs chrétiens, demandez une certification physique auprès de l'un des ambassadeurs bénévoles de votre église locale.
-                                </p>
-                                
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="space-y-1.5">
-                                        <label className="text-xs font-bold text-slate-700 block">Votre paroisse / église de rattachement</label>
-                                        <input
-                                            type="text"
-                                            disabled
-                                            value={user.parish || `${formData.denomination} - ${formData.church}`}
-                                            className="w-full text-xs rounded-xl border-slate-200 bg-slate-100 text-slate-600 p-2.5 cursor-not-allowed"
-                                        />
-                                        <p className="text-[10px] text-slate-400">Pour modifier votre paroisse, utilisez le formulaire "Modifier mon profil" ci-dessus.</p>
+
+                    {/* 🔥 Boost de Paroisse Section */}
+                    {(() => {
+                        const boostActive = user.boost_expires_at && new Date(user.boost_expires_at) > new Date();
+                        const boostExpiry = user.boost_expires_at ? new Date(user.boost_expires_at) : null;
+                        const minutesLeft = boostExpiry ? Math.max(0, Math.round((boostExpiry.getTime() - Date.now()) / 60000)) : 0;
+                        const credits = (user as any).credits ?? 0;
+
+                        const lastFreeBoostKey = `last_free_boost_${user.id}`;
+                        const lastFreeBoostStr = localStorage.getItem(lastFreeBoostKey);
+                        const lastFreeBoost = lastFreeBoostStr ? new Date(lastFreeBoostStr) : null;
+                        const daysSinceLastFree = lastFreeBoost ? (Date.now() - lastFreeBoost.getTime()) / (1000 * 60 * 60 * 24) : 999;
+                        const freeBoostAvailable = daysSinceLastFree >= 7;
+
+                        const handleBoostParoisse = async (free: boolean) => {
+                            if (!user) return;
+                            if (!free && credits < 1) {
+                                alert("Vous n'avez pas assez de crédits. Faites un don libre pour en obtenir !");
+                                return;
+                            }
+                            const confirmed = window.confirm(
+                                free
+                                    ? "Activer votre Boost de Paroisse gratuit cette semaine ?"
+                                    : `Dépenser 1 crédit pour booster votre profil 30 minutes supplémentaires ? (Crédits restants : ${credits})`
+                            );
+                            if (!confirmed) return;
+
+                            const expires = new Date();
+                            expires.setMinutes(expires.getMinutes() + 30);
+                            try {
+                                const updates: any = { boost_expires_at: expires.toISOString() };
+                                if (!free) updates.credits = credits - 1;
+                                await supabase.from('profiles').update(updates).eq('id', user.id);
+                                if (free) localStorage.setItem(lastFreeBoostKey, new Date().toISOString());
+
+                                setUser(prev => prev ? {
+                                    ...prev,
+                                    boost_expires_at: expires.toISOString(),
+                                    credits: free ? credits : credits - 1
+                                } as any : null);
+
+                                alert("🔥 Boost de Paroisse activé ! Votre profil est propulsé en tête pendant 30 minutes.");
+                            } catch (e: any) {
+                                alert("Erreur : " + e.message);
+                            }
+                        };
+
+                        return (
+                            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-8 animate-in fade-in">
+                                <div className="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-orange-50 via-amber-50 to-slate-50 flex items-center justify-between">
+                                    <div className="flex items-center">
+                                        <div className={`p-2 rounded-full mr-3 ${boostActive ? 'bg-orange-100 animate-pulse' : 'bg-amber-50 border border-amber-200'}`}>
+                                            <span className="text-xl">🔥</span>
+                                        </div>
+                                        <div>
+                                            <h3 className="font-bold text-slate-800 text-sm">Boost de Paroisse <span className="text-orange-500">Parish Spotlight</span></h3>
+                                            <p className="text-[11px] text-slate-500">Propulsez votre profil en tête des célibataires de votre communauté.</p>
+                                        </div>
                                     </div>
-                                    <div className="space-y-1.5">
-                                        <label className="text-xs font-bold text-slate-700 block">Note de recommandation pour l'Ambassadeur</label>
-                                        <textarea
-                                            value={certNotes}
-                                            onChange={(e) => setCertNotes(e.target.value)}
-                                            placeholder="Ex: Je suis membre de la chorale Sainte Cécile, ou je participe aux réunions des jeunes le vendredi soir avec le responsable Yao..."
-                                            rows={2}
-                                            className="w-full text-xs rounded-xl border-slate-200 focus:ring-emerald-500 focus:border-emerald-500 p-2.5 bg-slate-50/50 resize-none"
-                                        />
-                                    </div>
+                                    {boostActive ? (
+                                        <span className="text-xs bg-gradient-to-r from-amber-400 to-orange-500 text-white px-3 py-1 rounded-full font-bold shadow-md animate-pulse">
+                                            🔥 Actif — {minutesLeft}min
+                                        </span>
+                                    ) : (
+                                        <span className="text-xs bg-slate-100 text-slate-500 px-2 py-1 rounded-full font-semibold">Inactif</span>
+                                    )}
                                 </div>
-                                
-                                <div className="flex justify-end pt-2">
-                                    <button
-                                        onClick={handleRequestCommunityCertification}
-                                        className="bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition shadow-md hover:scale-[1.02] active:scale-95 flex items-center gap-1.5"
-                                    >
-                                        <span>🛡️</span> Demander la certification
-                                    </button>
+
+                                <div className="p-6">
+                                    {boostActive ? (
+                                        <div className="relative bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-5 overflow-hidden">
+                                            <div className="flex items-center gap-3 mb-3">
+                                                <div className="text-3xl">🔥</div>
+                                                <div>
+                                                    <p className="font-bold text-amber-900 text-sm">Boost actif !</p>
+                                                    <p className="text-xs text-amber-700">Votre profil est propulsé en tête des rencontres de <strong>{user.parish || 'votre paroisse'}</strong>.</p>
+                                                </div>
+                                            </div>
+                                            <div className="bg-white/70 rounded-xl p-3 flex items-center justify-between">
+                                                <span className="text-xs text-slate-600">Temps restant</span>
+                                                <span className="text-sm font-bold text-orange-600">{minutesLeft} minutes</span>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-4">
+                                            <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                                                {freeBoostAvailable ? (
+                                                    <button
+                                                        onClick={() => handleBoostParoisse(true)}
+                                                        className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold py-3 px-4 rounded-xl shadow-md transition text-sm cursor-pointer"
+                                                    >
+                                                        <span>🔥</span>
+                                                        <span>Boost gratuit cette semaine</span>
+                                                    </button>
+                                                ) : (
+                                                    <div className="flex-1 flex items-center justify-center gap-2 bg-slate-100 text-slate-400 font-bold py-3 px-4 rounded-xl text-sm cursor-not-allowed border border-slate-200">
+                                                        <span>🔥</span>
+                                                        <span>Boost gratuit utilisé (revient lundi)</span>
+                                                    </div>
+                                                )}
+                                                <button
+                                                    onClick={() => handleBoostParoisse(false)}
+                                                    disabled={credits < 1}
+                                                    className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold text-sm transition border ${credits >= 1 ? 'bg-white border-amber-300 text-amber-700 hover:bg-amber-50 shadow-sm cursor-pointer' : 'bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed'}`}
+                                                >
+                                                    <span>💎</span>
+                                                    <span>{credits >= 1 ? `1 crédit (${credits} dispo)` : 'Pas de crédits'}</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
-                        )}
+                        );
+                    })()}
+
+                    {/* DONS ET PREMIUN RECHARGE BUTTON */}
+                    <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+                        <div>
+                            <h3 className="font-bold text-slate-800 text-sm">Passer au Niveau Supérieur</h3>
+                            <p className="text-xs text-slate-500 mt-0.5">Soutenez la mission et accédez aux messages directs illimités et super-likes.</p>
+                        </div>
+                        <button
+                            onClick={() => setShowPremiumModal(true)}
+                            className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold text-xs px-5 py-3 rounded-xl shadow-md transition cursor-pointer flex items-center gap-2"
+                        >
+                            <Zap size={16} />
+                            <span>Recharger / Formules Premium</span>
+                        </button>
                     </div>
                 </div>
             )}
 
-            {/* 🔥 Boost de Paroisse Section */}
-            {(() => {
-                const boostActive = user.boost_expires_at && new Date(user.boost_expires_at) > new Date();
-                const boostExpiry = user.boost_expires_at ? new Date(user.boost_expires_at) : null;
-                const minutesLeft = boostExpiry ? Math.max(0, Math.round((boostExpiry.getTime() - Date.now()) / 60000)) : 0;
-                const credits = (user as any).credits ?? 0;
-
-                // Free weekly boost: check localStorage if already used this week
-                const lastFreeBoostKey = `last_free_boost_${user.id}`;
-                const lastFreeBoostStr = localStorage.getItem(lastFreeBoostKey);
-                const lastFreeBoost = lastFreeBoostStr ? new Date(lastFreeBoostStr) : null;
-                const daysSinceLastFree = lastFreeBoost ? (Date.now() - lastFreeBoost.getTime()) / (1000 * 60 * 60 * 24) : 999;
-                const freeBoostAvailable = daysSinceLastFree >= 7;
-
-                const handleBoostParoisse = async (free: boolean) => {
-                    if (!user) return;
-                    if (!free && credits < 1) {
-                        alert("Vous n'avez pas assez de crédits. Faites un don libre pour en obtenir !");
-                        return;
-                    }
-                    const confirmed = window.confirm(
-                        free
-                            ? "Activer votre Boost de Paroisse gratuit cette semaine ? (30 minutes en tête des profils de votre communauté)"
-                            : `Dépenser 1 crédit pour booster votre profil 30 minutes supplémentaires ? (Crédits restants : ${credits})`
-                    );
-                    if (!confirmed) return;
-
-                    const expires = new Date();
-                    expires.setMinutes(expires.getMinutes() + 30);
-                    try {
-                        const updates: any = { boost_expires_at: expires.toISOString() };
-                        if (!free) updates.credits = credits - 1;
-                        await supabase.from('profiles').update(updates).eq('id', user.id);
-
-                        if (free) localStorage.setItem(lastFreeBoostKey, new Date().toISOString());
-
-                        setUser(prev => prev ? {
-                            ...prev,
-                            boost_expires_at: expires.toISOString(),
-                            credits: free ? credits : credits - 1
-                        } as any : null);
-
-                        alert("🔥 Boost de Paroisse activé ! Votre profil est propulsé en tête pendant 30 minutes.");
-                    } catch (e: any) {
-                        alert("Erreur : " + e.message);
-                    }
-                };
-
-                return (
-                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-8 animate-in fade-in">
-                        <div className="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-orange-50 via-amber-50 to-slate-50 flex items-center justify-between">
-                            <div className="flex items-center">
-                                <div className={`p-2 rounded-full mr-3 ${boostActive ? 'bg-orange-100 animate-pulse' : 'bg-amber-50 border border-amber-200'}`}>
-                                    <span className="text-xl">🔥</span>
+            {/* 🔒 TAB 4 : SECURITE & OPTIONS */}
+            {profileTab === 'SECURITY' && (
+                <div className="space-y-6 animate-in fade-in text-left">
+                    {/* CARD VERROUILLAGE PIN */}
+                    <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="bg-emerald-100 p-2.5 rounded-full text-emerald-700">
+                                    <Lock size={20} />
                                 </div>
                                 <div>
-                                    <h3 className="font-bold text-slate-800 text-sm">Boost de Paroisse <span className="text-orange-500">Parish Spotlight</span></h3>
-                                    <p className="text-[11px] text-slate-500">Propulsez votre profil en tête des célibataires de votre communauté.</p>
+                                    <h3 className="font-bold text-slate-800 text-sm">Verrouillage par Code PIN 🔒</h3>
+                                    <p className="text-xs text-slate-500">Protégez l'accès à vos messages et vos rencontres avec un code à 4 chiffres.</p>
                                 </div>
                             </div>
-                            {boostActive ? (
-                                <span className="flex items-center gap-1 text-xs bg-gradient-to-r from-amber-400 to-orange-500 text-white px-3 py-1 rounded-full font-bold shadow-md shadow-amber-200 animate-pulse">
-                                    🔥 Actif — {minutesLeft}min
-                                </span>
+                            {hasPin ? (
+                                <button
+                                    onClick={handleRemovePin}
+                                    className="bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs px-3.5 py-2 rounded-xl transition border border-red-200 cursor-pointer"
+                                >
+                                    Désactiver le PIN
+                                </button>
                             ) : (
-                                <span className="text-xs bg-slate-100 text-slate-500 px-2 py-1 rounded-full font-semibold">Inactif</span>
-                            )}
-                        </div>
-
-                        <div className="p-6">
-                            {boostActive ? (
-                                <div className="relative bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-5 overflow-hidden">
-                                    <div className="absolute top-0 right-0 w-24 h-24 bg-amber-400/10 rounded-full blur-2xl pointer-events-none" />
-                                    <div className="flex items-center gap-3 mb-3">
-                                        <div className="text-3xl">🔥</div>
-                                        <div>
-                                            <p className="font-bold text-amber-900 text-sm">Boost actif !</p>
-                                            <p className="text-xs text-amber-700">Votre profil est propulsé en tête des rencontres de <strong>{user.parish || 'votre paroisse'}</strong>.</p>
-                                        </div>
-                                    </div>
-                                    <div className="bg-white/70 rounded-xl p-3 flex items-center justify-between">
-                                        <span className="text-xs text-slate-600">Temps restant</span>
-                                        <span className="text-sm font-bold text-orange-600">{minutesLeft} minutes</span>
-                                    </div>
-                                    <p className="text-[10px] text-amber-600 mt-3 text-center">Votre carte affiche un halo doré animé 🌟 pour les autres membres</p>
-                                </div>
-                            ) : (
-                                <div className="space-y-4">
-                                    {/* How it works */}
-                                    <div className="grid grid-cols-3 gap-3 text-center text-[10px] text-slate-600">
-                                        <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
-                                            <div className="text-2xl mb-1">🏠</div>
-                                            <p className="font-semibold text-slate-700">Hyper-local</p>
-                                            <p>Visible en tête dans votre paroisse</p>
-                                        </div>
-                                        <div className="bg-amber-50 rounded-xl p-3 border border-amber-100">
-                                            <div className="text-2xl mb-1">✨</div>
-                                            <p className="font-semibold text-amber-800">Halo doré</p>
-                                            <p>Badge 🔥 "En Vedette" sur votre carte</p>
-                                        </div>
-                                        <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
-                                            <div className="text-2xl mb-1">⏱️</div>
-                                            <p className="font-semibold text-slate-700">30 minutes</p>
-                                            <p>Durée par activation</p>
-                                        </div>
-                                    </div>
-
-                                    {/* Boost buttons */}
-                                    <div className="flex flex-col sm:flex-row gap-3 pt-2">
-                                        {freeBoostAvailable ? (
-                                            <button
-                                                id="btn-free-boost-paroisse"
-                                                onClick={() => handleBoostParoisse(true)}
-                                                className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-amber-300/30 transition hover:scale-[1.02] active:scale-95 text-sm"
-                                            >
-                                                <span>🔥</span>
-                                                <span>Boost gratuit cette semaine</span>
-                                            </button>
-                                        ) : (
-                                            <div className="flex-1 flex items-center justify-center gap-2 bg-slate-100 text-slate-400 font-bold py-3 px-4 rounded-xl text-sm cursor-not-allowed border border-slate-200">
-                                                <span>🔥</span>
-                                                <span>Boost gratuit utilisé (revient lundi)</span>
-                                            </div>
-                                        )}
-                                        <button
-                                            id="btn-credit-boost-paroisse"
-                                            onClick={() => handleBoostParoisse(false)}
-                                            disabled={credits < 1}
-                                            className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold text-sm transition hover:scale-[1.02] active:scale-95 border ${credits >= 1 ? 'bg-white border-amber-300 text-amber-700 hover:bg-amber-50 shadow-sm' : 'bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed'}`}
-                                        >
-                                            <span>💎</span>
-                                            <span>{credits >= 1 ? `1 crédit (${credits} dispo)` : 'Pas de crédits'}</span>
-                                        </button>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 text-center">1 boost gratuit par semaine · Obtenez des crédits supplémentaires par un don libre</p>
-                                </div>
+                                <button
+                                    onClick={() => setShowSetPinModal(true)}
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-sm transition cursor-pointer"
+                                >
+                                    Activer le PIN
+                                </button>
                             )}
                         </div>
                     </div>
-                );
-            })()}
 
-            {/* 🎤 Testimonial Audio Section */}
+                    {/* CARD MODE INVISIBLE */}
+                    <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="bg-purple-100 p-2.5 rounded-full text-purple-700">
+                                    <EyeOff size={20} />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-slate-800 text-sm">Mode Discret / Invisible 👁️‍🗨️</h3>
+                                    <p className="text-xs text-slate-500">Masquez votre profil du deck public. Seules les personnes que vous likez verront votre profil.</p>
+                                </div>
+                            </div>
+                            <span className="text-xs bg-purple-100 text-purple-800 font-extrabold px-3 py-1 rounded-full">
+                                Option Premium
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* 👤 TAB 1 : PROFIL & GALERIE */}
+            {profileTab === 'PROFIL' && (
+                <div className="space-y-8 animate-in fade-in text-left">
+                    {/* Profile Info Form */}
 
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-8">
                 <div className="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-purple-50 to-slate-50 flex items-center justify-between">
@@ -1406,6 +1521,8 @@ export const Profile: React.FC = () => {
                     <div className="flex flex-wrap gap-2">{formData.interests.length > 0 ? (formData.interests.map((interest, idx) => (<span key={idx} className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${isEditing ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'}`}>{interest}{isEditing && <button onClick={() => removeInterest(interest)} className="ml-2 text-emerald-600"><X size={14} /></button>}</span>))) : <p className="text-slate-400 italic text-sm">Aucun centre d'intérêt.</p>}</div>
                 </div>
             </div >
+            </div>
+            )}
 
             {/* Premium Modal (Purchase) */}
             {
