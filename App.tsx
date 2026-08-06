@@ -16,7 +16,6 @@ import { supabase } from './supabaseClient';
 import { getDeviceFingerprint, getClientIp, fetchBannedIdentifiers, checkIsBlacklisted } from './utils/deviceFingerprint';
 import { initPrivacyShield } from './utils/privacyShield';
 import { PinLockModal } from './components/PinLockModal';
-import { WatermarkOverlay } from './components/WatermarkOverlay';
 import { Shield, EyeOff } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -326,9 +325,6 @@ const App: React.FC = () => {
 
   return (
     <div className={`bg-slate-50 font-sans ${isPrivacyBlurred ? 'privacy-blur-active' : ''} ${isUserDashboard ? 'h-screen h-[100dvh] overflow-hidden flex flex-col' : 'min-h-screen'}`}>
-      {/* 🛡️ FILIGRANE DYNAMIQUE DE CONFIDENTIALITÉ */}
-      {currentUserRole === UserRole.USER && <WatermarkOverlay />}
-
       {/* Gestionnaire de Notifications & Gestionnaire de Session Inactive */}
       <NotificationManager />
       <SessionTimeoutManager

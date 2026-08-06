@@ -331,23 +331,7 @@ body {
   }
 }
 
-/* 3. Filigrane de Confidentialité en fond des conversations et profils */
-.privacy-watermark-overlay {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 5;
-  opacity: 0.04;
-  background-image: repeating-linear-gradient(
-    -45deg,
-    #059669,
-    #059669 15px,
-    transparent 15px,
-    transparent 80px
-  );
-}
-
-/* 4. Masque de floutage vie privée ultra réactif */
+/* 3. Masque de floutage vie privée ultra réactif */
 .privacy-blur-active {
   filter: blur(25px) brightness(0.4) !important;
   transition: filter 0.15s ease-in-out !important;
