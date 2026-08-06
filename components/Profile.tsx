@@ -7,6 +7,7 @@ import { UserCheck, ShieldCheck, Shield, Camera, AlertCircle, CheckCircle, Clock
 import { compareFaces } from '../utils/deepfaceClient';
 import { PinLockModal } from './PinLockModal';
 import { getCleanDisplayContact } from '../utils/phoneFormatter';
+import { PointsExplanationModal } from './PointsExplanationModal';
 
 const getImlrUrl = (path: string) => {
     if (!path) return '';
@@ -27,6 +28,7 @@ export const Profile: React.FC = () => {
 
     // Modals
     const [showPremiumModal, setShowPremiumModal] = useState(false);
+    const [showPointsModal, setShowPointsModal] = useState(false);
     const [showRenewalModal, setShowRenewalModal] = useState(false); // Modal de rappel d'expiration
     const [renewalDaysLeft, setRenewalDaysLeft] = useState<number | null>(null);
 
@@ -1039,18 +1041,26 @@ export const Profile: React.FC = () => {
                                 <span className="text-2xl">💎</span>
                                 <h3 className="font-extrabold text-lg">Votre Solde de Confiance</h3>
                             </div>
-                            <p className="text-xs text-emerald-200">Accumulez des points en méditant chaque jour et débloquez des avantages Premium.</p>
+                            <p className="text-xs text-emerald-200">Accumulez des points par votre assiduité et convertissez-les en crédits Spotlight.</p>
                         </div>
-                        <div className="flex items-center gap-4 bg-white/10 px-5 py-3 rounded-xl backdrop-blur-md border border-white/10">
-                            <div className="text-center">
-                                <span className="text-2xl font-black text-amber-400">{user.points ?? 150}</span>
-                                <span className="block text-[10px] font-bold uppercase tracking-wider text-emerald-200">Points</span>
+                        <div className="flex flex-col sm:flex-row items-center gap-3">
+                            <div className="flex items-center gap-4 bg-white/10 px-5 py-3 rounded-xl backdrop-blur-md border border-white/10">
+                                <div className="text-center">
+                                    <span className="text-2xl font-black text-amber-400">{user.points ?? 150}</span>
+                                    <span className="block text-[10px] font-bold uppercase tracking-wider text-emerald-200">Points</span>
+                                </div>
+                                <div className="h-8 w-px bg-white/20" />
+                                <div className="text-center">
+                                    <span className="text-2xl font-black text-amber-400">{(user as any).credits ?? 3}</span>
+                                    <span className="block text-[10px] font-bold uppercase tracking-wider text-emerald-200">Crédits</span>
+                                </div>
                             </div>
-                            <div className="h-8 w-px bg-white/20" />
-                            <div className="text-center">
-                                <span className="text-2xl font-black text-amber-400">{(user as any).credits ?? 3}</span>
-                                <span className="block text-[10px] font-bold uppercase tracking-wider text-emerald-200">Crédits</span>
-                            </div>
+                            <button
+                                onClick={() => setShowPointsModal(true)}
+                                className="bg-amber-400 hover:bg-amber-500 text-slate-950 font-black text-xs px-4 py-3 rounded-xl transition shadow-md flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                            >
+                                <span>💡 Explication & Conversion</span>
+                            </button>
                         </div>
                     </div>
 
@@ -1651,6 +1661,14 @@ export const Profile: React.FC = () => {
                     setHasPin(true);
                     setShowSetPinModal(false);
                 }}
+            />
+
+            {/* MODALE GUIDE & CONVERSION POINTS 💎 */}
+            <PointsExplanationModal
+                isOpen={showPointsModal}
+                onClose={() => setShowPointsModal(false)}
+                user={user}
+                onPointsUpdated={(newPts, newCreds) => setUser(prev => prev ? { ...prev, points: newPts, credits: newCreds } as any : null)}
             />
         </div>
     );

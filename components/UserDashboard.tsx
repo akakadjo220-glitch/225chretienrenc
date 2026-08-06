@@ -12,6 +12,7 @@ import { SpeedDate } from './SpeedDate';
 import { IntercessionCircle } from './IntercessionCircle';
 import { supabase } from '../supabaseClient';
 import { updateDailyStreak } from '../utils/streakManager';
+import { PointsExplanationModal } from './PointsExplanationModal';
 
 const getImlrUrl = (path: string) => {
   if (!path) return '';
@@ -109,6 +110,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
   // Global counts for badges
   const [totalUnreadCount, setTotalUnreadCount] = useState(0);
   const [newLikesCount, setNewLikesCount] = useState(0);
+  const [showPointsModal, setShowPointsModal] = useState(false);
 
   // Profile data
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -409,7 +411,10 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
         </div>
 
         {/* 💎 SOLDE DE POINTS & CRÉDITS */}
-        <div className="mb-5 p-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow-md border border-emerald-500/30 text-left flex items-center justify-between">
+        <div
+          onClick={() => setShowPointsModal(true)}
+          className="mb-5 p-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow-md border border-emerald-500/30 text-left flex items-center justify-between cursor-pointer hover:opacity-95 transition"
+        >
           <div className="flex items-center space-x-2.5">
             <div className="bg-white/20 p-2 rounded-xl shrink-0">
               <span className="text-base">💎</span>
@@ -420,10 +425,13 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
             </div>
           </div>
           <button
-            onClick={() => handleTabChange(DashboardTab.PROFILE)}
-            className="text-[10px] font-bold bg-white text-emerald-800 px-2.5 py-1 rounded-lg hover:bg-emerald-50 transition shadow-sm cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowPointsModal(true);
+            }}
+            className="text-[10px] font-bold bg-white text-emerald-800 px-2.5 py-1 rounded-lg hover:bg-emerald-50 transition shadow-sm cursor-pointer whitespace-nowrap"
           >
-            Voir
+            Guide & Conversion
           </button>
         </div>
         <nav className="space-y-1.5">
@@ -582,6 +590,14 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
           {renderContent()}
         </div>
       </main>
+
+      {/* MODALE EXPLICATION & CONVERSION DES POINTS 💎 */}
+      <PointsExplanationModal
+        isOpen={showPointsModal}
+        onClose={() => setShowPointsModal(false)}
+        user={currentUser}
+        onPointsUpdated={(newPts, newCreds) => setCurrentUser((prev: any) => prev ? { ...prev, points: newPts, credits: newCreds } : null)}
+      />
     </div>
   );
 };
