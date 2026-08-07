@@ -413,16 +413,14 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
         {/* 💎 SOLDE DE POINTS & CRÉDITS */}
         <div
           onClick={() => setShowPointsModal(true)}
-          className="mb-5 p-3.5 rounded-2xl bg-gradient-to-br from-emerald-700 via-teal-800 to-emerald-950 text-white shadow-md border border-emerald-500/40 text-left flex flex-col gap-2.5 cursor-pointer hover:border-amber-400/60 transition-all duration-200 group"
+          className="mb-5 p-3 rounded-2xl bg-gradient-to-br from-emerald-800 via-teal-900 to-emerald-950 text-white shadow-md border border-emerald-500/30 text-left flex flex-col gap-2 cursor-pointer hover:border-amber-400/60 transition-all duration-200 group overflow-hidden"
         >
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center space-x-2 shrink-0">
-              <div className="bg-white/15 p-1.5 rounded-xl">
-                <span className="text-sm">💎</span>
-              </div>
-              <p className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-100">Solde de Points</p>
+          <div className="flex items-center justify-between gap-1">
+            <div className="flex items-center space-x-1.5 min-w-0">
+              <span className="text-xs shrink-0">💎</span>
+              <p className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-100 truncate">Solde</p>
             </div>
-            <span className="text-xs font-black text-amber-300 bg-white/10 px-2 py-0.5 rounded-lg border border-white/10 shrink-0">
+            <span className="text-[10px] font-black text-amber-300 bg-white/10 px-2 py-0.5 rounded-md border border-white/10 shrink-0 whitespace-nowrap">
               {currentUser?.points ?? 150} Pts • {currentUser?.credits ?? 3} ⚡
             </span>
           </div>
@@ -432,7 +430,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
               e.stopPropagation();
               setShowPointsModal(true);
             }}
-            className="w-full text-[11px] font-extrabold bg-white text-emerald-900 hover:bg-emerald-50 py-1.5 px-3 rounded-xl transition shadow-xs flex items-center justify-center gap-1 cursor-pointer"
+            className="w-full text-[10px] font-extrabold bg-white text-emerald-900 hover:bg-emerald-50 py-1.5 px-2 rounded-xl transition shadow-2xs flex items-center justify-center gap-1 cursor-pointer"
           >
             <span>💡 Guide & Conversion</span>
           </button>
