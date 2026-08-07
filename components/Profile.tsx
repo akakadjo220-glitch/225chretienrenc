@@ -909,29 +909,43 @@ export const Profile: React.FC = () => {
             <input type="file" ref={galleryInputRef} className="hidden" accept="image/*" multiple onChange={handleGalleryUpload} />
 
             {/* Header Profile */}
-            <div className="relative mb-20">
-                <div className="h-32 bg-gradient-to-r from-emerald-600 to-teal-800 rounded-t-2xl"></div>
-                <div className="absolute -bottom-16 left-8 flex items-end">
-                    <div className="relative group cursor-pointer" onClick={handleAvatarClick}>
-                        <div className="relative h-32 w-32 rounded-full border-4 border-white bg-white shadow-lg overflow-hidden">
-                            {isUploadingAvatar ? (<div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10"><Loader className="text-white animate-spin" /></div>) : null}
-                            <img src={user.avatarUrl} alt="Profile" className="h-full w-full object-cover" />
+            <div className="relative mb-24 rounded-2xl overflow-hidden bg-white border border-slate-200/80 shadow-sm">
+                <div className="h-36 bg-gradient-to-r from-emerald-800 via-teal-900 to-emerald-950 p-6 flex items-start justify-between relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
+                    {!isEditing && (
+                        <button onClick={() => setIsEditing(true)} className="bg-white/15 backdrop-blur border border-white/25 text-white px-4 py-2 rounded-xl font-bold text-xs hover:bg-white/25 transition cursor-pointer shadow-xs ml-auto">
+                            ✏️ Modifier le profil
+                        </button>
+                    )}
+                </div>
+                <div className="px-6 pb-5 pt-0 flex flex-col sm:flex-row sm:items-end justify-between gap-4 -mt-16 relative z-10">
+                    <div className="flex flex-col sm:flex-row items-center sm:items-end gap-4 text-center sm:text-left">
+                        <div className="relative group cursor-pointer shrink-0" onClick={handleAvatarClick}>
+                            <div className="relative h-28 w-28 sm:h-32 sm:w-32 rounded-full border-4 border-white bg-white shadow-xl overflow-hidden">
+                                {isUploadingAvatar ? (<div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10"><Loader className="text-white animate-spin" /></div>) : null}
+                                <img src={user.avatarUrl} alt="Profile" className="h-full w-full object-cover" />
+                            </div>
+                            <button className="absolute bottom-1 right-1 bg-slate-900 text-white p-2 rounded-full border-2 border-white hover:bg-slate-800 shadow-md transition cursor-pointer"><Camera size={15} /></button>
                         </div>
-                        <button className="absolute bottom-0 right-0 bg-slate-800 text-white p-2 rounded-full border-2 border-white hover:bg-slate-700 shadow-sm transition"><Camera size={16} /></button>
-                    </div>
-                    <div className="ml-4 mb-2">
-                        <h1 className="text-2xl font-bold text-slate-900 flex items-center">{user.name}{user.verificationStatus === VerificationStatus.VERIFIED && (<ShieldCheck className="ml-2 text-emerald-500 h-6 w-6" />)}</h1>
-                        <p className="text-sm font-semibold text-slate-600 mt-0.5">{getCleanDisplayContact(user)}</p>
-                        <div className="mt-2">
-                            <PremiumCountdownBadge
-                                isPremium={user.isPremium}
-                                expirationDate={user.premiumExpiration}
-                                onUpgradeClick={() => setShowPremiumModal(true)}
-                            />
+                        <div className="mb-1 space-y-1">
+                            <h1 className="text-xl sm:text-2xl font-black text-slate-900 flex items-center justify-center sm:justify-start gap-2">
+                                <span>{user.name}</span>
+                                {user.verificationStatus === VerificationStatus.VERIFIED && (<ShieldCheck className="text-emerald-500 h-6 w-6 shrink-0" />)}
+                            </h1>
+                            <div className="inline-flex items-center gap-1.5 bg-slate-900 text-white text-xs font-black px-3 py-1 rounded-full shadow-sm">
+                                <span className="text-amber-400">📱</span>
+                                <span className="text-white tracking-wider">{getCleanDisplayContact(user)}</span>
+                            </div>
+                            <div className="pt-1 flex justify-center sm:justify-start">
+                                <PremiumCountdownBadge
+                                    isPremium={user.isPremium}
+                                    expirationDate={user.premiumExpiration}
+                                    onUpgradeClick={() => setShowPremiumModal(true)}
+                                />
+                            </div>
                         </div>
                     </div>
                 </div>
-                <div className="absolute top-4 right-4">{!isEditing && (<button onClick={() => setIsEditing(true)} className="bg-white/20 backdrop-blur border border-white/40 text-white px-4 py-2 rounded-lg font-medium hover:bg-white/30 transition">Modifier</button>)}</div>
             </div>
 
             {/* 🗂️ BARRE D'ONGLETS INTUITIVE */}
