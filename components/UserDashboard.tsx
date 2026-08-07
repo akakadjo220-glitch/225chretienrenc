@@ -398,40 +398,43 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
 
         {/* 🔥 BADGE SÉRIE DE FOI (DAILY FAITH STREAK) */}
         <div className="mb-3 p-3 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white shadow-md shadow-amber-500/20 border border-amber-300/40 text-left flex items-center justify-between animate-in zoom-in duration-300">
-          <div className="flex items-center space-x-2.5">
+          <div className="flex items-center space-x-2.5 min-w-0">
             <div className="bg-white/20 p-2 rounded-xl shrink-0">
               <Flame size={18} className="text-amber-100 fill-amber-200 animate-pulse" />
             </div>
-            <div>
-              <p className="text-[10px] font-extrabold uppercase tracking-wider text-amber-100">Série de Foi</p>
-              <p className="text-xs font-black text-white">{streakCount} {streakCount > 1 ? 'Jours consécutifs' : 'Premier jour'}</p>
+            <div className="min-w-0">
+              <p className="text-[10px] font-extrabold uppercase tracking-wider text-amber-100 truncate">Série de Foi</p>
+              <p className="text-xs font-black text-white truncate">{streakCount} {streakCount > 1 ? 'Jours' : '1er Jour'}</p>
             </div>
           </div>
-          <span className="text-xs font-black bg-white/20 px-2 py-0.5 rounded-full backdrop-blur-md">🔥</span>
+          <span className="text-xs font-black bg-white/20 px-2 py-0.5 rounded-full backdrop-blur-md shrink-0">🔥</span>
         </div>
 
         {/* 💎 SOLDE DE POINTS & CRÉDITS */}
         <div
           onClick={() => setShowPointsModal(true)}
-          className="mb-5 p-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow-md border border-emerald-500/30 text-left flex items-center justify-between cursor-pointer hover:opacity-95 transition"
+          className="mb-5 p-3.5 rounded-2xl bg-gradient-to-br from-emerald-700 via-teal-800 to-emerald-950 text-white shadow-md border border-emerald-500/40 text-left flex flex-col gap-2.5 cursor-pointer hover:border-amber-400/60 transition-all duration-200 group"
         >
-          <div className="flex items-center space-x-2.5">
-            <div className="bg-white/20 p-2 rounded-xl shrink-0">
-              <span className="text-base">💎</span>
-            </div>
-            <div>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center space-x-2 shrink-0">
+              <div className="bg-white/15 p-1.5 rounded-xl">
+                <span className="text-sm">💎</span>
+              </div>
               <p className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-100">Solde de Points</p>
-              <p className="text-xs font-black text-white">{currentUser?.points ?? 150} Pts • {currentUser?.credits ?? 3} Crédits</p>
             </div>
+            <span className="text-xs font-black text-amber-300 bg-white/10 px-2 py-0.5 rounded-lg border border-white/10 shrink-0">
+              {currentUser?.points ?? 150} Pts • {currentUser?.credits ?? 3} ⚡
+            </span>
           </div>
+
           <button
             onClick={(e) => {
               e.stopPropagation();
               setShowPointsModal(true);
             }}
-            className="text-[10px] font-bold bg-white text-emerald-800 px-2.5 py-1 rounded-lg hover:bg-emerald-50 transition shadow-sm cursor-pointer whitespace-nowrap"
+            className="w-full text-[11px] font-extrabold bg-white text-emerald-900 hover:bg-emerald-50 py-1.5 px-3 rounded-xl transition shadow-xs flex items-center justify-center gap-1 cursor-pointer"
           >
-            Guide & Conversion
+            <span>💡 Guide & Conversion</span>
           </button>
         </div>
         <nav className="space-y-1.5">
