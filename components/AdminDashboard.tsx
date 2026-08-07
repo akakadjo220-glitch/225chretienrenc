@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { AlertTriangle, UserCheck, DollarSign, Users, LayoutDashboard, Shield, Check, X, Eye, Ban, Trash2, Search, Flag, MapPin, PlusCircle, Settings, LogOut, Play, Calendar, LinkIcon, Edit, FileText, Download, Crown, RefreshCw, CreditCard, CheckCircle, Save, Phone, MessageCircle, Send, Sparkles } from 'lucide-react';
+import { AlertTriangle, UserCheck, DollarSign, Users, LayoutDashboard, Shield, Check, X, Eye, Ban, Trash2, Search, Flag, MapPin, PlusCircle, Settings, LogOut, Play, Calendar, LinkIcon, Edit, FileText, Download, Crown, RefreshCw, CreditCard, CheckCircle, Save, Phone, MessageCircle, Send, Sparkles, Zap } from 'lucide-react';
 import { VerificationStatus, User, UserStatus, Report, Parish, AppEvent, PaymentSettings, PaymentTransaction, DashboardTab, PriestContact } from '../types';
 import { supabase, supabaseAdmin } from '../supabaseClient';
 import { getOpenWAConfig, saveOpenWAConfig, testOpenWAConnection, OpenWAConfig, DEFAULT_OPENWA_CONFIG } from '../openwaClient';
@@ -46,6 +46,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     const [reports, setReports] = useState<Report[]>([]);
     const [parishes, setParishes] = useState<Parish[]>([]);
     const [events, setEvents] = useState<AppEvent[]>([]);
+    const [eventCountsMap, setEventCountsMap] = useState<Record<string, number>>({});
+    const [selectedEventForAttendees, setSelectedEventForAttendees] = useState<AppEvent | null>(null);
+    const [isAttendeesModalOpen, setIsAttendeesModalOpen] = useState<boolean>(false);
+    const [eventAttendeesList, setEventAttendeesList] = useState<any[]>([]);
+    const [isLoadingAttendees, setIsLoadingAttendees] = useState<boolean>(false);
+    const [attendeesSearchQuery, setAttendeesSearchQuery] = useState<string>('');
     const [priests, setPriests] = useState<PriestContact[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -64,6 +70,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
         premiumDailyPrice: 500,
         premiumMonthlyPrice: 2500,
         premiumQuarterlyPrice: 5000,
+        premiumSemiAnnualPrice: 9000,
         premiumYearlyPrice: 15000,
         spotlightPriceFcfa: 500,
         pointsPerSpotlight: 50,
@@ -492,17 +499,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                 })));
             } catch (e) { }
 
-            // 3. Fetch Events
+            // 3. Fetch Events & Attendance Counts
             try {
                 const { data: eventsResult } = await supabase.from('events').select('*').order('date', { ascending: false });
-                setEvents((eventsResult || []).map((e: any) => ({
+                const mappedEvents: AppEvent[] = (eventsResult || []).map((e: any) => ({
                     id: e.id,
                     title: e.title,
                     date: e.date,
                     location: e.location,
                     description: e.description,
                     link: e.link
-                })));
+                }));
+                setEvents(mappedEvents);
+
+                // Fetch attendance counts per event
+                const { data: attData } = await supabase.from('event_attendees').select('event_id');
+                const countsMap: Record<string, number> = {};
+                (attData || []).forEach((row: any) => {
+                    countsMap[row.event_id] = (countsMap[row.event_id] || 0) + 1;
+                });
+                setEventCountsMap(countsMap);
             } catch (e) { }
 
             // 3b. Fetch Priests
@@ -697,8 +713,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
         }
     };
 
-    const toggleUserBan = async (userId: string, currentStatus: UserStatus, targetUserObj?: any) => {
-        const isBanning = currentStatus !== UserStatus.BANNED;
+    const toggleUserBan = async (userId: string, currentStatus: UserStatus | undefined = UserStatus.ACTIVE, targetUserObj?: any) => {
+        const safeStatus = currentStatus || UserStatus.ACTIVE;
+        const isBanning = safeStatus !== UserStatus.BANNED;
         const confirmMsg = isBanning 
             ? "⛔ Êtes-vous sûr de vouloir BANNIR cet utilisateur et BLOQUER son numéro, son email, son IP et son appareil ?" 
             : "Êtes-vous sûr de vouloir débannir cet utilisateur ?";
@@ -864,6 +881,74 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             }
             setIsEventModalOpen(false);
         } catch (e) { alert("Erreur sauvegarde événement."); }
+    };
+
+    const openEventAttendeesModal = async (event: AppEvent) => {
+        setSelectedEventForAttendees(event);
+        setIsAttendeesModalOpen(true);
+        setIsLoadingAttendees(true);
+        setAttendeesSearchQuery('');
+        try {
+            const { data: rawAtts, error } = await supabase
+                .from('event_attendees')
+                .select('id, created_at, user_id, profiles!event_attendees_user_id_fkey(id, full_name, name, phone, email, avatar_url, parish, verification_status, is_premium)')
+                .eq('event_id', event.id)
+                .order('created_at', { ascending: false });
+
+            if (error || !rawAtts) {
+                const { data: fallbackAtts } = await supabase
+                    .from('event_attendees')
+                    .select('id, created_at, user_id')
+                    .eq('event_id', event.id)
+                    .order('created_at', { ascending: false });
+
+                if (fallbackAtts && fallbackAtts.length > 0) {
+                    const uIds = fallbackAtts.map((r: any) => r.user_id);
+                    const { data: profs } = await supabase.from('profiles').select('*').in('id', uIds);
+                    const pMap = (profs || []).reduce((acc: any, p: any) => ({ ...acc, [p.id]: p }), {});
+                    setEventAttendeesList(fallbackAtts.map((r: any) => ({
+                        ...r,
+                        profile: pMap[r.user_id] || {}
+                    })));
+                } else {
+                    setEventAttendeesList([]);
+                }
+            } else {
+                setEventAttendeesList((rawAtts || []).map((r: any) => ({
+                    ...r,
+                    profile: r.profiles || {}
+                })));
+            }
+        } catch (e) {
+            console.error("Error loading event attendees", e);
+            setEventAttendeesList([]);
+        } finally {
+            setIsLoadingAttendees(false);
+        }
+    };
+
+    const exportAttendeesCSV = () => {
+        if (!eventAttendeesList || eventAttendeesList.length === 0 || !selectedEventForAttendees) return;
+        const headers = ["Nom", "Téléphone", "Email", "Paroisse", "Statut", "Premium", "Date Inscription"];
+        const rows = eventAttendeesList.map(item => {
+            const p = item.profile || {};
+            const name = p.full_name || p.name || 'Inconnu';
+            const phone = p.phone || '';
+            const email = p.email || '';
+            const parish = p.parish || '';
+            const status = p.verification_status || 'UNVERIFIED';
+            const premium = p.is_premium ? 'Oui' : 'Non';
+            const date = item.created_at ? new Date(item.created_at).toLocaleDateString('fr-FR') : '';
+            return [name, phone, email, parish, status, premium, date].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
+        });
+        const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers.join(','), ...rows].join('\n');
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `Participants_${selectedEventForAttendees.title.replace(/[^a-z0-9]/gi, '_')}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     };
 
     // Priest Management
@@ -1816,40 +1901,99 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
     const renderEvents = () => (
         <div className="space-y-6 animate-in fade-in">
-            {/* 🛠️ SPEED DATING SETTINGS FOR ADMIN */}
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 text-left">
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                    <div>
-                        <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
-                            ✨ Soirées Virtuelles Chrétiennes (Config)
-                        </h3>
-                        <p className="text-slate-500 text-xs mt-1">
-                            Activez/désactivez le speed dating hebdomadaire du jeudi et gérez les inscriptions de test.
-                        </p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                        <button
-                            onClick={handlePopulateAttendees}
-                            className="bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold px-4 py-2 rounded-lg text-xs transition border border-amber-200"
-                        >
-                            💡 Inscrire tous les membres à la soirée (Test)
-                        </button>
-                        <button
-                            onClick={() => handleToggleSpeedDate(!speedDateActive)}
-                            className={`px-4 py-2 rounded-lg font-extrabold text-xs transition shadow-sm ${
-                                speedDateActive
-                                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                                    : 'bg-red-600 hover:bg-red-700 text-white'
-                            }`}
-                        >
-                            {speedDateActive ? '✅ Activé' : '❌ Désactivé'}
-                        </button>
-                    </div>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                    <h2 className="text-xl font-bold text-slate-800 font-display">Événements & Activités Paroissiales</h2>
+                    <p className="text-xs text-slate-500 mt-1">
+                        Gérez les rassemblements et consultez la liste complète des participants inscrits ("J'y vais !").
+                    </p>
                 </div>
+                <button
+                    onClick={openCreateEventModal}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl font-bold text-xs flex items-center shadow-md transition cursor-pointer"
+                >
+                    <PlusCircle size={18} className="mr-2" /> Créer un Événement
+                </button>
             </div>
 
-            <div className="flex justify-between items-center"><h2 className="text-xl font-bold text-slate-800">Événements Paroissiaux</h2><button onClick={openCreateEventModal} className="bg-emerald-600 text-white px-4 py-2 rounded-lg flex items-center"><PlusCircle size={20} className="mr-2" /> Ajouter</button></div>
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden"><table className="min-w-full divide-y divide-slate-200"><thead className="bg-slate-50"><tr><th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Titre</th><th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Date</th><th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase">Actions</th></tr></thead><tbody className="bg-white divide-y divide-slate-200">{events.map(event => (<tr key={event.id}><td className="px-6 py-4">{event.title}</td><td className="px-6 py-4">{new Date(event.date).toLocaleDateString()}</td><td className="px-6 py-4 text-right"><button onClick={() => openEditEventModal(event)} className="text-slate-400 mr-2"><Edit size={18} /></button><button onClick={() => deleteEvent(event.id)} className="text-red-600"><Trash2 size={18} /></button></td></tr>))}</tbody></table></div>
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <table className="min-w-full divide-y divide-slate-200">
+                    <thead className="bg-slate-50">
+                        <tr>
+                            <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Événement & Lieu</th>
+                            <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Date & Heure</th>
+                            <th className="px-6 py-3.5 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Participants Inscrits</th>
+                            <th className="px-6 py-3.5 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-slate-200 text-sm">
+                        {events.map(event => {
+                            const count = eventCountsMap[event.id] || 0;
+                            const eventDate = new Date(event.date);
+
+                            return (
+                                <tr key={event.id} className="hover:bg-slate-50/80 transition">
+                                    <td className="px-6 py-4">
+                                        <div className="font-bold text-slate-900">{event.title}</div>
+                                        <div className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
+                                            <MapPin size={12} className="text-emerald-600 shrink-0" />
+                                            <span className="truncate max-w-xs">{event.location || 'En ligne / Non spécifié'}</span>
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-slate-700 font-medium text-xs">
+                                        <div>{eventDate.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' })}</div>
+                                        <div className="text-slate-400 font-mono mt-0.5">{eventDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                                        <button
+                                            onClick={() => openEventAttendeesModal(event)}
+                                            className="inline-flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 px-3 py-1 rounded-full text-xs font-extrabold transition shadow-2xs cursor-pointer"
+                                            title="Cliquez pour voir les participants inscrits"
+                                        >
+                                            <Users size={14} className="text-emerald-600" />
+                                            <span>{count} Participant{count > 1 ? 's' : ''}</span>
+                                        </button>
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-right text-xs font-bold">
+                                        <div className="flex items-center justify-end space-x-2">
+                                            <button
+                                                onClick={() => openEventAttendeesModal(event)}
+                                                className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition border border-emerald-200 flex items-center gap-1.5 cursor-pointer"
+                                                title="Voir la liste complète des participants"
+                                            >
+                                                <Eye size={15} />
+                                                <span className="hidden sm:inline">Participants</span>
+                                            </button>
+                                            <button
+                                                onClick={() => openEditEventModal(event)}
+                                                className="text-slate-500 hover:text-slate-800 hover:bg-slate-100 p-2 rounded-lg transition border border-slate-200 cursor-pointer"
+                                                title="Modifier"
+                                            >
+                                                <Edit size={15} />
+                                            </button>
+                                            <button
+                                                onClick={() => deleteEvent(event.id)}
+                                                className="text-red-600 hover:bg-red-50 p-2 rounded-lg transition border border-red-200 cursor-pointer"
+                                                title="Supprimer"
+                                            >
+                                                <Trash2 size={15} />
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            );
+                        })}
+
+                        {events.length === 0 && (
+                            <tr>
+                                <td colSpan={4} className="px-6 py-12 text-center text-slate-400 italic">
+                                    Aucun événement créé pour le moment.
+                                </td>
+                            </tr>
+                        )}
+                    </tbody>
+                </table>
+            </div>
         </div>
     );
 
@@ -1923,7 +2067,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                         <Sparkles className="text-amber-500" size={18} />
                         Tarifs des Formules Premium (FCFA)
                     </h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                         <div>
                             <label className="text-xs font-bold text-slate-700 block mb-1">Pass 1 Jour (24H)</label>
                             <div className="relative">
@@ -1955,6 +2099,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                                     type="number"
                                     value={pointsConfig.premiumQuarterlyPrice}
                                     onChange={(e) => setPointsConfig({ ...pointsConfig, premiumQuarterlyPrice: Number(e.target.value) })}
+                                    className="w-full p-2.5 text-xs font-bold rounded-xl border border-slate-200 focus:ring-emerald-500 focus:border-emerald-500"
+                                />
+                                <span className="absolute right-3 top-2.5 text-xs font-extrabold text-slate-400">FCFA</span>
+                            </div>
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-slate-700 block mb-1">Abonnement 6 Mois</label>
+                            <div className="relative">
+                                <input
+                                    type="number"
+                                    value={pointsConfig.premiumSemiAnnualPrice || 9000}
+                                    onChange={(e) => setPointsConfig({ ...pointsConfig, premiumSemiAnnualPrice: Number(e.target.value) })}
                                     className="w-full p-2.5 text-xs font-bold rounded-xl border border-slate-200 focus:ring-emerald-500 focus:border-emerald-500"
                                 />
                                 <span className="absolute right-3 top-2.5 text-xs font-extrabold text-slate-400">FCFA</span>
@@ -2064,8 +2220,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                 </div>
                 <div className="bg-white rounded-2xl shadow-lg border-2 border-emerald-500 p-8 flex flex-col relative overflow-hidden transform md:scale-105">
                     <div className="absolute top-0 right-0 bg-emerald-500 text-white text-xs font-bold px-3 py-1 rounded-bl-lg uppercase tracking-wider">Recommandé</div>
-                    <div className="mb-4"><h3 className="text-lg font-bold text-emerald-600 uppercase tracking-widest">Premium</h3><div className="mt-2 flex items-baseline"><span className="text-4xl font-extrabold text-emerald-900">{pointsConfig.premiumMonthlyPrice}</span><span className="ml-1 text-xl font-medium text-emerald-700">FCFA / mois</span></div></div>
-                    <ul className="space-y-4 mb-8 flex-1"><li className="flex items-start"><CheckCircle className="h-5 w-5 text-emerald-600 mr-2 flex-shrink-0" /><span className="text-slate-800 text-sm font-medium">Message Direct illimité</span></li><li className="flex items-start"><CheckCircle className="h-5 w-5 text-emerald-600 mr-2 flex-shrink-0" /><span className="text-slate-800 text-sm font-medium">Super Likes & Mode Invisible</span></li></ul>
+                    <div className="mb-4">
+                        <h3 className="text-lg font-bold text-emerald-600 uppercase tracking-widest">PREMIUM</h3>
+                        <div className="mt-2 flex items-baseline">
+                            <span className="text-4xl font-extrabold text-emerald-900">{pointsConfig.premiumMonthlyPrice}</span>
+                            <span className="ml-1 text-xl font-medium text-emerald-700">FCFA / mois</span>
+                        </div>
+                    </div>
+
+                    <div className="bg-emerald-50 rounded-xl p-3.5 border border-emerald-200 mb-6 space-y-1.5 text-xs font-semibold text-emerald-900">
+                        <div className="flex justify-between"><span>Pass 24H :</span> <span className="font-extrabold">{pointsConfig.premiumDailyPrice || 500} FCFA</span></div>
+                        <div className="flex justify-between"><span>1 Mois :</span> <span className="font-extrabold">{pointsConfig.premiumMonthlyPrice || 2500} FCFA</span></div>
+                        <div className="flex justify-between"><span>3 Mois :</span> <span className="font-extrabold">{pointsConfig.premiumQuarterlyPrice || 5000} FCFA</span></div>
+                        <div className="flex justify-between text-emerald-700 font-extrabold"><span>6 Mois :</span> <span>{pointsConfig.premiumSemiAnnualPrice || 9000} FCFA</span></div>
+                        <div className="flex justify-between"><span>1 An (Annuel) :</span> <span className="font-extrabold">{pointsConfig.premiumYearlyPrice || 15000} FCFA</span></div>
+                    </div>
+
+                    <ul className="space-y-3 mb-4 flex-1">
+                        <li className="flex items-start"><CheckCircle className="h-5 w-5 text-emerald-600 mr-2 flex-shrink-0" /><span className="text-slate-800 text-sm font-medium">Message Direct illimité</span></li>
+                        <li className="flex items-start"><CheckCircle className="h-5 w-5 text-emerald-600 mr-2 flex-shrink-0" /><span className="text-slate-800 text-sm font-medium">Super Likes & Mode Invisible</span></li>
+                    </ul>
                 </div>
             </div>
         </div>
@@ -2372,11 +2546,186 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                                 <Trash2 className="h-6 w-6 text-red-600" />
                             </div>
                             <h3 className="text-lg font-bold text-slate-800 mb-2">Supprimer ce contact ?</h3>
-                            <p className="text-slate-500 text-sm mb-6">Cette action est irréversible.</p>
                             <div className="flex gap-3">
                                 <button onClick={() => setPriestToDelete(null)} className="flex-1 px-4 py-2 border border-slate-200 rounded-lg text-slate-700 font-medium hover:bg-slate-50 transition">Non</button>
                                 <button onClick={confirmDeletePriest} className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 transition">Oui, supprimer</button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* 👥 MODALE LISTE DES PARTICIPANTS À UN ÉVÉNEMENT */}
+            {isAttendeesModalOpen && selectedEventForAttendees && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm" onClick={() => setIsAttendeesModalOpen(false)} />
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl relative z-10 overflow-hidden border border-slate-200 flex flex-col max-h-[85vh] animate-in zoom-in-95">
+                        {/* Header */}
+                        <div className="p-5 px-6 bg-gradient-to-r from-emerald-800 to-teal-900 text-white flex items-center justify-between shrink-0">
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <Users size={18} className="text-emerald-300" />
+                                    <span className="text-xs font-bold text-emerald-200 uppercase tracking-wider">Liste des Participants</span>
+                                </div>
+                                <h3 className="text-lg sm:text-xl font-extrabold text-white font-display mt-0.5">
+                                    {selectedEventForAttendees.title}
+                                </h3>
+                                <p className="text-xs text-emerald-100/80 mt-0.5">
+                                    📅 {new Date(selectedEventForAttendees.date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} • {selectedEventForAttendees.location}
+                                </p>
+                            </div>
+                            <button onClick={() => setIsAttendeesModalOpen(false)} className="p-2 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full transition cursor-pointer">
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        {/* Subheader & Search & Stats */}
+                        <div className="p-4 px-6 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+                            <div className="relative w-full sm:w-72">
+                                <Search size={15} className="absolute left-3 top-2.5 text-slate-400" />
+                                <input
+                                    type="text"
+                                    placeholder="Rechercher par nom, tél, email..."
+                                    value={attendeesSearchQuery}
+                                    onChange={(e) => setAttendeesSearchQuery(e.target.value)}
+                                    className="w-full pl-9 pr-3 py-1.5 text-xs font-semibold rounded-xl border border-slate-300 focus:outline-none focus:border-emerald-600 bg-white"
+                                />
+                            </div>
+
+                            <div className="flex items-center gap-2 text-xs font-bold w-full sm:w-auto justify-end">
+                                <span className="bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full border border-emerald-200">
+                                    Total : {eventAttendeesList.length} inscrit(s)
+                                </span>
+                                {eventAttendeesList.length > 0 && (
+                                    <button
+                                        onClick={exportAttendeesCSV}
+                                        className="bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 px-3 py-1 rounded-full flex items-center gap-1 transition shadow-2xs cursor-pointer"
+                                    >
+                                        <Download size={13} />
+                                        <span>Exporter CSV</span>
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* List Content */}
+                        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+                            {isLoadingAttendees ? (
+                                <div className="flex flex-col justify-center items-center py-12 text-slate-400">
+                                    <RefreshCw className="animate-spin text-emerald-600 mb-2" size={24} />
+                                    <span className="text-xs font-semibold">Chargement de la liste des inscrits...</span>
+                                </div>
+                            ) : (() => {
+                                const filtered = eventAttendeesList.filter(item => {
+                                    const q = attendeesSearchQuery.toLowerCase();
+                                    const p = item.profile || {};
+                                    return (
+                                        (p.full_name || '').toLowerCase().includes(q) ||
+                                        (p.name || '').toLowerCase().includes(q) ||
+                                        (p.phone || '').toLowerCase().includes(q) ||
+                                        (p.email || '').toLowerCase().includes(q) ||
+                                        (p.parish || '').toLowerCase().includes(q)
+                                    );
+                                });
+
+                                if (filtered.length === 0) {
+                                    return (
+                                        <div className="text-center py-12 text-slate-500">
+                                            <Users size={32} className="mx-auto text-slate-300 mb-2" />
+                                            <p className="font-bold text-sm text-slate-700">Aucun participant trouvé</p>
+                                            <p className="text-xs text-slate-400 mt-1">Aucun membre ne correspond à votre recherche ou n'a cliqué sur "J'y vais !".</p>
+                                        </div>
+                                    );
+                                }
+
+                                return (
+                                    <div className="overflow-x-auto">
+                                        <table className="min-w-full divide-y divide-slate-200">
+                                            <thead className="bg-slate-50/70">
+                                                <tr>
+                                                    <th className="px-4 py-2.5 text-left text-[11px] font-bold text-slate-500 uppercase">Participant</th>
+                                                    <th className="px-4 py-2.5 text-left text-[11px] font-bold text-slate-500 uppercase">Contact / WhatsApp</th>
+                                                    <th className="px-4 py-2.5 text-left text-[11px] font-bold text-slate-500 uppercase">Paroisse / Église</th>
+                                                    <th className="px-4 py-2.5 text-left text-[11px] font-bold text-slate-500 uppercase">Statut</th>
+                                                    <th className="px-4 py-2.5 text-right text-[11px] font-bold text-slate-500 uppercase">Date</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100 text-xs">
+                                                {filtered.map(item => {
+                                                    const p = item.profile || {};
+                                                    const name = p.full_name || p.name || 'Membre Chrétien';
+                                                    const avatar = p.avatar_url ? getImlrUrl(p.avatar_url) : `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=059669&color=fff`;
+                                                    const cleanPhone = (p.phone || '').replace(/\D/g, '');
+
+                                                    return (
+                                                        <tr key={item.id} className="hover:bg-slate-50 transition">
+                                                            <td className="px-4 py-3 font-semibold text-slate-900">
+                                                                <div className="flex items-center space-x-3">
+                                                                    <img src={avatar} alt={name} className="h-9 w-9 rounded-full object-cover border border-emerald-300 shrink-0" />
+                                                                    <div>
+                                                                        <div className="font-bold text-slate-900 flex items-center gap-1">
+                                                                            {name}
+                                                                            {p.is_premium && <Crown size={12} className="text-amber-500 fill-amber-400 shrink-0" />}
+                                                                        </div>
+                                                                        {p.email && <div className="text-[11px] text-slate-400 font-mono">{p.email}</div>}
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-4 py-3 font-mono font-semibold text-slate-700">
+                                                                {p.phone ? (
+                                                                    <div className="flex items-center gap-1.5">
+                                                                        <span>{p.phone}</span>
+                                                                        {cleanPhone && (
+                                                                            <a
+                                                                                href={`https://wa.me/${cleanPhone}`}
+                                                                                target="_blank"
+                                                                                rel="noopener noreferrer"
+                                                                                className="text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 p-1 rounded-md border border-emerald-200 transition"
+                                                                                title="Contacter sur WhatsApp"
+                                                                            >
+                                                                                <MessageCircle size={12} />
+                                                                            </a>
+                                                                        )}
+                                                                    </div>
+                                                                ) : (
+                                                                    <span className="text-slate-400 italic">Sans numéro</span>
+                                                                )}
+                                                            </td>
+                                                            <td className="px-4 py-3 text-slate-600 font-medium">
+                                                                {p.parish || 'Non renseignée'}
+                                                            </td>
+                                                            <td className="px-4 py-3">
+                                                                {p.verification_status === 'VERIFIED' ? (
+                                                                    <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold uppercase border border-emerald-200">
+                                                                        ✓ Vérifié
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-semibold uppercase">
+                                                                        Standard
+                                                                    </span>
+                                                                )}
+                                                            </td>
+                                                            <td className="px-4 py-3 text-right text-slate-400 font-mono text-[11px]">
+                                                                {item.created_at ? new Date(item.created_at).toLocaleDateString('fr-FR') : '-'}
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                );
+                            })()}
+                        </div>
+
+                        {/* Footer */}
+                        <div className="p-4 px-6 bg-slate-50 border-t border-slate-200 flex justify-end shrink-0">
+                            <button
+                                onClick={() => setIsAttendeesModalOpen(false)}
+                                className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition cursor-pointer"
+                            >
+                                Fermer
+                            </button>
                         </div>
                     </div>
                 </div>

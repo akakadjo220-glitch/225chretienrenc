@@ -60,26 +60,26 @@ function formatTime(seconds: number): string {
 
 // ─── Props ───────────────────────────────────────────────────────────────────
 interface SpeedDateProps {
-    eventId: string;
-    eventTitle: string;
-    eventDate: Date;
+    eventId?: string;
+    eventTitle?: string;
+    eventDate?: Date;
     currentUserGender?: 'M' | 'F';
     currentUserName?: string;
     currentUserAvatar?: string;
     isPremium?: boolean;
-    onClose: () => void;
+    onClose?: () => void;
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export const SpeedDate: React.FC<SpeedDateProps> = ({
-    eventId,
-    eventTitle,
-    eventDate,
+    eventId = '00000000-0000-0000-0000-000000000000',
+    eventTitle = 'Speed Date Chrétien',
+    eventDate = new Date(),
     currentUserGender = 'M',
     currentUserName = 'Vous',
     currentUserAvatar = '',
     isPremium = false,
-    onClose,
+    onClose = () => {},
 }) => {
     const partnerGender: 'M' | 'F' = currentUserGender === 'M' ? 'F' : 'M';
     const [participants, setParticipants] = useState<SpeedDateParticipant[]>([]);

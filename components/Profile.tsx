@@ -9,6 +9,7 @@ import { PinLockModal } from './PinLockModal';
 import { getCleanDisplayContact } from '../utils/phoneFormatter';
 import { PointsExplanationModal } from './PointsExplanationModal';
 import { PremiumCountdownBadge } from './PremiumCountdownBadge';
+import { calculateAge } from '../matchingEngine';
 
 const getImlrUrl = (path: string) => {
     if (!path) return '';
@@ -81,6 +82,32 @@ export const Profile: React.FC = () => {
         setHasPin(false);
     };
 
+    // Helper function to parse and clean interests array/string
+    const parseInterests = (raw: any): string[] => {
+        if (!raw) return [];
+        let items: string[] = [];
+        if (Array.isArray(raw)) {
+            items = raw.map(i => String(i));
+        } else if (typeof raw === 'string') {
+            const trimmed = raw.trim();
+            if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+                try {
+                    const parsed = JSON.parse(trimmed);
+                    if (Array.isArray(parsed)) {
+                        items = parsed.map(i => String(i));
+                    }
+                } catch (e) {
+                    items = trimmed.split(',');
+                }
+            } else {
+                items = trimmed.split(',');
+            }
+        }
+        return items
+            .map(s => s.replace(/^["'[\]\s]+|["'[\]\s]+$/g, '').trim())
+            .filter(Boolean);
+    };
+
     // Helper function to split parish string
     const getDenominationAndChurch = (fullParish?: string) => {
         if (!fullParish) return { denomination: '', church: '' };
@@ -94,6 +121,8 @@ export const Profile: React.FC = () => {
     // Form States
     const [formData, setFormData] = useState({
         name: '',
+        bio: '',
+        birthDate: '',
         denomination: '',
         church: '',
         phone: '',
@@ -105,7 +134,7 @@ export const Profile: React.FC = () => {
     const [paymentConfig, setPaymentConfig] = useState<{ publicKey: string, currency: string, amount: number } | null>(null);
     const [isProcessingPayment, setIsProcessingPayment] = useState(false);
     const [paymentMode, setPaymentMode] = useState<'SUBSCRIPTION' | 'DONATION'>('SUBSCRIPTION');
-    const [selectedPlan, setSelectedPlan] = useState<'DAY' | 'MONTH' | 'QUARTER' | 'YEAR'>('MONTH');
+    const [selectedPlan, setSelectedPlan] = useState<'DAY' | 'MONTH' | 'QUARTER' | 'SEMIANNUAL' | 'YEAR'>('MONTH');
     const [customDonationAmount, setCustomDonationAmount] = useState<string>('500');
     const [pointsPricingConfig, setPointsPricingConfig] = useState<any>(null);
 
@@ -113,9 +142,20 @@ export const Profile: React.FC = () => {
     const [interestInput, setInterestInput] = useState('');
     const [suggestions, setSuggestions] = useState<string[]>([]);
 
-    // Ref pour l'input file de l'avatar et galerie
+    // Ref pour l'input file de l'avatar et galerie et scroll formulaire
     const avatarInputRef = useRef<HTMLInputElement>(null);
     const galleryInputRef = useRef<HTMLInputElement>(null);
+    const editFormRef = useRef<HTMLDivElement>(null);
+
+    const handleStartEdit = () => {
+        setProfileTab('PROFIL');
+        setIsEditing(true);
+        setTimeout(() => {
+            if (editFormRef.current) {
+                editFormRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }, 100);
+    };
 
     // --- HELPER FUNCTION: CALCULATE DAYS REMAINING ---
     const getDaysRemaining = (expirationDateStr?: string) => {
@@ -157,6 +197,8 @@ export const Profile: React.FC = () => {
                         const currentUser: any = {
                             id: model.id,
                             name: model.full_name || model.name,
+                            bio: model.bio || '',
+                            birthDate: model.birth_date || '',
                             email: session.user.email,
                             role: model.role,
                             parish: model.parish,
@@ -168,13 +210,15 @@ export const Profile: React.FC = () => {
                             avatarUrl: model.avatar_url ? getImlrUrl(model.avatar_url) : 'https://picsum.photos/id/1012/150/150',
                             photos: model.photos_urls || [],
                             verificationStatus: model.verification_status || VerificationStatus.UNVERIFIED,
-                            interests: model.interests ? model.interests.split(',').map((t: string) => t.trim()) : []
+                            interests: parseInterests(model.interests)
                         };
 
                         const { denomination, church } = getDenominationAndChurch(currentUser.parish);
                         setUser(currentUser);
                         setFormData({
                             name: currentUser.name || '',
+                            bio: currentUser.bio || '',
+                            birthDate: currentUser.birthDate || '',
                             denomination: denomination || '',
                             church: church || '',
                             phone: currentUser.phone || '',
@@ -273,7 +317,7 @@ export const Profile: React.FC = () => {
                             }
                         }
                     }
-                } catch (e) {}
+                } catch (e) { }
             }
         };
         checkCertStatus();
@@ -363,6 +407,9 @@ export const Profile: React.FC = () => {
                 } else if (selectedPlan === 'QUARTER') {
                     amountToPay = pointsPricingConfig?.premiumQuarterlyPrice || 5000;
                     addedDays = 90;
+                } else if (selectedPlan === 'SEMIANNUAL') {
+                    amountToPay = pointsPricingConfig?.premiumSemiAnnualPrice || 9000;
+                    addedDays = 180;
                 } else if (selectedPlan === 'YEAR') {
                     amountToPay = pointsPricingConfig?.premiumYearlyPrice || 15000;
                     addedDays = 365;
@@ -506,23 +553,28 @@ export const Profile: React.FC = () => {
         if (!user) return;
         setIsSaving(true);
         try {
-            const combinedParish = formData.denomination 
-                ? `${formData.denomination} - ${formData.church || 'Autre Église'}` 
+            const combinedParish = formData.denomination
+                ? `${formData.denomination} - ${formData.church || 'Autre Église'}`
                 : (formData.church || '');
+            const cleanInterests = formData.interests.map(i => i.replace(/^["'[\]\s]+|["'[\]\s]+$/g, '').trim()).filter(Boolean);
             await supabase.from('profiles').update({
                 full_name: formData.name,
+                bio: formData.bio,
+                birth_date: formData.birthDate || null,
                 parish: combinedParish,
                 phone: formData.phone,
-                baptism_year: Number(formData.baptismYear),
-                interests: formData.interests.join(',')
+                baptism_year: formData.baptismYear ? Number(formData.baptismYear) : null,
+                interests: JSON.stringify(cleanInterests)
             }).eq('id', user.id);
-            setUser({ 
-                ...user, 
-                name: formData.name, 
-                parish: combinedParish, 
-                phone: formData.phone, 
-                baptismYear: Number(formData.baptismYear), 
-                interests: formData.interests 
+            setUser({
+                ...user,
+                name: formData.name,
+                bio: formData.bio,
+                birthDate: formData.birthDate,
+                parish: combinedParish,
+                phone: formData.phone,
+                baptismYear: formData.baptismYear ? Number(formData.baptismYear) : undefined,
+                interests: cleanInterests
             });
             setIsEditing(false);
         } catch (error) {
@@ -556,14 +608,62 @@ export const Profile: React.FC = () => {
         }
     };
     const handleGalleryClick = () => { galleryInputRef.current?.click(); };
+    
+    const handleDeleteGalleryPhoto = async (indexToDelete: number) => {
+        if (!user || !user.photos) return;
+        if (!window.confirm("Voulez-vous vraiment supprimer cette photo de votre galerie ?")) return;
+        try {
+            const updatedPhotos = user.photos.filter((_, idx) => idx !== indexToDelete);
+            await supabase.from('profiles').update({ photos_urls: updatedPhotos }).eq('id', user.id);
+            setUser({ ...user, photos: updatedPhotos });
+        } catch (error) {
+            console.error("Erreur suppression photo galerie", error);
+            alert("Erreur lors de la suppression de la photo.");
+        }
+    };
+
     const handleGalleryUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
         if (!files || files.length === 0 || !user) return;
+
+        const currentGalleryCount = user.photos?.length || 0;
+        const MAX_GALLERY_PHOTOS = 4; // Total max = 1 avatar + 4 galerie = 5 photos
+
+        if (currentGalleryCount >= MAX_GALLERY_PHOTOS) {
+            alert("La galerie est limitée à 5 photos au total (1 photo principale + 4 photos secondaires). Supprimez une photo existante pour en ajouter une nouvelle.");
+            if (galleryInputRef.current) galleryInputRef.current.value = '';
+            return;
+        }
+
         setIsUploadingGallery(true);
         try {
             let newPhotos = [...(user.photos || [])];
-            for (let i = 0; i < files.length; i++) {
-                const file = files[i];
+            const availableSlots = MAX_GALLERY_PHOTOS - currentGalleryCount;
+            const filesToProcess = Array.from(files).slice(0, availableSlots);
+
+            for (let i = 0; i < filesToProcess.length; i++) {
+                const file = filesToProcess[i];
+
+                // --- VÉRIFICATION BIOMÉTRIQUE FACIALE ANTI-IA / ANTI-USURPATION ---
+                if (user.avatarUrl && user.avatarUrl.startsWith('http')) {
+                    try {
+                        const fileReader = new FileReader();
+                        const base64Promise = new Promise<string>((resolve) => {
+                            fileReader.onload = () => resolve(fileReader.result as string);
+                            fileReader.readAsDataURL(file);
+                        });
+                        const fileBase64 = await base64Promise;
+
+                        const faceMatch = await compareFaces(fileBase64, user.avatarUrl);
+                        if (faceMatch && faceMatch.verified === false && typeof faceMatch.similarityPercentage === 'number' && faceMatch.similarityPercentage < 45) {
+                            alert(`❌ Photo rejetée par le contrôle IA pour "${file.name}" :\nLe visage ne semble pas correspondre à votre photo de profil principale. Veuillez publier de vraies photos de vous-même.`);
+                            continue;
+                        }
+                    } catch (e) {
+                        console.log("DeepFace verification fallback error", e);
+                    }
+                }
+
                 const fileExt = file.name.split('.').pop();
                 const fileName = `${user.id}-${Date.now()}-${i}.${fileExt}`;
                 const filePath = `gallery/${fileName}`;
@@ -739,7 +839,7 @@ export const Profile: React.FC = () => {
         if (!idFile || !baptismFile || !videoFile) { alert("Veuillez fournir tous les fichiers requis (Pièce d'identité, Baptême et Vidéo Liveness)."); return; }
         if (videoFile.size === 0) { alert("La vidéo est vide. Veuillez ré-enregistrer."); return; }
         if (videoFile.size > 5 * 1024 * 1024) { alert("Votre vidéo est trop lourde (>5Mo). Veuillez ré-enregistrer une vidéo plus courte."); return; }
-        
+
         setUploadProgress(10);
         try {
             // 1. Conversion de la pièce d'identité en Base64 pour comparaison IA immédiate
@@ -908,79 +1008,89 @@ export const Profile: React.FC = () => {
             <input type="file" ref={avatarInputRef} className="hidden" accept="image/*" onChange={handleAvatarChange} />
             <input type="file" ref={galleryInputRef} className="hidden" accept="image/*" multiple onChange={handleGalleryUpload} />
 
-            {/* Header Profile */}
-            <div className="relative mb-8 bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden text-left">
-                <div className="h-32 bg-gradient-to-r from-slate-900 via-emerald-950 to-slate-900 relative">
-                    <div className="absolute top-0 right-0 w-48 h-32 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
-                </div>
-                <div className="px-6 pb-6 pt-0 relative flex flex-col md:flex-row md:items-end justify-between gap-4">
-                    <div className="flex items-end gap-4 -mt-14">
-                        <div className="relative group cursor-pointer shrink-0" onClick={handleAvatarClick}>
-                            <div className="relative h-28 w-28 md:h-32 md:w-32 rounded-full border-4 border-white bg-white shadow-md overflow-hidden">
-                                {isUploadingAvatar ? (<div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10"><Loader className="text-white animate-spin" /></div>) : null}
-                                <img src={user.avatarUrl} alt="Profile" className="h-full w-full object-cover" />
-                            </div>
-                            <button className="absolute bottom-0 right-0 bg-slate-900 text-white p-2 rounded-full border-2 border-white hover:bg-slate-800 shadow-xs transition"><Camera size={14} /></button>
+            {/* Header Profile - Style Moderne, Lisible & Alignement Propre à Gauche */}
+            <div className="relative bg-gradient-to-r from-emerald-800 via-teal-900 to-emerald-950 rounded-3xl p-6 sm:p-8 text-white shadow-xl mb-8 border border-emerald-500/20 text-left">
+                <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
+                    {/* Avatar avec bouton photo */}
+                    <div className="relative group cursor-pointer flex-shrink-0" onClick={handleAvatarClick}>
+                        <div className="relative h-28 w-28 sm:h-32 sm:w-32 rounded-full border-4 border-white/90 bg-white/10 shadow-2xl overflow-hidden backdrop-blur-sm">
+                            {isUploadingAvatar && (
+                                <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-10">
+                                    <Loader className="text-white animate-spin" />
+                                </div>
+                            )}
+                            <img src={user.avatarUrl} alt="Profile" className="h-full w-full object-cover" />
                         </div>
-                        <div className="mb-1">
-                            <h1 className="text-xl md:text-2xl font-black text-slate-900 flex items-center gap-2">
-                                {user.name}
-                                {user.verificationStatus === VerificationStatus.VERIFIED && (<ShieldCheck className="text-emerald-600 h-6 w-6 shrink-0" />)}
+                        <button className="absolute bottom-0 right-0 bg-slate-900 text-white p-2 rounded-full border-2 border-white hover:bg-slate-800 shadow-md transition">
+                            <Camera size={16} />
+                        </button>
+                    </div>
+
+                    {/* Détails du profil : Nom, Âge, Téléphone/Email & Badge Premium */}
+                    <div className="flex-1 text-center sm:text-left space-y-2">
+                        <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight drop-shadow-sm">
+                                {user.name || 'Membre Chrétien'}, <span className="text-emerald-300 font-extrabold">{calculateAge(user.birthDate)} ans</span>
                             </h1>
-                            <div className="flex flex-wrap items-center gap-2 mt-1.5">
-                                <span className="inline-flex items-center text-xs font-bold text-slate-700 bg-slate-100 border border-slate-200/80 px-2.5 py-0.5 rounded-full shadow-2xs">
-                                    {getCleanDisplayContact(user)}
-                                </span>
-                                <PremiumCountdownBadge
-                                    isPremium={user.isPremium}
-                                    expirationDate={user.premiumExpiration}
-                                    onUpgradeClick={() => setShowPremiumModal(true)}
-                                />
-                            </div>
+                            {user.verificationStatus === VerificationStatus.VERIFIED && (
+                                <ShieldCheck className="text-amber-400 h-7 w-7 drop-shadow-sm" title="Profil Vérifié" />
+                            )}
+                        </div>
+
+                        <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 pt-1">
+                            <span className="inline-flex items-center text-xs font-bold text-slate-900 bg-white/90 px-3 py-1 rounded-full shadow-xs backdrop-blur-md">
+                                {getCleanDisplayContact(user)}
+                            </span>
+                            <PremiumCountdownBadge
+                                isPremium={user.isPremium}
+                                expirationDate={user.premiumExpiration}
+                                onUpgradeClick={() => setShowPremiumModal(true)}
+                            />
                         </div>
                     </div>
+
+                    {/* Bouton Modifier le profil */}
                     {!isEditing && (
-                        <button onClick={() => setIsEditing(true)} className="bg-slate-900 text-white px-4 py-2 rounded-xl text-xs font-extrabold hover:bg-slate-800 transition shadow-2xs self-start md:self-auto cursor-pointer">
-                            Modifier le profil
+                        <button
+                            onClick={handleStartEdit}
+                            className="bg-white/15 hover:bg-white/25 text-white border border-white/30 backdrop-blur-md px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition shadow-sm cursor-pointer whitespace-nowrap self-center sm:self-start"
+                        >
+                            ✏️ Modifier le profil
                         </button>
                     )}
                 </div>
             </div>
 
             {/* 🗂️ BARRE D'ONGLETS INTUITIVE */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 bg-slate-100/70 p-1.5 rounded-2xl border border-slate-200/80 mb-8">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm mb-8">
                 <button
                     onClick={() => setProfileTab('PROFIL')}
-                    className={`py-2.5 px-3 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                        profileTab === 'PROFIL' ? 'bg-white text-emerald-800 shadow-xs border border-slate-200/60' : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-                    }`}
+                    className={`py-3 px-3 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-1.5 cursor-pointer ${profileTab === 'PROFIL' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'
+                        }`}
                 >
                     <span>👤</span>
                     <span>Profil & Galerie</span>
                 </button>
                 <button
                     onClick={() => setProfileTab('VERIFICATION')}
-                    className={`py-2.5 px-3 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                        profileTab === 'VERIFICATION' ? 'bg-white text-emerald-800 shadow-xs border border-slate-200/60' : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-                    }`}
+                    className={`py-3 px-3 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-1.5 cursor-pointer ${profileTab === 'VERIFICATION' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'
+                        }`}
                 >
                     <span>🛡️</span>
-                    <span>Vérification</span>
+                    <span>Vérification & Identité</span>
                 </button>
                 <button
                     onClick={() => setProfileTab('POINTS')}
-                    className={`py-2.5 px-3 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                        profileTab === 'POINTS' ? 'bg-white text-emerald-800 shadow-xs border border-slate-200/60' : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-                    }`}
+                    className={`py-3 px-3 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-1.5 cursor-pointer ${profileTab === 'POINTS' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'
+                        }`}
                 >
                     <span>💎</span>
                     <span>Points & Offres</span>
                 </button>
                 <button
                     onClick={() => setProfileTab('SECURITY')}
-                    className={`py-2.5 px-3 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                        profileTab === 'SECURITY' ? 'bg-white text-emerald-800 shadow-xs border border-slate-200/60' : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-                    }`}
+                    className={`py-3 px-3 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-1.5 cursor-pointer ${profileTab === 'SECURITY' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'
+                        }`}
                 >
                     <span>🔒</span>
                     <span>Sécurité & PIN</span>
@@ -1010,7 +1120,7 @@ export const Profile: React.FC = () => {
                                     <span className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-full font-semibold">Non Certifié</span>
                                 )}
                             </div>
-                            
+
                             <div className="p-6 space-y-4">
                                 {isCommunityCertified ? (
                                     <div className="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-4 text-xs text-emerald-800 leading-relaxed text-left">
@@ -1035,7 +1145,7 @@ export const Profile: React.FC = () => {
                                         <p className="text-xs text-slate-600 leading-relaxed">
                                             Pour obtenir le badge ultime de confiance et rassurer pleinement vos futurs matchs chrétiens, demandez une certification physique auprès de l'un des ambassadeurs bénévoles de votre église locale.
                                         </p>
-                                        
+
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             <div className="space-y-1.5">
                                                 <label className="text-xs font-bold text-slate-700 block">Votre paroisse / église de rattachement</label>
@@ -1057,7 +1167,7 @@ export const Profile: React.FC = () => {
                                                 />
                                             </div>
                                         </div>
-                                        
+
                                         <div className="flex justify-end pt-2">
                                             <button
                                                 onClick={handleRequestCommunityCertification}
@@ -1078,29 +1188,29 @@ export const Profile: React.FC = () => {
             {profileTab === 'POINTS' && (
                 <div className="space-y-6 animate-in fade-in text-left">
                     {/* SOLDE DE POINTS & CREDITS CARD */}
-                    <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/80 flex flex-col md:flex-row items-center justify-between gap-4">
+                    <div className="bg-gradient-to-r from-emerald-800 via-teal-900 to-emerald-950 rounded-2xl p-6 text-white shadow-xl border border-emerald-500/30 flex flex-col md:flex-row items-center justify-between gap-4">
                         <div>
                             <div className="flex items-center gap-2 mb-1">
                                 <span className="text-2xl">💎</span>
-                                <h3 className="font-extrabold text-lg text-slate-900">Votre Solde de Confiance</h3>
+                                <h3 className="font-extrabold text-lg">Votre Solde de Confiance</h3>
                             </div>
-                            <p className="text-xs text-slate-500">Accumulez des points par votre assiduité et convertissez-les en crédits Spotlight.</p>
+                            <p className="text-xs text-emerald-200">Accumulez des points par votre assiduité et convertissez-les en crédits Spotlight.</p>
                         </div>
                         <div className="flex flex-col sm:flex-row items-center gap-3">
-                            <div className="flex items-center gap-4 bg-slate-50 px-5 py-3 rounded-xl border border-slate-200/80">
+                            <div className="flex items-center gap-4 bg-white/10 px-5 py-3 rounded-xl backdrop-blur-md border border-white/10">
                                 <div className="text-center">
-                                    <span className="text-2xl font-black text-emerald-700">{user.points ?? 150}</span>
-                                    <span className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Points</span>
+                                    <span className="text-2xl font-black text-amber-400">{user.points ?? 150}</span>
+                                    <span className="block text-[10px] font-bold uppercase tracking-wider text-emerald-200">Points</span>
                                 </div>
-                                <div className="h-8 w-px bg-slate-200" />
+                                <div className="h-8 w-px bg-white/20" />
                                 <div className="text-center">
-                                    <span className="text-2xl font-black text-amber-600">{(user as any).credits ?? 3}</span>
-                                    <span className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Crédits</span>
+                                    <span className="text-2xl font-black text-amber-400">{(user as any).credits ?? 3}</span>
+                                    <span className="block text-[10px] font-bold uppercase tracking-wider text-emerald-200">Crédits</span>
                                 </div>
                             </div>
                             <button
                                 onClick={() => setShowPointsModal(true)}
-                                className="bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold text-xs px-4 py-3 rounded-xl transition shadow-xs flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                                className="bg-amber-400 hover:bg-amber-500 text-slate-950 font-black text-xs px-4 py-3 rounded-xl transition shadow-md flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
                             >
                                 <span>💡 Explication & Conversion</span>
                             </button>
@@ -1297,162 +1407,279 @@ export const Profile: React.FC = () => {
                 <div className="space-y-8 animate-in fade-in text-left">
                     {/* Profile Info Form */}
 
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-8">
-                <div className="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-purple-50 to-slate-50 flex items-center justify-between">
-                    <div className="flex items-center">
-                        <div className="bg-purple-100 p-2 rounded-full mr-3"><Mic className="h-5 w-5 text-purple-600" /></div>
-                        <div>
-                            <h3 className="font-bold text-slate-800">Mon Témoignage Audio</h3>
-                            <p className="text-xs text-slate-500">Répondez en 30s : <em>"Qu'est-ce que la foi représente pour toi ?"</em></p>
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-8">
+                        <div className="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-purple-50 to-slate-50 flex items-center justify-between">
+                            <div className="flex items-center">
+                                <div className="bg-purple-100 p-2 rounded-full mr-3"><Mic className="h-5 w-5 text-purple-600" /></div>
+                                <div>
+                                    <h3 className="font-bold text-slate-800">Mon Témoignage Audio</h3>
+                                    <p className="text-xs text-slate-500">Répondez en 30s : <em>"Qu'est-ce que la foi représente pour toi ?"</em></p>
+                                </div>
+                            </div>
+                            {savedTestimonialUrl && <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full font-semibold flex items-center"><CheckCircle size={12} className="mr-1" /> Enregistré</span>}
+                        </div>
+                        <div className="p-6 space-y-4">
+                            {savedTestimonialUrl && !audioTestimonialUrl && (
+                                <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
+                                    <p className="text-xs text-slate-500 mb-2 font-medium">Témoignage actuel :</p>
+                                    <audio controls src={savedTestimonialUrl} className="w-full h-8" />
+                                </div>
+                            )}
+                            {audioTestimonialUrl && (
+                                <div className="bg-purple-50 rounded-xl p-3 border border-purple-200">
+                                    <p className="text-xs text-purple-600 mb-2 font-medium">Aperçu de votre enregistrement :</p>
+                                    <audio controls src={audioTestimonialUrl} className="w-full h-8" />
+                                </div>
+                            )}
+                            <div className="flex items-center gap-3">
+                                {!isRecordingAudio ? (
+                                    <button
+                                        onClick={startAudioTestimonial}
+                                        className="flex items-center bg-purple-600 hover:bg-purple-700 text-white px-4 py-2.5 rounded-xl font-medium shadow-sm transition"
+                                    >
+                                        <Mic size={16} className="mr-2" />
+                                        {savedTestimonialUrl ? 'Ré-enregistrer' : 'Démarrer (30s max)'}
+                                    </button>
+                                ) : (
+                                    <button
+                                        onClick={stopAudioTestimonial}
+                                        className="flex items-center bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl font-medium shadow-sm transition animate-pulse"
+                                    >
+                                        <StopCircle size={16} className="mr-2" />
+                                        Arrêter ({AUDIO_MAX_SECONDS - audioDuration}s restantes)
+                                    </button>
+                                )}
+                                {audioTestimonialBlob && !isRecordingAudio && (
+                                    <button
+                                        onClick={handleSaveTestimonial}
+                                        disabled={isUploadingTestimonial}
+                                        className="flex items-center bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl font-medium shadow-sm transition disabled:opacity-60"
+                                    >
+                                        {isUploadingTestimonial ? <Loader size={16} className="animate-spin mr-2" /> : <CheckCircle size={16} className="mr-2" />}
+                                        Sauvegarder
+                                    </button>
+                                )}
+                            </div>
+                            <p className="text-xs text-slate-400">🔒 Ce clip audio est visible sur votre fiche profil dans le deck de matching pour aider les autres à mieux vous connaître.</p>
                         </div>
                     </div>
-                    {savedTestimonialUrl && <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full font-semibold flex items-center"><CheckCircle size={12} className="mr-1" /> Enregistré</span>}
-                </div>
-                <div className="p-6 space-y-4">
-                    {savedTestimonialUrl && !audioTestimonialUrl && (
-                        <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
-                            <p className="text-xs text-slate-500 mb-2 font-medium">Témoignage actuel :</p>
-                            <audio controls src={savedTestimonialUrl} className="w-full h-8" />
+
+                    {/* Profile Info Form */}
+                    <div ref={editFormRef} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-8 scroll-mt-6">
+                        <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center"><h3 className="font-bold text-slate-800">Informations Personnelles</h3>{isEditing && (<div className="space-x-2"><button onClick={() => setIsEditing(false)} className="text-slate-500 hover:text-slate-700 text-sm font-medium px-3">Annuler</button><button onClick={handleSaveProfile} disabled={isSaving} className="bg-emerald-600 text-white text-sm px-4 py-1.5 rounded-lg font-medium hover:bg-emerald-700">{isSaving ? '...' : 'Enregistrer'}</button></div>)}</div>
+                        <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                            <div>
+                                <label className="block text-sm font-medium text-slate-500 mb-1">Nom complet</label>
+                                {isEditing ? (
+                                    <input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-emerald-500 focus:border-emerald-500" />
+                                ) : (
+                                    <p className="text-slate-900 font-medium text-lg">{user.name}</p>
+                                )}
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-slate-500 mb-1">Date de naissance & Âge</label>
+                                {isEditing ? (
+                                    <input
+                                        type="date"
+                                        value={formData.birthDate}
+                                        onChange={(e) => setFormData({ ...formData, birthDate: e.target.value })}
+                                        className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white text-slate-800"
+                                    />
+                                ) : (
+                                    <p className="text-slate-900 font-medium text-lg">
+                                        {user.birthDate ? `${calculateAge(user.birthDate)} ans (${formatDate(user.birthDate)})` : 'Non renseignée'}
+                                    </p>
+                                )}
+                            </div>
+
+                            <div className="md:col-span-2">
+                                <label className="block text-sm font-medium text-slate-500 mb-1">Ma biographie / Présentation</label>
+                                {isEditing ? (
+                                    <textarea
+                                        rows={3}
+                                        value={formData.bio}
+                                        onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
+                                        placeholder="Présentez-vous en quelques phrases (votre foi, votre personnalité, ce que vous recherchez...)"
+                                        className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-emerald-500 focus:border-emerald-500 text-slate-800 resize-none"
+                                    />
+                                ) : (
+                                    <p className="text-slate-800 font-normal text-base leading-relaxed bg-slate-50 p-3 rounded-lg border border-slate-100 italic">
+                                        "{user.bio || 'Aucune biographie rédigée. Cliquez sur Modifier le profil pour en ajouter une !'}"
+                                    </p>
+                                )}
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-slate-500 mb-1">Confession Chrétienne</label>
+                                {isEditing ? (
+                                    <select
+                                        value={formData.denomination}
+                                        onChange={(e) => setFormData({ ...formData, denomination: e.target.value })}
+                                        className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white text-slate-800"
+                                    >
+                                        <option value="" disabled>Sélectionnez votre confession...</option>
+                                        <option value="Catholique">Catholique</option>
+                                        <option value="Évangélique">Évangélique</option>
+                                        <option value="Méthodiste">Méthodiste</option>
+                                        <option value="Baptiste">Baptiste</option>
+                                        <option value="Assemblées de Dieu">Assemblées de Dieu</option>
+                                        <option value="Autre">Autre confession chrétienne</option>
+                                    </select>
+                                ) : (
+                                    <p className="text-slate-900 font-medium text-lg">
+                                        {getDenominationAndChurch(user.parish).denomination || 'Autre confession chrétienne'}
+                                    </p>
+                                )}
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-slate-500 mb-1">Paroisse / Église / Communauté</label>
+                                {isEditing ? (
+                                    <input
+                                        type="text"
+                                        value={formData.church}
+                                        onChange={(e) => setFormData({ ...formData, church: e.target.value })}
+                                        className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-emerald-500 focus:border-emerald-500 text-slate-800"
+                                        placeholder="Nom de votre église ou paroisse..."
+                                    />
+                                ) : (
+                                    <p className="text-slate-900 font-medium text-lg">
+                                        {getDenominationAndChurch(user.parish).church || 'Non renseignée'}
+                                    </p>
+                                )}
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-slate-500 mb-1">Numéro de téléphone</label>
+                                {isEditing ? (
+                                    <input type="tel" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-emerald-500 focus:border-emerald-500" placeholder="07 00 00 00 00" />
+                                ) : (
+                                    <p className="text-slate-900 font-medium text-lg">{user.phone || 'Non renseigné'}</p>
+                                )}
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-slate-500 mb-1">Année de baptême <span className="text-xs text-slate-400 font-normal">(Optionnel)</span></label>
+                                {isEditing ? (
+                                    <input type="number" placeholder="Ex: 2018 (Facultatif)" value={formData.baptismYear} onChange={(e) => setFormData({ ...formData, baptismYear: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-emerald-500 focus:border-emerald-500" />
+                                ) : (
+                                    <p className="text-slate-900 font-medium text-lg">{user.baptismYear || 'Non renseignée (Optionnel)'}</p>
+                                )}
+                            </div>
+
                         </div>
-                    )}
-                    {audioTestimonialUrl && (
-                        <div className="bg-purple-50 rounded-xl p-3 border border-purple-200">
-                            <p className="text-xs text-purple-600 mb-2 font-medium">Aperçu de votre enregistrement :</p>
-                            <audio controls src={audioTestimonialUrl} className="w-full h-8" />
+                    </div>
+
+                    {/* GALLERY SECTION (Max 5 photos, 3 photos min required to unlock matches) */}
+                    {(() => {
+                        const totalPhotosCount = (user.avatarUrl ? 1 : 0) + (user.photos?.length || 0);
+                        const isUnlocked = totalPhotosCount >= 3;
+                        return (
+                            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-8">
+                                <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex flex-wrap justify-between items-center gap-2">
+                                    <h3 className="font-bold text-slate-800 flex items-center">
+                                        <ImageIcon size={18} className="mr-2 text-slate-500" /> Ma Galerie ({totalPhotosCount}/5 photos)
+                                    </h3>
+                                    <button
+                                        onClick={handleGalleryClick}
+                                        disabled={isUploadingGallery || (user.photos && user.photos.length >= 4)}
+                                        className={`text-sm text-white px-3.5 py-1.5 rounded-lg flex items-center font-medium transition cursor-pointer ${isUploadingGallery || (user.photos && user.photos.length >= 4) ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-slate-800 hover:bg-slate-700'}`}
+                                    >
+                                        {isUploadingGallery ? <Loader size={14} className="animate-spin mr-1.5" /> : <Plus size={14} className="mr-1.5" />}
+                                        Ajouter des photos
+                                    </button>
+                                </div>
+                                <div className="p-6">
+                                    {/* Badge Condition 4 */}
+                                    <div className={`p-3.5 rounded-xl border mb-4 flex items-center justify-between text-xs sm:text-sm font-semibold ${isUnlocked ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-amber-50 border-amber-200 text-amber-900'}`}>
+                                        <div className="flex items-center gap-2">
+                                            {isUnlocked ? <CheckCircle size={18} className="text-emerald-600 flex-shrink-0" /> : <AlertTriangle size={18} className="text-amber-600 flex-shrink-0" />}
+                                            <span>
+                                                {isUnlocked
+                                                    ? `🟢 Condition 4 Validée : ${totalPhotosCount}/5 photos chargées. Votre profil est déverrouillé pour les rencontres !`
+                                                    : `⚠️ 4ème Condition Obligatoire : ${totalPhotosCount}/3 photos (Publiez au moins 3 vraies photos pour débloquer les rencontres).`}
+                                            </span>
+                                        </div>
+                                        <span className="font-bold text-xs uppercase px-2 py-0.5 rounded-full bg-white border shadow-2xs">
+                                            {isUnlocked ? 'Débloqué' : `${3 - totalPhotosCount} manquante(s)`}
+                                        </span>
+                                    </div>
+
+                                    <p className="text-xs text-slate-500 mb-4">
+                                        🔒 Les photos de votre galerie sont automatiquement contrôlées par notre IA faciale biométrique. La 1ère photo est votre photo principale.
+                                    </p>
+
+                                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                                        {/* Avatar photo principale */}
+                                        <div className="relative aspect-square rounded-xl overflow-hidden group shadow-sm border-2 border-emerald-500">
+                                            <img src={user.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                                            <div className="absolute bottom-0 left-0 right-0 bg-emerald-700/90 text-white text-[10px] font-bold text-center py-1">
+                                                Principale
+                                            </div>
+                                        </div>
+
+                                        {/* Photos de la galerie */}
+                                        {user.photos && user.photos.length > 0 && user.photos.map((photo, index) => (
+                                            <div key={index} className="relative aspect-square rounded-xl overflow-hidden group shadow-sm bg-slate-100 border border-slate-200">
+                                                <img src={getImlrUrl(photo)} alt={`Galerie ${index}`} className="w-full h-full object-cover" />
+                                                <button
+                                                    onClick={() => handleDeleteGalleryPhoto(index)}
+                                                    className="absolute top-1.5 right-1.5 bg-red-600/90 hover:bg-red-700 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition shadow-md cursor-pointer"
+                                                    title="Supprimer cette photo"
+                                                >
+                                                    <Trash2 size={13} />
+                                                </button>
+                                            </div>
+                                        ))}
+
+                                        {/* Bouton Ajouter si slots disponibles */}
+                                        {(!user.photos || user.photos.length < 4) && (
+                                            <div
+                                                onClick={handleGalleryClick}
+                                                className="aspect-square rounded-xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 cursor-pointer hover:bg-emerald-50/50 hover:border-emerald-400 hover:text-emerald-600 transition"
+                                            >
+                                                <Plus size={28} />
+                                                <span className="text-xs mt-1 font-semibold">Ajouter ({user.photos?.length || 0}/4)</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })()}
+
+                    {/* Interests Section */}
+                    < div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden" >
+                        <div className="px-6 py-4 border-b border-slate-100 bg-slate-50"><h3 className="font-bold text-slate-800 flex items-center"><Tag size={18} className="mr-2 text-slate-500" /> Centres d'intérêt</h3></div>
+                        <div className="p-6">
+                            {isEditing && (
+                                <div className="relative mb-4"><div className="flex gap-2"><input type="text" value={interestInput} onChange={handleInterestInputChange} placeholder="Ajouter un intérêt..." className="flex-1 border border-slate-300 rounded-lg px-3 py-2 focus:ring-emerald-500 focus:border-emerald-500" /><button onClick={() => { if (interestInput) addInterest(interestInput); }} className="bg-emerald-600 text-white px-3 py-2 rounded-lg"><Plus size={20} /></button></div>{suggestions.length > 0 && (<div className="absolute z-10 w-full bg-white border border-slate-200 rounded-lg shadow-lg mt-1 max-h-40 overflow-y-auto">{suggestions.map(suggestion => (<div key={suggestion} onClick={() => addInterest(suggestion)} className="px-4 py-2 hover:bg-emerald-50 cursor-pointer text-sm text-slate-700">{suggestion}</div>))}</div>)}</div>
+                            )}
+                            <div className="flex flex-wrap gap-2">
+                                {formData.interests && formData.interests.length > 0 ? (
+                                    formData.interests.map((interest, idx) => {
+                                        const cleanTag = interest.replace(/^["'[\]\s]+|["'[\]\s]+$/g, '').trim();
+                                        if (!cleanTag) return null;
+                                        return (
+                                            <span key={idx} className={`inline-flex items-center px-3 py-1.5 rounded-full text-sm font-semibold border ${isEditing ? 'bg-emerald-50 text-emerald-800 border-emerald-300' : 'bg-slate-100 text-slate-800 border-slate-200'}`}>
+                                                {cleanTag}
+                                                {isEditing && (
+                                                    <button onClick={() => removeInterest(interest)} className="ml-2 text-emerald-600 hover:text-emerald-800 transition">
+                                                        <X size={14} />
+                                                    </button>
+                                                )}
+                                            </span>
+                                        );
+                                    })
+                                ) : (
+                                    <p className="text-slate-400 italic text-sm">Aucun centre d'intérêt.</p>
+                                )}
+                            </div>
                         </div>
-                    )}
-                    <div className="flex items-center gap-3">
-                        {!isRecordingAudio ? (
-                            <button
-                                onClick={startAudioTestimonial}
-                                className="flex items-center bg-purple-600 hover:bg-purple-700 text-white px-4 py-2.5 rounded-xl font-medium shadow-sm transition"
-                            >
-                                <Mic size={16} className="mr-2" />
-                                {savedTestimonialUrl ? 'Ré-enregistrer' : 'Démarrer (30s max)'}
-                            </button>
-                        ) : (
-                            <button
-                                onClick={stopAudioTestimonial}
-                                className="flex items-center bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl font-medium shadow-sm transition animate-pulse"
-                            >
-                                <StopCircle size={16} className="mr-2" />
-                                Arrêter ({AUDIO_MAX_SECONDS - audioDuration}s restantes)
-                            </button>
-                        )}
-                        {audioTestimonialBlob && !isRecordingAudio && (
-                            <button
-                                onClick={handleSaveTestimonial}
-                                disabled={isUploadingTestimonial}
-                                className="flex items-center bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl font-medium shadow-sm transition disabled:opacity-60"
-                            >
-                                {isUploadingTestimonial ? <Loader size={16} className="animate-spin mr-2" /> : <CheckCircle size={16} className="mr-2" />}
-                                Sauvegarder
-                            </button>
-                        )}
-                    </div>
-                    <p className="text-xs text-slate-400">🔒 Ce clip audio est visible sur votre fiche profil dans le deck de matching pour aider les autres à mieux vous connaître.</p>
+                    </div >
                 </div>
-            </div>
-
-            {/* Profile Info Form */}
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-8">
-                <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center"><h3 className="font-bold text-slate-800">Informations Personnelles</h3>{isEditing && (<div className="space-x-2"><button onClick={() => setIsEditing(false)} className="text-slate-500 hover:text-slate-700 text-sm font-medium px-3">Annuler</button><button onClick={handleSaveProfile} disabled={isSaving} className="bg-emerald-600 text-white text-sm px-4 py-1.5 rounded-lg font-medium hover:bg-emerald-700">{isSaving ? '...' : 'Enregistrer'}</button></div>)}</div>
-                <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-
-                    <div>
-                        <label className="block text-sm font-medium text-slate-500 mb-1">Nom complet</label>
-                        {isEditing ? (
-                            <input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-emerald-500 focus:border-emerald-500" />
-                        ) : (
-                            <p className="text-slate-900 font-medium text-lg">{user.name}</p>
-                        )}
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-slate-500 mb-1">Confession Chrétienne</label>
-                        {isEditing ? (
-                            <select
-                                value={formData.denomination}
-                                onChange={(e) => setFormData({ ...formData, denomination: e.target.value })}
-                                className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white text-slate-800"
-                            >
-                                <option value="" disabled>Sélectionnez votre confession...</option>
-                                <option value="Catholique">Catholique</option>
-                                <option value="Évangélique">Évangélique</option>
-                                <option value="Méthodiste">Méthodiste</option>
-                                <option value="Baptiste">Baptiste</option>
-                                <option value="Assemblées de Dieu">Assemblées de Dieu</option>
-                                <option value="Autre">Autre confession chrétienne</option>
-                            </select>
-                        ) : (
-                            <p className="text-slate-900 font-medium text-lg">
-                                {getDenominationAndChurch(user.parish).denomination || 'Autre confession chrétienne'}
-                            </p>
-                        )}
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-slate-500 mb-1">Paroisse / Église / Communauté</label>
-                        {isEditing ? (
-                            <input
-                                type="text"
-                                value={formData.church}
-                                onChange={(e) => setFormData({ ...formData, church: e.target.value })}
-                                className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-emerald-500 focus:border-emerald-500 text-slate-800"
-                                placeholder="Nom de votre église ou paroisse..."
-                            />
-                        ) : (
-                            <p className="text-slate-900 font-medium text-lg">
-                                {getDenominationAndChurch(user.parish).church || 'Non renseignée'}
-                            </p>
-                        )}
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-slate-500 mb-1">Numéro de téléphone</label>
-                        {isEditing ? (
-                            <input type="tel" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-emerald-500 focus:border-emerald-500" placeholder="07 00 00 00 00" />
-                        ) : (
-                            <p className="text-slate-900 font-medium text-lg">{user.phone || 'Non renseigné'}</p>
-                        )}
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-slate-500 mb-1">Année de baptême</label>
-                        {isEditing ? (
-                            <input type="number" value={formData.baptismYear} onChange={(e) => setFormData({ ...formData, baptismYear: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-emerald-500 focus:border-emerald-500" />
-                        ) : (
-                            <p className="text-slate-900 font-medium text-lg">{user.baptismYear || 'Non renseigné'}</p>
-                        )}
-                    </div>
-
-                </div>
-            </div>
-
-            {/* GALLERY SECTION */}
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-8">
-                <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center"><h3 className="font-bold text-slate-800 flex items-center"><ImageIcon size={18} className="mr-2 text-slate-500" /> Ma Galerie</h3><button onClick={handleGalleryClick} disabled={isUploadingGallery} className="text-sm bg-slate-800 text-white px-3 py-1.5 rounded-lg flex items-center hover:bg-slate-700 transition">{isUploadingGallery ? <Loader size={14} className="animate-spin mr-1" /> : <Plus size={14} className="mr-1" />} Ajouter des photos</button></div>
-                <div className="p-6">
-                    <p className="text-xs text-slate-500 mb-4">Ces photos seront visibles sur votre profil de rencontre. La première est votre photo de profil.</p>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div className="relative aspect-square rounded-lg overflow-hidden group shadow-sm"><img src={user.avatarUrl} alt="Avatar" className="w-full h-full object-cover" /><div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] text-center py-1">Principale</div></div>
-                        {user.photos && user.photos.length > 0 && user.photos.map((photo, index) => (<div key={index} className="relative aspect-square rounded-lg overflow-hidden group shadow-sm bg-slate-100"><img src={getImlrUrl(photo)} alt={`Galerie ${index}`} className="w-full h-full object-cover" /></div>))}
-                        <div onClick={handleGalleryClick} className="aspect-square rounded-lg border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 cursor-pointer hover:bg-slate-50 hover:border-emerald-300 hover:text-emerald-500 transition"><Plus size={32} /><span className="text-xs mt-1 font-medium">Ajouter</span></div>
-                    </div>
-                </div>
-            </div >
-
-            {/* Interests Section */}
-            < div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden" >
-                <div className="px-6 py-4 border-b border-slate-100 bg-slate-50"><h3 className="font-bold text-slate-800 flex items-center"><Tag size={18} className="mr-2 text-slate-500" /> Centres d'intérêt</h3></div>
-                <div className="p-6">
-                    {isEditing && (
-                        <div className="relative mb-4"><div className="flex gap-2"><input type="text" value={interestInput} onChange={handleInterestInputChange} placeholder="Ajouter un intérêt..." className="flex-1 border border-slate-300 rounded-lg px-3 py-2 focus:ring-emerald-500 focus:border-emerald-500" /><button onClick={() => { if (interestInput) addInterest(interestInput); }} className="bg-emerald-600 text-white px-3 py-2 rounded-lg"><Plus size={20} /></button></div>{suggestions.length > 0 && (<div className="absolute z-10 w-full bg-white border border-slate-200 rounded-lg shadow-lg mt-1 max-h-40 overflow-y-auto">{suggestions.map(suggestion => (<div key={suggestion} onClick={() => addInterest(suggestion)} className="px-4 py-2 hover:bg-emerald-50 cursor-pointer text-sm text-slate-700">{suggestion}</div>))}</div>)}</div>
-                    )}
-                    <div className="flex flex-wrap gap-2">{formData.interests.length > 0 ? (formData.interests.map((interest, idx) => (<span key={idx} className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${isEditing ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'}`}>{interest}{isEditing && <button onClick={() => removeInterest(interest)} className="ml-2 text-emerald-600"><X size={14} /></button>}</span>))) : <p className="text-slate-400 italic text-sm">Aucun centre d'intérêt.</p>}</div>
-                </div>
-            </div >
-            </div>
             )}
 
             {/* Premium Modal (Purchase) */}
@@ -1495,11 +1722,10 @@ export const Profile: React.FC = () => {
                                             <button
                                                 type="button"
                                                 onClick={() => setSelectedPlan('DAY')}
-                                                className={`p-3 rounded-xl border text-xs font-bold transition flex flex-col cursor-pointer ${
-                                                    selectedPlan === 'DAY'
+                                                className={`p-3 rounded-xl border text-xs font-bold transition flex flex-col cursor-pointer ${selectedPlan === 'DAY'
                                                         ? 'border-emerald-600 bg-emerald-50 text-emerald-900 ring-2 ring-emerald-500/20'
                                                         : 'border-slate-200 text-slate-700 hover:bg-slate-50'
-                                                }`}
+                                                    }`}
                                             >
                                                 <span className="text-[10px] text-emerald-600 font-extrabold uppercase">Pass 24H</span>
                                                 <span className="text-sm font-black mt-0.5">{pointsPricingConfig?.premiumDailyPrice || 500} FCFA</span>
@@ -1509,11 +1735,10 @@ export const Profile: React.FC = () => {
                                             <button
                                                 type="button"
                                                 onClick={() => setSelectedPlan('MONTH')}
-                                                className={`p-3 rounded-xl border text-xs font-bold transition flex flex-col relative cursor-pointer ${
-                                                    selectedPlan === 'MONTH'
+                                                className={`p-3 rounded-xl border text-xs font-bold transition flex flex-col relative cursor-pointer ${selectedPlan === 'MONTH'
                                                         ? 'border-emerald-600 bg-emerald-50 text-emerald-900 ring-2 ring-emerald-500/20'
                                                         : 'border-slate-200 text-slate-700 hover:bg-slate-50'
-                                                }`}
+                                                    }`}
                                             >
                                                 <span className="absolute top-1 right-1 text-[9px] bg-amber-400 text-slate-950 font-black px-1.5 py-0.2 rounded">POPULAIRE</span>
                                                 <span className="text-[10px] text-emerald-600 font-extrabold uppercase">1 Mois</span>
@@ -1524,11 +1749,10 @@ export const Profile: React.FC = () => {
                                             <button
                                                 type="button"
                                                 onClick={() => setSelectedPlan('QUARTER')}
-                                                className={`p-3 rounded-xl border text-xs font-bold transition flex flex-col cursor-pointer ${
-                                                    selectedPlan === 'QUARTER'
+                                                className={`p-3 rounded-xl border text-xs font-bold transition flex flex-col cursor-pointer ${selectedPlan === 'QUARTER'
                                                         ? 'border-emerald-600 bg-emerald-50 text-emerald-900 ring-2 ring-emerald-500/20'
                                                         : 'border-slate-200 text-slate-700 hover:bg-slate-50'
-                                                }`}
+                                                    }`}
                                             >
                                                 <span className="text-[10px] text-emerald-600 font-extrabold uppercase">3 Mois</span>
                                                 <span className="text-sm font-black mt-0.5">{pointsPricingConfig?.premiumQuarterlyPrice || 5000} FCFA</span>
@@ -1537,12 +1761,24 @@ export const Profile: React.FC = () => {
 
                                             <button
                                                 type="button"
-                                                onClick={() => setSelectedPlan('YEAR')}
-                                                className={`p-3 rounded-xl border text-xs font-bold transition flex flex-col cursor-pointer ${
-                                                    selectedPlan === 'YEAR'
+                                                onClick={() => setSelectedPlan('SEMIANNUAL')}
+                                                className={`p-3 rounded-xl border text-xs font-bold transition flex flex-col cursor-pointer ${selectedPlan === 'SEMIANNUAL'
                                                         ? 'border-emerald-600 bg-emerald-50 text-emerald-900 ring-2 ring-emerald-500/20'
                                                         : 'border-slate-200 text-slate-700 hover:bg-slate-50'
-                                                }`}
+                                                    }`}
+                                            >
+                                                <span className="text-[10px] text-emerald-600 font-extrabold uppercase">6 Mois</span>
+                                                <span className="text-sm font-black mt-0.5">{pointsPricingConfig?.premiumSemiAnnualPrice || 9000} FCFA</span>
+                                                <span className="text-[10px] text-slate-500 font-normal">180 Jours d'accès</span>
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => setSelectedPlan('YEAR')}
+                                                className={`p-3 rounded-xl border text-xs font-bold transition flex flex-col col-span-2 sm:col-span-1 cursor-pointer ${selectedPlan === 'YEAR'
+                                                        ? 'border-emerald-600 bg-emerald-50 text-emerald-900 ring-2 ring-emerald-500/20'
+                                                        : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                                                    }`}
                                             >
                                                 <span className="text-[10px] text-emerald-600 font-extrabold uppercase">1 An (Annuel)</span>
                                                 <span className="text-sm font-black mt-0.5">{pointsPricingConfig?.premiumYearlyPrice || 15000} FCFA</span>
@@ -1562,12 +1798,12 @@ export const Profile: React.FC = () => {
                                             className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl shadow-lg transition flex items-center justify-center text-xs sm:text-sm cursor-pointer"
                                         >
                                             <CreditCard size={18} className="mr-2" />
-                                            {isProcessingPayment ? 'Initialisation...' : `S'abonner (${
-                                                selectedPlan === 'DAY' ? (pointsPricingConfig?.premiumDailyPrice || 500) :
-                                                selectedPlan === 'MONTH' ? (pointsPricingConfig?.premiumMonthlyPrice || 2500) :
-                                                selectedPlan === 'QUARTER' ? (pointsPricingConfig?.premiumQuarterlyPrice || 5000) :
-                                                (pointsPricingConfig?.premiumYearlyPrice || 15000)
-                                            } FCFA)`}
+                                            {isProcessingPayment ? 'Initialisation...' : `S'abonner (${selectedPlan === 'DAY' ? (pointsPricingConfig?.premiumDailyPrice || 500) :
+                                                    selectedPlan === 'MONTH' ? (pointsPricingConfig?.premiumMonthlyPrice || 2500) :
+                                                        selectedPlan === 'QUARTER' ? (pointsPricingConfig?.premiumQuarterlyPrice || 5000) :
+                                                            selectedPlan === 'SEMIANNUAL' ? (pointsPricingConfig?.premiumSemiAnnualPrice || 9000) :
+                                                                (pointsPricingConfig?.premiumYearlyPrice || 15000)
+                                                } FCFA)`}
                                         </button>
                                     </>
                                 ) : (

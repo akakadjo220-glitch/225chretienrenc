@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { DashboardTab, AppView } from '../types';
 import { Heart, MessageCircle, Users, BookOpen, User, Home, X, Calendar, Lock, Shield, WifiOff, Star, Sparkles, Zap, Flame, Trophy, HeartHandshake } from 'lucide-react';
 import { Matches } from './Matches';
@@ -8,7 +8,6 @@ import { Messages } from './Messages';
 import { Profile } from './Profile';
 import { Events } from './Events';
 import { LikesYou } from './LikesYou';
-import { SpeedDate } from './SpeedDate';
 import { IntercessionCircle } from './IntercessionCircle';
 import { supabase } from '../supabaseClient';
 import { updateDailyStreak } from '../utils/streakManager';
@@ -33,7 +32,7 @@ const getChristianGreeting = (name: string) => {
 };
 
 // Tab titles and descriptions for page headers
-const TAB_HEADERS: Record<DashboardTab, { title: string; subtitle: string }> = {
+const TAB_HEADERS: Partial<Record<DashboardTab, { title: string; subtitle: string }>> = {
   [DashboardTab.FEED]: {
     title: 'Fil d\'actualité',
     subtitle: 'Découvrez les dernières publications de la communauté.'
@@ -108,8 +107,11 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
   }, [currentView]);
 
   // Global counts for badges
+  const mainContentRef = useRef<HTMLElement>(null);
   const [totalUnreadCount, setTotalUnreadCount] = useState(0);
   const [newLikesCount, setNewLikesCount] = useState(0);
+  const [upcomingEventsCount, setUpcomingEventsCount] = useState(0);
+  const [isEventsBubbleDismissed, setIsEventsBubbleDismissed] = useState(false);
   const [showPointsModal, setShowPointsModal] = useState(false);
 
   // Profile data
@@ -188,7 +190,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
   const userName = resolveUserName(currentUser);
   const userAvatar = currentUser?.avatar_url
     ? getImlrUrl(currentUser.avatar_url)
-    : `https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=10b981&color=fff`;
+    : `https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=059669&color=fff`;
   const isPremium = currentUser?.is_premium || false;
   const isVerified = currentUser?.verification_status === 'VERIFIED';
 
@@ -215,30 +217,46 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
         // Messages unread
         const { count: msgCount } = await supabase
           .from('messages')
-          .select('*', { count: 'exact', head: true })
+          .select('id', { count: 'exact' })
           .eq('receiver_id', currentUser.id)
           .eq('read', false);
         setTotalUnreadCount(msgCount || 0);
 
-        // Likes received
+        // Likes received (type = like or superlike)
         const { count: likesCount } = await supabase
           .from('likes')
-          .select('*', { count: 'exact', head: true })
+          .select('id', { count: 'exact' })
           .eq('to_user_id', currentUser.id)
-          .eq('type', 'like');
+          .in('type', ['like', 'superlike']);
         setNewLikesCount(likesCount || 0);
 
-      } catch (e) { }
+        // Événements à venir
+        const todayDateStr = new Date().toISOString().split('T')[0];
+        const { count: eventsCount } = await supabase
+          .from('events')
+          .select('id', { count: 'exact' })
+          .gte('date', todayDateStr);
+        setUpcomingEventsCount(eventsCount || 0);
+
+      } catch (e) {
+        console.log("Erreur chargement badges notification", e);
+      }
     };
 
     fetchCounts();
 
-    const channel = supabase.channel('public:messages')
+    const channel = supabase.channel('public:dashboard_badges')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `receiver_id=eq.${currentUser.id}` }, () => {
         setTotalUnreadCount(prev => prev + 1);
       })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages', filter: `receiver_id=eq.${currentUser.id}` }, (payload: any) => {
-        if (payload.new.read) fetchCounts();
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages', filter: `receiver_id=eq.${currentUser.id}` }, () => {
+        fetchCounts();
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'likes', filter: `to_user_id=eq.${currentUser.id}` }, () => {
+        setNewLikesCount(prev => prev + 1);
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'events' }, () => {
+        fetchCounts();
       })
       .subscribe();
 
@@ -251,6 +269,10 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
     setActiveTab(tab);
     if (tab !== DashboardTab.MESSAGES) setSelectedContactId(null);
     if (onCloseMobileSidebar) onCloseMobileSidebar();
+
+    if (mainContentRef.current) {
+      mainContentRef.current.scrollTop = 0;
+    }
 
     if (onChangeView) {
       if (tab === DashboardTab.SPEED_DATE) onChangeView(AppView.SPEED_DATE);
@@ -269,81 +291,98 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
   const renderContent = () => {
     switch (activeTab) {
       case DashboardTab.MATCHES:
-        // --- SUBLIME LOCKED SCREEN FOR UNVERIFIED USERS ---
+        // --- CLEAN PRO GREEN & WHITE LOCKED SCREEN FOR UNVERIFIED USERS ---
         if (!isVerified) {
           return (
-            <div className="flex flex-col items-center justify-center text-center px-5 pt-8 pb-10 sm:pt-10 sm:pb-12 sm:px-8 my-4 sm:my-6 animate-in fade-in zoom-in duration-500 relative bg-white/90 backdrop-blur-md rounded-3xl border border-slate-200/80 shadow-xl max-w-2xl mx-auto">
-              <div className="absolute -top-24 -left-24 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-              <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
-
-              <div className="bg-gradient-to-br from-amber-400 to-amber-600 p-4 sm:p-5 rounded-full mb-4 sm:mb-6 relative shadow-lg shadow-amber-500/25 shrink-0 mt-2">
-                <Shield className="h-10 w-10 sm:h-12 sm:w-12 text-white" />
-                <div className="absolute -bottom-1 -right-1 bg-white p-1.5 rounded-full border-2 border-amber-500 shadow-md">
+            <div className="flex flex-col items-center justify-center text-center p-5 sm:p-6 my-2 sm:my-4 bg-white rounded-3xl border border-emerald-100 shadow-md max-w-xl mx-auto w-full animate-in fade-in duration-300">
+              <div className="bg-emerald-50 p-4 sm:p-5 rounded-2xl mb-4 sm:mb-6 relative border border-emerald-100 shrink-0">
+                <Shield className="h-10 w-10 sm:h-12 sm:w-12 text-emerald-700" />
+                <div className="absolute -bottom-1 -right-1 bg-white p-1 rounded-full border border-emerald-200 shadow-xs">
                   <Lock className="h-4 w-4 text-emerald-700" />
                 </div>
               </div>
 
-              <h3 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-slate-800 mb-2 tracking-tight">Porte du Discernement</h3>
-              <p className="text-slate-500 max-w-md mb-6 sm:mb-8 text-xs sm:text-sm leading-relaxed px-2">
-                Afin de préserver la pureté et le sérieux des démarches au sein de la communauté <strong>225 Chrétien</strong>, l'accès à l'espace Rencontres requiert une validation de compte.
+              <h3 className="text-xl sm:text-2xl font-extrabold text-slate-900 mb-2 font-display">Porte du Discernement</h3>
+              <p className="text-slate-600 max-w-md mb-6 text-xs sm:text-sm leading-relaxed px-2">
+                Afin de préserver la sérénité et le sérieux des échanges au sein de la communauté <strong>225 Chrétien</strong>, l'accès à l'espace Rencontres nécessite la vérification de votre compte.
               </p>
 
               {/* État d'Onboarding Checkpoints */}
-              <div className="w-full max-w-md bg-slate-50/80 rounded-2xl p-3.5 sm:p-4 border border-slate-100 mb-6 space-y-2.5 text-left">
-                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 px-1">Statut d'intégration</p>
+              <div className="w-full max-w-md bg-slate-50/90 rounded-2xl p-3.5 sm:p-4 border border-slate-200/70 mb-6 space-y-2.5 text-left">
+                <p className="text-[11px] font-bold text-emerald-800 uppercase tracking-widest px-1">Statut d'intégration</p>
 
                 {/* 1. Informations Profil */}
-                <div className="flex items-center justify-between p-2.5 bg-white rounded-xl border border-slate-200/50 shadow-sm">
+                <div className="flex items-center justify-between p-2.5 sm:p-3 bg-white rounded-xl border border-slate-200/60 shadow-2xs">
                   <div className="flex items-center space-x-3">
-                    <span className="w-6 h-6 bg-emerald-100 text-emerald-700 font-bold rounded-full flex items-center justify-center text-xs">✓</span>
-                    <span className="text-xs sm:text-sm font-semibold text-slate-700">Informations de profil de base</span>
+                    <span className="w-6 h-6 bg-emerald-100 text-emerald-800 font-bold rounded-full flex items-center justify-center text-xs shrink-0">✓</span>
+                    <span className="text-xs sm:text-sm font-semibold text-slate-800">Profil de base</span>
                   </div>
-                  <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold uppercase">Validé</span>
+                  <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full font-bold uppercase shrink-0">Validé</span>
                 </div>
 
                 {/* 2. Certificat ou Recommandation */}
-                <div className="flex items-center justify-between p-2.5 bg-white rounded-xl border border-slate-200/50 shadow-sm">
+                <div className="flex items-center justify-between p-2.5 sm:p-3 bg-white rounded-xl border border-slate-200/60 shadow-2xs">
                   <div className="flex items-center space-x-3">
-                    <span className={`w-6 h-6 font-bold rounded-full flex items-center justify-center text-xs ${currentUser?.verification_status === 'VERIFIED' ? 'bg-emerald-100 text-emerald-700' : currentUser?.verification_status === 'PENDING' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-400'}`}>
+                    <span className={`w-6 h-6 font-bold rounded-full flex items-center justify-center text-xs shrink-0 ${currentUser?.verification_status === 'VERIFIED' ? 'bg-emerald-100 text-emerald-800' : currentUser?.verification_status === 'PENDING' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-500'}`}>
                       {currentUser?.verification_status === 'VERIFIED' ? '✓' : '2'}
                     </span>
-                    <span className="text-xs sm:text-sm font-semibold text-slate-700">Certificat de baptême ou lettre</span>
+                    <span className="text-xs sm:text-sm font-semibold text-slate-800">Certificat de baptême ou lettre</span>
                   </div>
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${currentUser?.verification_status === 'VERIFIED' ? 'bg-emerald-100 text-emerald-800' : currentUser?.verification_status === 'PENDING' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-500'}`}>
+                  <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase shrink-0 ${currentUser?.verification_status === 'VERIFIED' ? 'bg-emerald-100 text-emerald-800' : currentUser?.verification_status === 'PENDING' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-600'}`}>
                     {currentUser?.verification_status === 'VERIFIED' ? 'Validé' : currentUser?.verification_status === 'PENDING' ? 'En cours' : 'À fournir'}
                   </span>
                 </div>
 
                 {/* 3. Liveness video proof */}
-                <div className="flex items-center justify-between p-2.5 bg-white rounded-xl border border-slate-200/50 shadow-sm">
+                <div className="flex items-center justify-between p-2.5 sm:p-3 bg-white rounded-xl border border-slate-200/60 shadow-2xs">
                   <div className="flex items-center space-x-3">
-                    <span className={`w-6 h-6 font-bold rounded-full flex items-center justify-center text-xs ${currentUser?.liveness_verified ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
+                    <span className={`w-6 h-6 font-bold rounded-full flex items-center justify-center text-xs shrink-0 ${currentUser?.liveness_verified ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500'}`}>
                       {currentUser?.liveness_verified ? '✓' : '3'}
                     </span>
-                    <span className="text-xs sm:text-sm font-semibold text-slate-700">Preuve vidéo de liveness</span>
+                    <span className="text-xs sm:text-sm font-semibold text-slate-800">Preuve vidéo liveness</span>
                   </div>
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${currentUser?.liveness_verified ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500'}`}>
+                  <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase shrink-0 ${currentUser?.liveness_verified ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
                     {currentUser?.liveness_verified ? 'Validé' : 'À fournir'}
                   </span>
                 </div>
+
+                {/* 4. Galerie photos (3 photos minimum) */}
+                {(() => {
+                  const totalPhotos = (currentUser?.avatar_url || currentUser?.avatarUrl ? 1 : 0) + (currentUser?.photos_urls?.length || currentUser?.photos?.length || 0);
+                  const isPhotosValid = totalPhotos >= 3;
+                  return (
+                    <div className="flex items-center justify-between p-2.5 sm:p-3 bg-white rounded-xl border border-slate-200/60 shadow-2xs">
+                      <div className="flex items-center space-x-3">
+                        <span className={`w-6 h-6 font-bold rounded-full flex items-center justify-center text-xs shrink-0 ${isPhotosValid ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500'}`}>
+                          {isPhotosValid ? '✓' : '4'}
+                        </span>
+                        <span className="text-xs sm:text-sm font-semibold text-slate-800">Galerie photo (3 photos min)</span>
+                      </div>
+                      <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase shrink-0 ${isPhotosValid ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800 border border-amber-200'}`}>
+                        {isPhotosValid ? 'Validé' : `${totalPhotos}/3 photos`}
+                      </span>
+                    </div>
+                  );
+                })()}
               </div>
 
               <button
                 onClick={() => handleTabChange(DashboardTab.PROFILE)}
-                className="bg-emerald-600 text-white px-6 py-3.5 rounded-xl font-bold shadow-lg shadow-emerald-600/30 hover:bg-emerald-700 hover:scale-105 active:scale-95 transition transform flex items-center gap-2 text-xs sm:text-sm mb-2"
+                className="w-full sm:w-auto bg-emerald-700 text-white hover:bg-emerald-800 px-5 py-3.5 rounded-xl font-bold shadow-md hover:shadow-lg transition flex items-center justify-center gap-2 text-xs sm:text-sm cursor-pointer"
               >
                 <User size={18} />
-                Compléter ma demande de vérification
+                <span>Compléter ma demande de vérification</span>
               </button>
             </div>
           );
         }
-        return <Matches onGoToMessages={(contactId) => {
-          if (contactId) setSelectedContactId(contactId);
-          handleTabChange(DashboardTab.MESSAGES);
-        }} />;
-      case DashboardTab.SPEED_DATE:
-        return <SpeedDate />;
+        return <Matches
+          onGoToMessages={(contactId) => {
+            if (contactId) setSelectedContactId(contactId);
+            handleTabChange(DashboardTab.MESSAGES);
+          }}
+          onGoToProfile={() => handleTabChange(DashboardTab.PROFILE)}
+        />;
       case DashboardTab.LIKES_YOU:
         return <LikesYou onLikeProcessed={handleLikeProcessed} onGoToMessages={(contactId) => {
           if (contactId) setSelectedContactId(contactId);
@@ -381,46 +420,49 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
   const currentVerse = CHRISTIAN_VERSES[new Date().getDate() % CHRISTIAN_VERSES.length];
 
   const SidebarContent = () => (
-    <div className="flex flex-col h-full bg-gradient-to-b from-white via-slate-50/50 to-emerald-50/10">
-      <div className="p-6">
-        <div className="flex items-center mb-6 pb-4 border-b border-slate-100">
-          <img src={userAvatar} alt="Profile" className="h-12 w-12 rounded-full object-cover mr-3 border-2 border-emerald-500 shadow-md shadow-emerald-500/10" />
+    <div className="flex flex-col h-full bg-white border-r border-slate-200/80">
+      <div className="p-5 flex-1 overflow-y-auto">
+        {/* User Card */}
+        <div className="flex items-center mb-5 pb-4 border-b border-slate-100">
+          <img src={userAvatar} alt="Profile" className="h-11 w-11 rounded-full object-cover mr-3 border-2 border-emerald-600 shadow-2xs" />
           <div className="overflow-hidden flex-1">
-            <p className="font-bold text-slate-800 truncate text-sm" title={userName}>{userName}</p>
+            <p className="font-bold text-slate-900 truncate text-sm font-display" title={userName}>{userName}</p>
             <div className="flex items-center space-x-1.5 mt-0.5">
-              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${isPremium ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-slate-100 text-slate-600'}`}>
+              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${isPremium ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-slate-100 text-slate-600'}`}>
                 {isPremium ? 'Premium' : 'Standard'}
               </span>
-              {isVerified && <Shield size={12} className="text-emerald-500" fill="currentColor" />}
+              {isVerified && <Shield size={13} className="text-emerald-600" fill="currentColor" />}
             </div>
           </div>
         </div>
 
-        {/* 🔥 BADGE SÉRIE DE FOI (DAILY FAITH STREAK) */}
-        <div className="mb-3 p-3 rounded-2xl bg-amber-500/10 border border-amber-300/30 text-slate-800 text-left flex items-center justify-between transition-all duration-200">
-          <div className="flex items-center space-x-2.5 min-w-0">
-            <div className="bg-amber-100 p-2 rounded-xl shrink-0">
-              <Flame size={18} className="text-amber-600 fill-amber-500" />
+        {/* 🌿 SÉRIE DE FOI (DAILY FAITH STREAK) - Sleek Green & White */}
+        <div className="mb-3 p-3 rounded-2xl bg-emerald-50/80 border border-emerald-200/80 text-slate-800 flex items-center justify-between shadow-2xs">
+          <div className="flex items-center space-x-3 min-w-0">
+            <div className="bg-emerald-600 text-white p-2 rounded-xl shrink-0 shadow-2xs">
+              <Flame size={18} className="fill-white" />
             </div>
             <div className="min-w-0">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-amber-800/90 truncate">Série de Foi</p>
-              <p className="text-xs font-black text-slate-900 truncate">{streakCount} {streakCount > 1 ? 'Jours' : '1er Jour'}</p>
+              <p className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 truncate">Série de Foi</p>
+              <p className="text-xs font-extrabold text-slate-900 truncate">{streakCount} {streakCount > 1 ? 'Jours consécutifs' : '1er Jour'}</p>
             </div>
           </div>
-          <span className="text-xs font-black bg-amber-100 text-amber-800 border border-amber-200/60 px-2 py-0.5 rounded-full shrink-0">🔥</span>
+          <span className="text-xs font-bold bg-white text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-lg shrink-0">
+            🔥
+          </span>
         </div>
 
-        {/* 💎 SOLDE DE POINTS & CRÉDITS */}
+        {/* 💎 SOLDE DE POINTS & CRÉDITS - Clean White & Emerald */}
         <div
           onClick={() => setShowPointsModal(true)}
-          className="mb-5 p-3.5 rounded-2xl bg-slate-900 text-white shadow-sm border border-slate-800 text-left flex flex-col gap-2.5 cursor-pointer hover:border-emerald-500/50 transition-all duration-200 group overflow-hidden"
+          className="mb-5 p-3 rounded-2xl bg-white border border-emerald-200/90 text-slate-800 shadow-2xs hover:border-emerald-500 transition-all duration-200 cursor-pointer flex flex-col gap-2 group"
         >
           <div className="flex items-center justify-between gap-1">
             <div className="flex items-center space-x-1.5 min-w-0">
               <span className="text-xs shrink-0">💎</span>
-              <p className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-300 truncate">Solde de Points</p>
+              <p className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 truncate">Mon Solde</p>
             </div>
-            <span className="text-[10px] font-black text-amber-300 bg-white/10 px-2 py-0.5 rounded-md border border-white/10 shrink-0 whitespace-nowrap">
+            <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200 shrink-0 whitespace-nowrap">
               {currentUser?.points ?? 150} Pts • {currentUser?.credits ?? 3} ⚡
             </span>
           </div>
@@ -430,24 +472,20 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
               e.stopPropagation();
               setShowPointsModal(true);
             }}
-            className="w-full text-[11px] font-extrabold bg-emerald-700 hover:bg-emerald-600 text-white py-1.5 px-3 rounded-xl transition shadow-2xs flex items-center justify-center gap-1 cursor-pointer"
+            className="w-full text-[11px] font-bold bg-emerald-700 hover:bg-emerald-800 text-white py-1.5 px-2.5 rounded-xl transition shadow-2xs flex items-center justify-center gap-1 cursor-pointer"
           >
-            <span>💡 Guide & Conversion</span>
+            <span>Guide & Conversion</span>
           </button>
         </div>
-        <nav className="space-y-1.5">
+
+        {/* Navigation items */}
+        <nav className="space-y-1">
           <SidebarItem
             icon={<Heart size={18} />}
             label="Rencontres"
             active={activeTab === DashboardTab.MATCHES}
             onClick={() => handleTabChange(DashboardTab.MATCHES)}
             locked={!isVerified}
-          />
-          <SidebarItem
-            icon={<Zap size={18} />}
-            label="Speed Date"
-            active={activeTab === DashboardTab.SPEED_DATE}
-            onClick={() => handleTabChange(DashboardTab.SPEED_DATE)}
           />
           <SidebarItem
             icon={<Star size={18} />}
@@ -469,7 +507,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
             onClick={() => handleTabChange(DashboardTab.FORUM)}
           />
           <SidebarItem
-            icon={<HeartHandshake size={18} className="text-amber-500" />}
+            icon={<HeartHandshake size={18} />}
             label="Cercle d'Intercession 🙏"
             active={activeTab === DashboardTab.PRAYERS}
             onClick={() => handleTabChange(DashboardTab.PRAYERS)}
@@ -496,41 +534,39 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
         </nav>
       </div>
 
-      {/* Méditation Divine Card */}
-      <div className="mt-auto p-4 pt-3 pb-28 md:pb-6 border-t border-slate-200/60 shrink-0">
-        <div className="relative overflow-hidden rounded-2xl bg-slate-900 text-white p-4 shadow-md border border-slate-800 group hover:border-emerald-500/50 transition-all duration-300">
-          <div className="absolute top-0 right-0 w-28 h-28 bg-emerald-500/10 rounded-full blur-xl pointer-events-none" />
-
+      {/* Méditation Divine Card - Elegant Green & White */}
+      <div className="p-4 pt-3 pb-24 md:pb-6 border-t border-slate-100 shrink-0 bg-slate-50/50">
+        <div className="rounded-2xl bg-white border border-emerald-200/80 p-4 shadow-2xs hover:border-emerald-400 transition-all duration-200">
           {/* Header Badge */}
-          <div className="flex items-center justify-between mb-2 relative z-10">
-            <div className="flex items-center space-x-1.5 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
-              <Sparkles size={12} className="text-emerald-400 shrink-0" />
-              <span className="text-[10px] text-emerald-300 font-extrabold uppercase tracking-widest">Méditation Divine</span>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center space-x-1.5 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+              <Sparkles size={12} className="text-emerald-700 shrink-0" />
+              <span className="text-[10px] text-emerald-800 font-extrabold uppercase tracking-wider">Méditation Divine</span>
             </div>
-            <BookOpen size={14} className="text-slate-400" />
+            <BookOpen size={14} className="text-emerald-600/70" />
           </div>
 
           {/* Verse Content */}
-          <div className="relative z-10 my-2">
-            <p className="text-[11px] text-slate-200 italic leading-relaxed font-serif font-medium">
+          <div className="my-2">
+            <p className="text-xs text-slate-700 italic leading-relaxed font-serif font-medium">
               « {currentVerse.text} »
             </p>
           </div>
 
           {/* Scripture Reference Tag */}
-          <div className="mt-2.5 flex items-center justify-between pt-2 border-t border-slate-800 relative z-10">
-            <span className="text-[9px] text-slate-400 font-semibold tracking-wider uppercase">Parole de Foi</span>
-            <span className="text-[10px] bg-emerald-950 text-emerald-300 font-bold px-2 py-0.5 rounded-md border border-emerald-800/80">
+          <div className="mt-2.5 flex items-center justify-between pt-2 border-t border-slate-100">
+            <span className="text-[9px] text-slate-500 font-semibold tracking-wider uppercase">Parole de Foi</span>
+            <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-md border border-emerald-200">
               📖 {currentVerse.ref}
             </span>
           </div>
-
         </div>
       </div>
     </div>
   );
 
   const isMatchesTab = activeTab === DashboardTab.MATCHES;
+  const isMatchesTabAndVerified = isMatchesTab && isVerified;
   const currentTabHeader = TAB_HEADERS[activeTab] || { title: 'Tableau de Bord', subtitle: '' };
 
   return (
@@ -538,27 +574,27 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
 
       {/* OFFLINE BANNER */}
       {isOffline && (
-        <div className="bg-gradient-to-r from-amber-500 to-amber-600 text-white text-xs text-center py-2 px-4 z-30 flex-shrink-0 flex items-center justify-center gap-1.5 shadow-md">
+        <div className="bg-emerald-800 text-white text-xs text-center py-2 px-4 z-30 flex-shrink-0 flex items-center justify-center gap-1.5 shadow-xs font-semibold">
           <WifiOff size={14} className="animate-pulse" />
-          <span className="font-semibold">Mode hors-ligne activé. Certaines données peuvent ne pas être à jour.</span>
+          <span>Mode hors-ligne activé. Certaines données peuvent ne pas être à jour.</span>
         </div>
       )}
 
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex fixed left-0 top-16 bottom-0 w-64 bg-white border-r border-slate-200/60 flex-col z-20 shadow-sm">
+      <aside className="hidden md:flex fixed left-0 top-16 bottom-0 w-64 bg-white border-r border-slate-200 flex-col z-20 shadow-2xs">
         <SidebarContent />
       </aside>
 
       {/* Mobile Sidebar Overlay & Drawer */}
       <div className={`fixed inset-0 z-50 md:hidden transition-opacity duration-300 ${isMobileSidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
-        <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-md" onClick={onCloseMobileSidebar} />
+        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onCloseMobileSidebar} />
       </div>
 
-      <aside className={`fixed top-0 bottom-0 left-0 z-50 w-[280px] max-w-[85vw] bg-white shadow-2xl transform transition-transform duration-300 ease-in-out md:hidden flex flex-col rounded-r-3xl overflow-hidden border-r border-slate-200/80 ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="flex items-center justify-between p-4 px-5 border-b border-slate-100 bg-gradient-to-r from-emerald-900 via-teal-900 to-emerald-950 text-white shrink-0">
+      <aside className={`fixed top-0 bottom-0 left-0 z-50 w-[280px] max-w-[85vw] bg-white shadow-xl transform transition-transform duration-300 ease-in-out md:hidden flex flex-col rounded-r-2xl overflow-hidden border-r border-slate-200 ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="flex items-center justify-between p-4 px-5 border-b border-slate-100 bg-emerald-800 text-white shrink-0">
           <div className="flex items-center gap-2">
             <span className="text-xl">✨</span>
-            <span className="font-extrabold text-sm tracking-tight">Navigation 225 Chrétien</span>
+            <span className="font-extrabold text-sm tracking-tight font-display">Navigation 225 Chrétien</span>
           </div>
           <button onClick={onCloseMobileSidebar} className="p-1.5 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full transition cursor-pointer">
             <X size={18} />
@@ -570,28 +606,63 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
       </aside>
 
       {/* Main Content Area */}
-      <main className={`flex-1 w-full overflow-x-hidden flex flex-col ${isMatchesTab && isVerified ? 'h-full overflow-y-hidden relative' : 'overflow-y-auto'}`}>
+      <main ref={mainContentRef} className={`flex-1 w-full overflow-x-hidden flex flex-col ${isMatchesTabAndVerified ? 'h-full overflow-y-hidden relative' : 'overflow-y-auto min-h-0'}`}>
 
-        {/* Dynamic Premium Header inside Main Area */}
+        {/* Modern Clean Header Banner (Green & White Theme) */}
         {!isMatchesTab && (
           <div className="px-4 pt-6 md:px-8 max-w-4xl w-full mx-auto animate-in fade-in duration-300 flex-shrink-0">
-            <div className="bg-slate-900 p-6 rounded-3xl text-white shadow-sm relative overflow-hidden mb-6 border border-slate-800">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
+            <div className="bg-white border border-emerald-100 border-l-4 border-l-emerald-600 p-6 rounded-2xl text-slate-800 shadow-2xs relative overflow-hidden mb-6">
               <div className="relative">
-                <p className="text-[10px] font-extrabold text-amber-400 uppercase tracking-widest mb-1">
+                <p className="text-xs font-bold text-emerald-700 uppercase tracking-wider mb-1">
                   {getChristianGreeting(userName.split(' ')[0])}
                 </p>
-                <h2 className="text-xl md:text-2xl font-black tracking-tight text-white">{currentTabHeader.title}</h2>
-                <p className="text-xs text-slate-300 mt-1 max-w-xl font-medium">{currentTabHeader.subtitle}</p>
+                <h2 className="text-xl md:text-2xl font-extrabold text-slate-900 tracking-tight font-display">{currentTabHeader.title}</h2>
+                <p className="text-xs md:text-sm text-slate-600 mt-1 max-w-xl font-medium">{currentTabHeader.subtitle}</p>
               </div>
             </div>
           </div>
         )}
 
-        <div className={`max-w-4xl mx-auto p-3 pt-2 md:p-8 w-full flex-1 min-h-0 ${isMatchesTab ? 'h-full flex flex-col pb-32 md:pb-[90px]' : 'pb-32 md:pb-8'}`}>
+        <div className={`max-w-4xl mx-auto p-3 pt-2 md:p-8 w-full flex-1 min-h-0 ${isMatchesTabAndVerified ? 'h-full flex flex-col pb-32 md:pb-[90px]' : 'pb-36 sm:pb-40 md:pb-12'}`}>
           {renderContent()}
         </div>
       </main>
+
+      {/* BULLE FLOTTANTE ÉVÉNEMENTS À VENIR 📅 */}
+      {upcomingEventsCount > 0 && !isEventsBubbleDismissed && activeTab !== DashboardTab.EVENTS && (
+        <div
+          onClick={() => {
+            setIsEventsBubbleDismissed(true);
+            handleTabChange(DashboardTab.EVENTS);
+          }}
+          className="fixed bottom-24 sm:bottom-28 md:bottom-8 right-4 md:right-8 z-40 bg-gradient-to-r from-emerald-700 via-teal-800 to-emerald-900 text-white p-3 px-4 sm:p-3.5 sm:px-5 rounded-full shadow-2xl border-2 border-white/90 flex items-center gap-2.5 sm:gap-3 cursor-pointer hover:scale-105 active:scale-95 transition-all duration-300"
+        >
+          <div className="relative flex items-center justify-center">
+            <Calendar size={22} className="text-amber-300 animate-pulse" />
+            <span className="absolute -top-2 -right-2.5 bg-red-500 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full border-2 border-white shadow-sm">
+              {upcomingEventsCount}
+            </span>
+          </div>
+          <div className="flex flex-col text-left">
+            <span className="text-xs font-black tracking-wide leading-tight">
+              {upcomingEventsCount === 1 ? '1 Événement à venir !' : `${upcomingEventsCount} Événements à venir !`}
+            </span>
+            <span className="text-[10px] text-emerald-100 font-medium leading-tight">
+              Cliquez pour découvrir et participer ➔
+            </span>
+          </div>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsEventsBubbleDismissed(true);
+            }}
+            className="ml-1 text-white/70 hover:text-white p-1 rounded-full hover:bg-white/20 transition cursor-pointer"
+            title="Fermer l'alerte"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
 
       {/* MODALE EXPLICATION & CONVERSION DES POINTS 💎 */}
       <PointsExplanationModal
@@ -604,20 +675,20 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
   );
 };
 
-// Desktop SidebarItem
+// Desktop SidebarItem (Clean Emerald Accent)
 const SidebarItem = ({ icon, label, active, onClick, locked, badgeCount }: any) => (
   <button
     onClick={onClick}
-    className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl transition-all duration-200 text-left cursor-pointer group ${active
-        ? 'bg-gradient-to-r from-emerald-600 to-teal-700 text-white font-extrabold shadow-md shadow-emerald-600/20'
-        : 'text-slate-700 hover:bg-emerald-50/80 hover:text-emerald-800 font-semibold'
+    className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all duration-150 text-left cursor-pointer group ${active
+      ? 'bg-emerald-700 text-white font-bold shadow-2xs'
+      : 'text-slate-700 hover:bg-emerald-50/80 hover:text-emerald-800 font-semibold'
       }`}
   >
     <div className="flex items-center space-x-3 text-xs sm:text-sm min-w-0">
       <div className="relative shrink-0">
-        <span className={`transition-transform duration-200 inline-block ${active ? 'scale-110 text-white' : 'text-slate-500 group-hover:text-emerald-600 group-hover:scale-110'}`}>{icon}</span>
+        <span className={`transition-transform duration-150 inline-block ${active ? 'text-white' : 'text-slate-500 group-hover:text-emerald-700'}`}>{icon}</span>
         {badgeCount > 0 && (
-          <span className="absolute -top-1.5 -right-2 bg-red-500 text-white text-[9px] font-extrabold px-1.5 py-0.2 rounded-full min-w-[16px] text-center border-2 border-white shadow-xs animate-pulse">
+          <span className="absolute -top-1.5 -right-2 bg-emerald-800 text-white text-[9px] font-extrabold px-1.5 py-0.2 rounded-full min-w-[16px] text-center border-2 border-white shadow-2xs">
             {badgeCount > 99 ? '99+' : badgeCount}
           </span>
         )}
@@ -627,6 +698,7 @@ const SidebarItem = ({ icon, label, active, onClick, locked, badgeCount }: any) 
     {locked && <Lock size={12} className={active ? 'text-white/80' : 'text-slate-400'} />}
   </button>
 );
+
 
 // Mobile MobileNavItem
 const MobileNavItem = ({ icon, label, active, onClick, locked, badgeCount }: any) => (

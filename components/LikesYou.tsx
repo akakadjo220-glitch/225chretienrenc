@@ -37,14 +37,28 @@ interface LikesYouProps {
 }
 
 const parseInterests = (interests: any): string[] => {
-    if (Array.isArray(interests)) return interests;
-    if (typeof interests === 'string') {
-        if (interests.startsWith('[')) {
-            try { return JSON.parse(interests); } catch (e) { return []; }
+    if (!interests) return [];
+    let items: string[] = [];
+    if (Array.isArray(interests)) {
+        items = interests.map(i => String(i));
+    } else if (typeof interests === 'string') {
+        const trimmed = interests.trim();
+        if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+            try {
+                const parsed = JSON.parse(trimmed);
+                if (Array.isArray(parsed)) {
+                    items = parsed.map(i => String(i));
+                }
+            } catch (e) {
+                items = trimmed.split(',');
+            }
+        } else {
+            items = trimmed.split(',');
         }
-        return interests.split(',').map(s => s.trim()).filter(Boolean);
     }
-    return [];
+    return items
+        .map(s => s.replace(/^["'[\]\s]+|["'[\]\s]+$/g, '').trim())
+        .filter(Boolean);
 };
 
 export const LikesYou: React.FC<LikesYouProps> = ({ onLikeProcessed, onGoToMessages }) => {

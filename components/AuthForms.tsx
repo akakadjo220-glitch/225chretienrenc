@@ -350,10 +350,9 @@ export const AuthForms: React.FC<AuthFormsProps> = ({ view, onSwitch, onLogin })
 
                 if (error && error.message?.toLowerCase().includes("email not confirmed")) {
                     try {
-                        const { data: usersData } = await supabaseAdmin.auth.admin.listUsers();
-                        const targetUser = usersData?.users?.find(u => u.email?.toLowerCase() === email.toLowerCase());
-                        if (targetUser?.id) {
-                            await supabaseAdmin.auth.admin.updateUserById(targetUser.id, { email_confirm: true });
+                        const { data: prof } = await supabase.from('profiles').select('id').ilike('email', email).maybeSingle();
+                        if (prof?.id) {
+                            await supabaseAdmin.auth.admin.updateUserById(prof.id, { email_confirm: true });
                             const retry = await supabase.auth.signInWithPassword({ email, password });
                             authData = retry.data;
                             error = retry.error;
@@ -386,10 +385,9 @@ export const AuthForms: React.FC<AuthFormsProps> = ({ view, onSwitch, onLogin })
 
                 if (error && error.message?.toLowerCase().includes("email not confirmed")) {
                     try {
-                        const { data: usersData } = await supabaseAdmin.auth.admin.listUsers();
-                        const targetUser = usersData?.users?.find(u => u.email?.toLowerCase() === email.toLowerCase());
-                        if (targetUser?.id) {
-                            await supabaseAdmin.auth.admin.updateUserById(targetUser.id, { email_confirm: true });
+                        const { data: prof } = await supabase.from('profiles').select('id').ilike('email', email).maybeSingle();
+                        if (prof?.id) {
+                            await supabaseAdmin.auth.admin.updateUserById(prof.id, { email_confirm: true });
                             const retry = await supabase.auth.signInWithPassword({ email, password });
                             authData = retry.data;
                             error = retry.error;
@@ -590,10 +588,9 @@ export const AuthForms: React.FC<AuthFormsProps> = ({ view, onSwitch, onLogin })
                 if (typeof window !== 'undefined') sessionStorage.setItem('225_otp_verified', 'true');
                 if (registeredEmail) {
                     try {
-                        const { data: usersData } = await supabaseAdmin.auth.admin.listUsers();
-                        const targetUser = usersData?.users?.find(u => u.email?.toLowerCase() === registeredEmail.toLowerCase());
-                        if (targetUser?.id) {
-                            await supabaseAdmin.auth.admin.updateUserById(targetUser.id, { email_confirm: true });
+                        const { data: prof } = await supabase.from('profiles').select('id').ilike('email', registeredEmail).maybeSingle();
+                        if (prof?.id) {
+                            await supabaseAdmin.auth.admin.updateUserById(prof.id, { email_confirm: true });
                         }
                     } catch (e) {}
                 }
@@ -673,14 +670,16 @@ export const AuthForms: React.FC<AuthFormsProps> = ({ view, onSwitch, onLogin })
             }
 
             if (!userIdFound) {
-                const { data: usersData } = await supabaseAdmin.auth.admin.listUsers();
-                const foundUser = usersData?.users?.find(u =>
-                    u.email?.toLowerCase() === identifier.toLowerCase() ||
-                    u.email?.toLowerCase() === `wa_${identifier.replace(/[^0-9]/g, '')}@225chretien.ci`
-                );
-                if (foundUser?.id) {
-                    userIdFound = foundUser.id;
-                    targetUserEmail = foundUser.email || identifier;
+                const cleanNum = identifier.replace(/[^0-9]/g, '');
+                const { data: matchedProfile } = await supabase
+                    .from('profiles')
+                    .select('id, email')
+                    .or(`email.ilike.${identifier},email.ilike.wa_${cleanNum}@225chretien.ci`)
+                    .maybeSingle();
+
+                if (matchedProfile?.id) {
+                    userIdFound = matchedProfile.id;
+                    targetUserEmail = matchedProfile.email || identifier;
                 }
             }
 

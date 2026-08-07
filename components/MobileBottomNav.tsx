@@ -67,7 +67,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
               <div className={`relative p-1 rounded-xl transition-all duration-200 ${isActive ? 'bg-emerald-50 text-emerald-700 scale-110' : ''}`}>
                 <Icon size={20} className={isActive ? 'stroke-[2.5]' : 'stroke-[1.8]'} />
                 {item.badge !== undefined && (
-                  <span className="absolute -top-1 -right-1.5 bg-amber-500 text-white text-[10px] font-extrabold w-4 h-4 rounded-full flex items-center justify-center border-2 border-white shadow-xs">
+                  <span className="absolute -top-1 -right-1.5 bg-emerald-700 text-white text-[10px] font-extrabold w-4 h-4 rounded-full flex items-center justify-center border-2 border-white shadow-xs">
                     {item.badge > 9 ? '9+' : item.badge}
                   </span>
                 )}

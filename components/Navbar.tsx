@@ -119,8 +119,8 @@ export const Navbar: React.FC<NavbarProps> = ({ currentUserRole, onChangeView, t
             <div className="flex flex-col">
               <span className="font-bold text-xl tracking-tight text-slate-900 font-display flex items-center">
                 225 <span className="text-emerald-700 ml-1.5 font-extrabold">Chrétien</span>
-                <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                  <Sparkles size={10} className="mr-0.5" /> FOI
+                <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                  <Sparkles size={10} className="mr-0.5 text-emerald-700" /> FOI
                 </span>
               </span>
             </div>

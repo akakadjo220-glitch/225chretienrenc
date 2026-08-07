@@ -54,16 +54,31 @@ export const getDeviceFingerprint = (): string => {
     }
 };
 
-// Récupère l'adresse IP publique du client (avec fallback)
+let memoryCachedIp: string | null = null;
+let memoryBannedCache: { data: BannedIdentifier[]; fetchedAt: number } | null = null;
+
+// Récupère l'adresse IP publique du client (ultra rapide avec cache local & timeout 1s)
 export const getClientIp = async (): Promise<string> => {
+    if (memoryCachedIp) return memoryCachedIp;
     try {
-        const res = await fetch('https://api.ipify.org?format=json', { signal: AbortSignal.timeout(3000) });
+        if (typeof window !== 'undefined') {
+            const stored = sessionStorage.getItem('_225_client_ip');
+            if (stored) {
+                memoryCachedIp = stored;
+                return stored;
+            }
+        }
+        const res = await fetch('https://api.ipify.org?format=json', { signal: AbortSignal.timeout(1000) });
         if (res.ok) {
             const data = await res.json();
-            return data.ip || '127.0.0.1';
+            if (data.ip) {
+                memoryCachedIp = data.ip;
+                if (typeof window !== 'undefined') sessionStorage.setItem('_225_client_ip', data.ip);
+                return data.ip;
+            }
         }
     } catch (e) {
-        // Fallback silencieux en cas d'adblocker
+        // Fallback silencieux en cas de blocage réseau ou adblocker
     }
     return '127.0.0.1';
 };
@@ -74,8 +89,12 @@ export const normalizePhone = (phone: string | null | undefined): string => {
     return phone.replace(/[^0-9]/g, '');
 };
 
-// Charge la liste noire complète depuis system_settings
-export const fetchBannedIdentifiers = async (): Promise<BannedIdentifier[]> => {
+// Charge la liste noire complète depuis system_settings avec cache haute performance 60s
+export const fetchBannedIdentifiers = async (forceRefresh = false): Promise<BannedIdentifier[]> => {
+    const now = Date.now();
+    if (!forceRefresh && memoryBannedCache && (now - memoryBannedCache.fetchedAt < 60000)) {
+        return memoryBannedCache.data;
+    }
     try {
         const { data } = await supabase
             .from('system_settings')
@@ -84,12 +103,14 @@ export const fetchBannedIdentifiers = async (): Promise<BannedIdentifier[]> => {
             .maybeSingle();
 
         if (data?.value && Array.isArray(data.value)) {
-            return data.value as BannedIdentifier[];
+            const list = data.value as BannedIdentifier[];
+            memoryBannedCache = { data: list, fetchedAt: now };
+            return list;
         }
     } catch (e) {
         console.warn("Erreur chargement liste noire:", e);
     }
-    return [];
+    return memoryBannedCache?.data || [];
 };
 
 // Ajoute un ou plusieurs identifiants à la liste noire et sauvegarde dans Supabase

@@ -4,11 +4,13 @@ import { Navbar } from './components/Navbar';
 import { LandingPage } from './components/LandingPage';
 import { AuthForms } from './components/AuthForms';
 import { UserDashboard } from './components/UserDashboard';
-import { AdminDashboard } from './components/AdminDashboard';
 import { VerifyEmailPage } from './components/VerifyEmailPage';
 import { NotificationManager } from './components/NotificationManager';
 import { OnboardingInterests } from './components/OnboardingInterests';
 import { OnboardingPreferences } from './components/OnboardingPreferences';
+
+// 🚀 Code-Splitting pour Vitesse Optimale (Chargement différé de l'Administration)
+const AdminDashboard = React.lazy(() => import('./components/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { SessionTimeoutManager } from './components/SessionTimeoutManager';
 import { UserRole, AppView } from './types';
@@ -374,7 +376,6 @@ const App: React.FC = () => {
       )}
 
       {(currentView === AppView.USER_DASHBOARD ||
-        currentView === AppView.SPEED_DATE ||
         currentView === AppView.LIKES_YOU ||
         currentView === AppView.MESSAGES ||
         currentView === AppView.FORUM ||
@@ -397,7 +398,9 @@ const App: React.FC = () => {
               Quitter
             </button>
           </div>
-          <AdminDashboard onLogout={() => handleNavigate(AppView.LANDING)} />
+          <React.Suspense fallback={<div className="min-h-screen bg-slate-950 text-emerald-400 flex items-center justify-center font-bold text-sm">Chargement sécurisé de l'administration...</div>}>
+            <AdminDashboard onLogout={() => handleNavigate(AppView.LANDING)} />
+          </React.Suspense>
         </>
       )}
 

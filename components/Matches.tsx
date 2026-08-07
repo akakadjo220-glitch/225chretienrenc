@@ -33,16 +33,17 @@ const getCuratedPlaceholder = (gender: 'M' | 'F' | undefined, id: string) => {
 import { MatchProfile } from '../types';
 import { Check, X, MapPin, ShieldCheck, Search, Star, MessageCircle, Loader, CreditCard, CheckCircle, RefreshCw, SlidersHorizontal, ChevronDown, HeartHandshake, Mic, Lock } from 'lucide-react';
 import { generateDeepMatchScore, DeepMatchResult } from '../aiClient';
-import { calculateAge, calculateChristianMatchScore, isSameParishFuzzy } from '../matchingEngine';
+import { calculateAge, calculateChristianMatchScore, isSameParishFuzzy, detectProfileFraud, recordInteractionAndTrainMl, extractDenomination } from '../matchingEngine';
 
 const SWIPE_THRESHOLD = 100;
 const TAP_THRESHOLD = 5;
 
 interface MatchesProps {
     onGoToMessages: (contactId?: string) => void;
+    onGoToProfile?: () => void;
 }
 
-export const Matches: React.FC<MatchesProps> = ({ onGoToMessages }) => {
+export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile }) => {
     const [matches, setMatches] = useState<MatchProfile[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -132,14 +133,28 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages }) => {
     }, []);
 
     const parseInterests = (interests: any): string[] => {
-        if (Array.isArray(interests)) return interests;
-        if (typeof interests === 'string') {
-            if (interests.startsWith('[')) {
-                try { return JSON.parse(interests); } catch (e) { return []; }
+        if (!interests) return [];
+        let items: string[] = [];
+        if (Array.isArray(interests)) {
+            items = interests.map(i => String(i));
+        } else if (typeof interests === 'string') {
+            const trimmed = interests.trim();
+            if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+                try {
+                    const parsed = JSON.parse(trimmed);
+                    if (Array.isArray(parsed)) {
+                        items = parsed.map(i => String(i));
+                    }
+                } catch (e) {
+                    items = trimmed.split(',');
+                }
+            } else {
+                items = trimmed.split(',');
             }
-            return interests.split(',').map(s => s.trim()).filter(Boolean);
         }
-        return [];
+        return items
+            .map(s => s.replace(/^["'[\]\s]+|["'[\]\s]+$/g, '').trim())
+            .filter(Boolean);
     };
 
     const calculateCompatibilityScore = (me: any, them: any): number => {
@@ -212,7 +227,7 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages }) => {
             // 1.c Récupérer l'ID des gens qui m'ont liké (Pour contourner le mode invisible)
             const admirersIds = new Set<string>();
             try {
-                const { data: theirLikes } = await supabase.from('likes').select('from_user_id').eq('to_user_id', currentUserId).eq('is_like', true);
+                const { data: theirLikes } = await supabase.from('likes').select('from_user_id').eq('to_user_id', currentUserId).in('type', ['like', 'superlike']);
                 (theirLikes || []).forEach((l: any) => admirersIds.add(l.from_user_id));
             } catch (e) { console.log("Info: Pas d'admirateurs chargés"); }
 
@@ -266,6 +281,12 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages }) => {
                     return name.includes(lowerSearch) || bio.includes(lowerSearch) || interestsStr.includes(lowerSearch);
                 });
             }
+
+            // --- ETAPE 3.5 : PARE-FEU DE CYBERSÉCURITÉ (FILTRAGE DE SÉCURITÉ ANTI-FRAUDE) ---
+            candidates = candidates.filter((u: any) => {
+                const fraudCheck = detectProfileFraud(u);
+                return !fraudCheck.isBlocked;
+            });
 
             // Sort: Boosted profiles first, then shuffle
             const now = new Date();
@@ -411,6 +432,20 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages }) => {
                     });
                     setKnownMatchIds(prev => new Set(prev).add(currentProfile.id));
                     setMatchedProfile(currentProfile);
+
+                    // 🧠 AUTO-AMÉLIORATION DU MACHINE LEARNING
+                    recordInteractionAndTrainMl({
+                        userAId: currentUser.id,
+                        userBId: currentProfile.id,
+                        action: 'MUTUAL_MATCH',
+                        featureMatches: {
+                            sameParish: isSameParishFuzzy(currentUser.parish, currentProfile.parish),
+                            sameDenomination: extractDenomination(currentUser.denomination) === extractDenomination(currentProfile.denomination),
+                            distanceKm: 10,
+                            sharedInterestsCount: currentProfile.interests ? currentProfile.interests.length : 0,
+                            ageDiff: Math.abs((currentUser.age || 25) - (currentProfile.age || 25))
+                        }
+                    }).catch(() => {});
                 } else {
                     await supabase.from('likes').insert({
                         from_user_id: currentUser.id,
@@ -712,12 +747,12 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages }) => {
         try {
             const { data: likeRows } = await supabase
                 .from('likes')
-                .select('from_user_id, is_super_like')
+                .select('from_user_id, type')
                 .eq('to_user_id', currentUser.id)
-                .eq('is_like', true);
+                .in('type', ['like', 'superlike']);
             if (!likeRows || likeRows.length === 0) { setAdmirateursList([]); return; }
             const ids = likeRows.map((r: any) => r.from_user_id);
-            const superLikeSet = new Set(likeRows.filter((r: any) => r.is_super_like).map((r: any) => r.from_user_id));
+            const superLikeSet = new Set(likeRows.filter((r: any) => r.type === 'superlike').map((r: any) => r.from_user_id));
             const { data: profiles } = await supabase.from('profiles').select('id, full_name, avatar_url, parish').in('id', ids);
             setAdmirateursList((profiles || []).map((p: any) => ({
                 id: p.id,
@@ -735,6 +770,36 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages }) => {
 
     if (isLoading) {
         return <div className="flex justify-center items-center h-64"><Loader className="animate-spin text-emerald-600" /></div>;
+    }
+
+    const totalUserPhotos = (currentUser?.avatar_url || currentUser?.avatarUrl ? 1 : 0) + (currentUser?.photos_urls?.length || currentUser?.photos?.length || 0);
+
+    if (currentUser && totalUserPhotos < 3) {
+        return (
+            <div className="flex flex-col items-center justify-center p-8 bg-white border border-amber-200 rounded-3xl shadow-lg my-8 text-center max-w-lg mx-auto">
+                <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center text-amber-600 mb-4 shadow-inner">
+                    <Lock size={40} />
+                </div>
+                <h2 className="text-2xl font-black text-slate-800 mb-2">
+                    🔒 4ème Condition Obligatoire
+                </h2>
+                <p className="text-slate-600 text-sm mb-4 leading-relaxed">
+                    Pour garantir l'authenticité, la sécurité et la confiance au sein de notre communauté chrétienne, vous devez télécharger <strong>au moins 3 photos vraies et authentiques</strong> (1 photo principale + 2 photos dans votre galerie).
+                </p>
+                <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl text-xs font-semibold text-amber-900 mb-6">
+                    📸 Statut Actuel : {totalUserPhotos} / 3 photos publiées ({3 - totalUserPhotos} manquante{3 - totalUserPhotos > 1 ? 's' : ''})
+                </div>
+                {onGoToProfile && (
+                    <button
+                        onClick={onGoToProfile}
+                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-6 rounded-xl shadow-md transition flex items-center justify-center gap-2 text-sm cursor-pointer"
+                    >
+                        <Plus size={18} />
+                        <span>Compléter ma galerie photo dans mon profil</span>
+                    </button>
+                )}
+            </div>
+        );
     }
 
     const currentProfile = filteredMatches[currentIndex];
