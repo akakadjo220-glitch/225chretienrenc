@@ -921,7 +921,7 @@ export const Profile: React.FC = () => {
                     </div>
                     <div className="ml-4 mb-2">
                         <h1 className="text-2xl font-bold text-slate-900 flex items-center">{user.name}{user.verificationStatus === VerificationStatus.VERIFIED && (<ShieldCheck className="ml-2 text-emerald-500 h-6 w-6" />)}</h1>
-                        <p className="text-sm font-semibold text-slate-600 mt-0.5">{getCleanDisplayContact(user)}</p>
+                        <p className="inline-flex items-center text-xs font-bold text-white bg-slate-900 px-2.5 py-1 rounded-full shadow-xs mt-1">{getCleanDisplayContact(user)}</p>
                         <div className="mt-2">
                             <PremiumCountdownBadge
                                 isPremium={user.isPremium}
