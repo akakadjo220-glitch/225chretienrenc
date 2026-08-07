@@ -909,37 +909,50 @@ export const Profile: React.FC = () => {
             <input type="file" ref={galleryInputRef} className="hidden" accept="image/*" multiple onChange={handleGalleryUpload} />
 
             {/* Header Profile */}
-            <div className="relative mb-20">
-                <div className="h-32 bg-gradient-to-r from-emerald-600 to-teal-800 rounded-t-2xl"></div>
-                <div className="absolute -bottom-16 left-8 flex items-end">
-                    <div className="relative group cursor-pointer" onClick={handleAvatarClick}>
-                        <div className="relative h-32 w-32 rounded-full border-4 border-white bg-white shadow-lg overflow-hidden">
-                            {isUploadingAvatar ? (<div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10"><Loader className="text-white animate-spin" /></div>) : null}
-                            <img src={user.avatarUrl} alt="Profile" className="h-full w-full object-cover" />
-                        </div>
-                        <button className="absolute bottom-0 right-0 bg-slate-800 text-white p-2 rounded-full border-2 border-white hover:bg-slate-700 shadow-sm transition"><Camera size={16} /></button>
-                    </div>
-                    <div className="ml-4 mb-2">
-                        <h1 className="text-2xl font-bold text-slate-900 flex items-center">{user.name}{user.verificationStatus === VerificationStatus.VERIFIED && (<ShieldCheck className="ml-2 text-emerald-500 h-6 w-6" />)}</h1>
-                        <p className="inline-flex items-center text-xs font-bold text-white bg-slate-900 px-2.5 py-1 rounded-full shadow-xs mt-1">{getCleanDisplayContact(user)}</p>
-                        <div className="mt-2">
-                            <PremiumCountdownBadge
-                                isPremium={user.isPremium}
-                                expirationDate={user.premiumExpiration}
-                                onUpgradeClick={() => setShowPremiumModal(true)}
-                            />
-                        </div>
-                    </div>
+            <div className="relative mb-8 bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden text-left">
+                <div className="h-32 bg-gradient-to-r from-slate-900 via-emerald-950 to-slate-900 relative">
+                    <div className="absolute top-0 right-0 w-48 h-32 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
                 </div>
-                <div className="absolute top-4 right-4">{!isEditing && (<button onClick={() => setIsEditing(true)} className="bg-white/20 backdrop-blur border border-white/40 text-white px-4 py-2 rounded-lg font-medium hover:bg-white/30 transition">Modifier</button>)}</div>
+                <div className="px-6 pb-6 pt-0 relative flex flex-col md:flex-row md:items-end justify-between gap-4">
+                    <div className="flex items-end gap-4 -mt-14">
+                        <div className="relative group cursor-pointer shrink-0" onClick={handleAvatarClick}>
+                            <div className="relative h-28 w-28 md:h-32 md:w-32 rounded-full border-4 border-white bg-white shadow-md overflow-hidden">
+                                {isUploadingAvatar ? (<div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10"><Loader className="text-white animate-spin" /></div>) : null}
+                                <img src={user.avatarUrl} alt="Profile" className="h-full w-full object-cover" />
+                            </div>
+                            <button className="absolute bottom-0 right-0 bg-slate-900 text-white p-2 rounded-full border-2 border-white hover:bg-slate-800 shadow-xs transition"><Camera size={14} /></button>
+                        </div>
+                        <div className="mb-1">
+                            <h1 className="text-xl md:text-2xl font-black text-slate-900 flex items-center gap-2">
+                                {user.name}
+                                {user.verificationStatus === VerificationStatus.VERIFIED && (<ShieldCheck className="text-emerald-600 h-6 w-6 shrink-0" />)}
+                            </h1>
+                            <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                                <span className="inline-flex items-center text-xs font-bold text-slate-700 bg-slate-100 border border-slate-200/80 px-2.5 py-0.5 rounded-full shadow-2xs">
+                                    {getCleanDisplayContact(user)}
+                                </span>
+                                <PremiumCountdownBadge
+                                    isPremium={user.isPremium}
+                                    expirationDate={user.premiumExpiration}
+                                    onUpgradeClick={() => setShowPremiumModal(true)}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                    {!isEditing && (
+                        <button onClick={() => setIsEditing(true)} className="bg-slate-900 text-white px-4 py-2 rounded-xl text-xs font-extrabold hover:bg-slate-800 transition shadow-2xs self-start md:self-auto cursor-pointer">
+                            Modifier le profil
+                        </button>
+                    )}
+                </div>
             </div>
 
             {/* 🗂️ BARRE D'ONGLETS INTUITIVE */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm mb-8">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 bg-slate-100/70 p-1.5 rounded-2xl border border-slate-200/80 mb-8">
                 <button
                     onClick={() => setProfileTab('PROFIL')}
-                    className={`py-3 px-3 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                        profileTab === 'PROFIL' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'
+                    className={`py-2.5 px-3 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                        profileTab === 'PROFIL' ? 'bg-white text-emerald-800 shadow-xs border border-slate-200/60' : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
                     }`}
                 >
                     <span>👤</span>
@@ -947,17 +960,17 @@ export const Profile: React.FC = () => {
                 </button>
                 <button
                     onClick={() => setProfileTab('VERIFICATION')}
-                    className={`py-3 px-3 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                        profileTab === 'VERIFICATION' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'
+                    className={`py-2.5 px-3 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                        profileTab === 'VERIFICATION' ? 'bg-white text-emerald-800 shadow-xs border border-slate-200/60' : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
                     }`}
                 >
                     <span>🛡️</span>
-                    <span>Vérification & Identité</span>
+                    <span>Vérification</span>
                 </button>
                 <button
                     onClick={() => setProfileTab('POINTS')}
-                    className={`py-3 px-3 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                        profileTab === 'POINTS' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'
+                    className={`py-2.5 px-3 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                        profileTab === 'POINTS' ? 'bg-white text-emerald-800 shadow-xs border border-slate-200/60' : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
                     }`}
                 >
                     <span>💎</span>
@@ -965,8 +978,8 @@ export const Profile: React.FC = () => {
                 </button>
                 <button
                     onClick={() => setProfileTab('SECURITY')}
-                    className={`py-3 px-3 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                        profileTab === 'SECURITY' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'
+                    className={`py-2.5 px-3 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                        profileTab === 'SECURITY' ? 'bg-white text-emerald-800 shadow-xs border border-slate-200/60' : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
                     }`}
                 >
                     <span>🔒</span>
@@ -1065,29 +1078,29 @@ export const Profile: React.FC = () => {
             {profileTab === 'POINTS' && (
                 <div className="space-y-6 animate-in fade-in text-left">
                     {/* SOLDE DE POINTS & CREDITS CARD */}
-                    <div className="bg-gradient-to-r from-emerald-800 via-teal-900 to-emerald-950 rounded-2xl p-6 text-white shadow-xl border border-emerald-500/30 flex flex-col md:flex-row items-center justify-between gap-4">
+                    <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/80 flex flex-col md:flex-row items-center justify-between gap-4">
                         <div>
                             <div className="flex items-center gap-2 mb-1">
                                 <span className="text-2xl">💎</span>
-                                <h3 className="font-extrabold text-lg">Votre Solde de Confiance</h3>
+                                <h3 className="font-extrabold text-lg text-slate-900">Votre Solde de Confiance</h3>
                             </div>
-                            <p className="text-xs text-emerald-200">Accumulez des points par votre assiduité et convertissez-les en crédits Spotlight.</p>
+                            <p className="text-xs text-slate-500">Accumulez des points par votre assiduité et convertissez-les en crédits Spotlight.</p>
                         </div>
                         <div className="flex flex-col sm:flex-row items-center gap-3">
-                            <div className="flex items-center gap-4 bg-white/10 px-5 py-3 rounded-xl backdrop-blur-md border border-white/10">
+                            <div className="flex items-center gap-4 bg-slate-50 px-5 py-3 rounded-xl border border-slate-200/80">
                                 <div className="text-center">
-                                    <span className="text-2xl font-black text-amber-400">{user.points ?? 150}</span>
-                                    <span className="block text-[10px] font-bold uppercase tracking-wider text-emerald-200">Points</span>
+                                    <span className="text-2xl font-black text-emerald-700">{user.points ?? 150}</span>
+                                    <span className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Points</span>
                                 </div>
-                                <div className="h-8 w-px bg-white/20" />
+                                <div className="h-8 w-px bg-slate-200" />
                                 <div className="text-center">
-                                    <span className="text-2xl font-black text-amber-400">{(user as any).credits ?? 3}</span>
-                                    <span className="block text-[10px] font-bold uppercase tracking-wider text-emerald-200">Crédits</span>
+                                    <span className="text-2xl font-black text-amber-600">{(user as any).credits ?? 3}</span>
+                                    <span className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Crédits</span>
                                 </div>
                             </div>
                             <button
                                 onClick={() => setShowPointsModal(true)}
-                                className="bg-amber-400 hover:bg-amber-500 text-slate-950 font-black text-xs px-4 py-3 rounded-xl transition shadow-md flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                                className="bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold text-xs px-4 py-3 rounded-xl transition shadow-xs flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
                             >
                                 <span>💡 Explication & Conversion</span>
                             </button>

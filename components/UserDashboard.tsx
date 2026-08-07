@@ -397,28 +397,28 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
         </div>
 
         {/* 🔥 BADGE SÉRIE DE FOI (DAILY FAITH STREAK) */}
-        <div className="mb-3 p-3 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white shadow-md shadow-amber-500/20 border border-amber-300/40 text-left flex items-center justify-between animate-in zoom-in duration-300">
+        <div className="mb-3 p-3 rounded-2xl bg-amber-500/10 border border-amber-300/30 text-slate-800 text-left flex items-center justify-between transition-all duration-200">
           <div className="flex items-center space-x-2.5 min-w-0">
-            <div className="bg-white/20 p-2 rounded-xl shrink-0">
-              <Flame size={18} className="text-amber-100 fill-amber-200 animate-pulse" />
+            <div className="bg-amber-100 p-2 rounded-xl shrink-0">
+              <Flame size={18} className="text-amber-600 fill-amber-500" />
             </div>
             <div className="min-w-0">
-              <p className="text-[10px] font-extrabold uppercase tracking-wider text-amber-100 truncate">Série de Foi</p>
-              <p className="text-xs font-black text-white truncate">{streakCount} {streakCount > 1 ? 'Jours' : '1er Jour'}</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-amber-800/90 truncate">Série de Foi</p>
+              <p className="text-xs font-black text-slate-900 truncate">{streakCount} {streakCount > 1 ? 'Jours' : '1er Jour'}</p>
             </div>
           </div>
-          <span className="text-xs font-black bg-white/20 px-2 py-0.5 rounded-full backdrop-blur-md shrink-0">🔥</span>
+          <span className="text-xs font-black bg-amber-100 text-amber-800 border border-amber-200/60 px-2 py-0.5 rounded-full shrink-0">🔥</span>
         </div>
 
         {/* 💎 SOLDE DE POINTS & CRÉDITS */}
         <div
           onClick={() => setShowPointsModal(true)}
-          className="mb-5 p-3 rounded-2xl bg-gradient-to-br from-emerald-800 via-teal-900 to-emerald-950 text-white shadow-md border border-emerald-500/30 text-left flex flex-col gap-2 cursor-pointer hover:border-amber-400/60 transition-all duration-200 group overflow-hidden"
+          className="mb-5 p-3.5 rounded-2xl bg-slate-900 text-white shadow-sm border border-slate-800 text-left flex flex-col gap-2.5 cursor-pointer hover:border-emerald-500/50 transition-all duration-200 group overflow-hidden"
         >
           <div className="flex items-center justify-between gap-1">
             <div className="flex items-center space-x-1.5 min-w-0">
               <span className="text-xs shrink-0">💎</span>
-              <p className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-100 truncate">Solde</p>
+              <p className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-300 truncate">Solde de Points</p>
             </div>
             <span className="text-[10px] font-black text-amber-300 bg-white/10 px-2 py-0.5 rounded-md border border-white/10 shrink-0 whitespace-nowrap">
               {currentUser?.points ?? 150} Pts • {currentUser?.credits ?? 3} ⚡
@@ -430,7 +430,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
               e.stopPropagation();
               setShowPointsModal(true);
             }}
-            className="w-full text-[10px] font-extrabold bg-white text-emerald-900 hover:bg-emerald-50 py-1.5 px-2 rounded-xl transition shadow-2xs flex items-center justify-center gap-1 cursor-pointer"
+            className="w-full text-[11px] font-extrabold bg-emerald-700 hover:bg-emerald-600 text-white py-1.5 px-3 rounded-xl transition shadow-2xs flex items-center justify-center gap-1 cursor-pointer"
           >
             <span>💡 Guide & Conversion</span>
           </button>
@@ -496,34 +496,31 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
         </nav>
       </div>
 
-      {/* Méditation Divine Card - Ultra Sublime Gold & Emerald */}
-      <div className="mt-auto p-4 pt-3 pb-28 md:pb-6 border-t border-slate-100/80 shrink-0">
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-950 via-emerald-900 to-teal-950 text-white p-4 shadow-xl border border-amber-400/50 group hover:border-amber-400 transition-all duration-300">
-          
-          {/* Subtle background glow & light beam */}
-          <div className="absolute -top-10 -right-10 w-28 h-28 bg-amber-400/20 rounded-full blur-xl pointer-events-none group-hover:scale-125 transition-transform duration-500" />
-          <div className="absolute -bottom-10 -left-10 w-24 h-24 bg-emerald-500/20 rounded-full blur-xl pointer-events-none" />
+      {/* Méditation Divine Card */}
+      <div className="mt-auto p-4 pt-3 pb-28 md:pb-6 border-t border-slate-200/60 shrink-0">
+        <div className="relative overflow-hidden rounded-2xl bg-slate-900 text-white p-4 shadow-md border border-slate-800 group hover:border-emerald-500/50 transition-all duration-300">
+          <div className="absolute top-0 right-0 w-28 h-28 bg-emerald-500/10 rounded-full blur-xl pointer-events-none" />
 
           {/* Header Badge */}
           <div className="flex items-center justify-between mb-2 relative z-10">
-            <div className="flex items-center space-x-1.5 bg-amber-400/20 px-2.5 py-1 rounded-full border border-amber-400/40 shadow-xs">
-              <Sparkles size={12} className="text-amber-300 animate-pulse shrink-0" />
-              <span className="text-[10px] text-amber-200 font-extrabold uppercase tracking-widest">Méditation Divine</span>
+            <div className="flex items-center space-x-1.5 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
+              <Sparkles size={12} className="text-emerald-400 shrink-0" />
+              <span className="text-[10px] text-emerald-300 font-extrabold uppercase tracking-widest">Méditation Divine</span>
             </div>
-            <BookOpen size={14} className="text-emerald-300/70" />
+            <BookOpen size={14} className="text-slate-400" />
           </div>
 
           {/* Verse Content */}
           <div className="relative z-10 my-2">
-            <p className="text-[11px] sm:text-xs text-emerald-50/95 italic leading-relaxed font-serif font-medium drop-shadow-xs">
+            <p className="text-[11px] text-slate-200 italic leading-relaxed font-serif font-medium">
               « {currentVerse.text} »
             </p>
           </div>
 
           {/* Scripture Reference Tag */}
-          <div className="mt-2.5 flex items-center justify-between pt-2 border-t border-emerald-800/60 relative z-10">
-            <span className="text-[9px] text-emerald-300/80 font-semibold tracking-wider uppercase">Parole de Foi</span>
-            <span className="text-[10px] bg-amber-400/20 text-amber-300 font-bold px-2 py-0.5 rounded-md border border-amber-400/40 shadow-xs">
+          <div className="mt-2.5 flex items-center justify-between pt-2 border-t border-slate-800 relative z-10">
+            <span className="text-[9px] text-slate-400 font-semibold tracking-wider uppercase">Parole de Foi</span>
+            <span className="text-[10px] bg-emerald-950 text-emerald-300 font-bold px-2 py-0.5 rounded-md border border-emerald-800/80">
               📖 {currentVerse.ref}
             </span>
           </div>
@@ -578,14 +575,14 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
         {/* Dynamic Premium Header inside Main Area */}
         {!isMatchesTab && (
           <div className="px-4 pt-6 md:px-8 max-w-4xl w-full mx-auto animate-in fade-in duration-300 flex-shrink-0">
-            <div className="bg-gradient-to-r from-emerald-900 to-emerald-950 p-6 rounded-3xl text-white shadow-lg relative overflow-hidden mb-6">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
+            <div className="bg-slate-900 p-6 rounded-3xl text-white shadow-sm relative overflow-hidden mb-6 border border-slate-800">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
               <div className="relative">
-                <p className="text-[10px] font-bold text-amber-400 uppercase tracking-widest mb-1">
+                <p className="text-[10px] font-extrabold text-amber-400 uppercase tracking-widest mb-1">
                   {getChristianGreeting(userName.split(' ')[0])}
                 </p>
-                <h2 className="text-xl md:text-2xl font-extrabold tracking-tight">{currentTabHeader.title}</h2>
-                <p className="text-xs text-emerald-100/90 mt-1 max-w-xl font-medium">{currentTabHeader.subtitle}</p>
+                <h2 className="text-xl md:text-2xl font-black tracking-tight text-white">{currentTabHeader.title}</h2>
+                <p className="text-xs text-slate-300 mt-1 max-w-xl font-medium">{currentTabHeader.subtitle}</p>
               </div>
             </div>
           </div>
