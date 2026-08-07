@@ -908,70 +908,30 @@ export const Profile: React.FC = () => {
             <input type="file" ref={avatarInputRef} className="hidden" accept="image/*" onChange={handleAvatarChange} />
             <input type="file" ref={galleryInputRef} className="hidden" accept="image/*" multiple onChange={handleGalleryUpload} />
 
-            {/* Header Profile PRO */}
-            <div className="bg-white rounded-3xl shadow-sm border border-slate-200/80 overflow-hidden mb-8">
-                {/* Banner Gradient */}
-                <div className="h-36 sm:h-40 bg-gradient-to-r from-emerald-700 via-teal-800 to-emerald-900 relative p-6 flex items-start justify-between">
-                    {/* Pattern de fond discret */}
-                    <div className="absolute inset-0 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:16px_16px] opacity-10 pointer-events-none" />
-
-                    {/* Infos Nom & Téléphone sur la bannière (Textes en BLANC) */}
-                    <div className="relative z-10 text-left pt-1 pl-32 sm:pl-40">
-                        <h1 className="text-xl sm:text-2xl font-black text-white drop-shadow-md flex items-center gap-2">
-                            {user.name}
-                            {user.verificationStatus === VerificationStatus.VERIFIED && (
-                                <ShieldCheck className="text-amber-400 h-6 w-6 shrink-0 drop-shadow-sm" />
-                            )}
-                        </h1>
-                        <p className="text-xs sm:text-sm font-bold text-white drop-shadow-sm mt-0.5 flex items-center gap-1.5">
-                            {getCleanDisplayContact(user)}
-                        </p>
+            {/* Header Profile */}
+            <div className="relative mb-20">
+                <div className="h-32 bg-gradient-to-r from-emerald-600 to-teal-800 rounded-t-2xl"></div>
+                <div className="absolute -bottom-16 left-8 flex items-end">
+                    <div className="relative group cursor-pointer" onClick={handleAvatarClick}>
+                        <div className="relative h-32 w-32 rounded-full border-4 border-white bg-white shadow-lg overflow-hidden">
+                            {isUploadingAvatar ? (<div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10"><Loader className="text-white animate-spin" /></div>) : null}
+                            <img src={user.avatarUrl} alt="Profile" className="h-full w-full object-cover" />
+                        </div>
+                        <button className="absolute bottom-0 right-0 bg-slate-800 text-white p-2 rounded-full border-2 border-white hover:bg-slate-700 shadow-sm transition"><Camera size={16} /></button>
                     </div>
-
-                    {/* Bouton Modifier sur la bannière */}
-                    <div className="relative z-10">
-                        {!isEditing && (
-                            <button
-                                onClick={() => setIsEditing(true)}
-                                className="bg-white/20 hover:bg-white/30 backdrop-blur-md border border-white/40 text-white font-bold text-xs px-4 py-2 rounded-xl transition shadow-sm cursor-pointer"
-                            >
-                                Modifier
-                            </button>
-                        )}
-                    </div>
-                </div>
-
-                {/* Zone Avatar & Statut sous la bannière */}
-                <div className="px-6 pb-6 pt-2 flex flex-col sm:flex-row sm:items-end justify-between gap-4 relative">
-                    {/* Avatar superposé */}
-                    <div className="absolute -top-16 left-6 z-20">
-                        <div className="relative group cursor-pointer" onClick={handleAvatarClick}>
-                            <div className="relative h-28 w-28 sm:h-32 sm:w-32 rounded-full border-4 border-white bg-white shadow-xl overflow-hidden">
-                                {isUploadingAvatar ? (
-                                    <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
-                                        <Loader className="text-white animate-spin" />
-                                    </div>
-                                ) : null}
-                                <img src={user.avatarUrl} alt="Profile" className="h-full w-full object-cover" />
-                            </div>
-                            <button className="absolute bottom-0 right-0 bg-slate-800 text-white p-2 rounded-full border-2 border-white hover:bg-slate-700 shadow-md transition">
-                                <Camera size={16} />
-                            </button>
+                    <div className="ml-4 mb-2">
+                        <h1 className="text-2xl font-bold text-slate-900 flex items-center">{user.name}{user.verificationStatus === VerificationStatus.VERIFIED && (<ShieldCheck className="ml-2 text-emerald-500 h-6 w-6" />)}</h1>
+                        <p className="text-sm font-semibold text-slate-600 mt-0.5">{getCleanDisplayContact(user)}</p>
+                        <div className="mt-2">
+                            <PremiumCountdownBadge
+                                isPremium={user.isPremium}
+                                expirationDate={user.premiumExpiration}
+                                onUpgradeClick={() => setShowPremiumModal(true)}
+                            />
                         </div>
                     </div>
-
-                    {/* Espaceur pour l'avatar */}
-                    <div className="h-10 sm:h-12 w-28 sm:w-32 shrink-0" />
-
-                    {/* Badge Abonnement / Compte Standard */}
-                    <div className="flex-1 sm:text-right pt-2 sm:pt-0">
-                        <PremiumCountdownBadge
-                            isPremium={user.isPremium}
-                            expirationDate={user.premiumExpiration}
-                            onUpgradeClick={() => setShowPremiumModal(true)}
-                        />
-                    </div>
                 </div>
+                <div className="absolute top-4 right-4">{!isEditing && (<button onClick={() => setIsEditing(true)} className="bg-white/20 backdrop-blur border border-white/40 text-white px-4 py-2 rounded-lg font-medium hover:bg-white/30 transition">Modifier</button>)}</div>
             </div>
 
             {/* 🗂️ BARRE D'ONGLETS INTUITIVE */}

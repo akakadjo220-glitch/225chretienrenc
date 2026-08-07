@@ -443,6 +443,12 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
             locked={!isVerified}
           />
           <SidebarItem
+            icon={<Zap size={18} />}
+            label="Speed Date"
+            active={activeTab === DashboardTab.SPEED_DATE}
+            onClick={() => handleTabChange(DashboardTab.SPEED_DATE)}
+          />
+          <SidebarItem
             icon={<Star size={18} />}
             label="Ils vous aiment"
             active={activeTab === DashboardTab.LIKES_YOU}
@@ -547,16 +553,20 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
 
       {/* Mobile Sidebar Overlay & Drawer */}
       <div className={`fixed inset-0 z-50 md:hidden transition-opacity duration-300 ${isMobileSidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
-        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onCloseMobileSidebar} />
+        <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-md" onClick={onCloseMobileSidebar} />
       </div>
 
-      <aside className={`fixed top-0 bottom-0 left-0 z-50 w-64 bg-white shadow-2xl transform transition-transform duration-300 ease-in-out md:hidden ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="flex justify-end p-4 border-b border-slate-100">
-          <button onClick={onCloseMobileSidebar} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition">
-            <X size={20} />
+      <aside className={`fixed top-0 bottom-0 left-0 z-50 w-[280px] max-w-[85vw] bg-white shadow-2xl transform transition-transform duration-300 ease-in-out md:hidden flex flex-col rounded-r-3xl overflow-hidden border-r border-slate-200/80 ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="flex items-center justify-between p-4 px-5 border-b border-slate-100 bg-gradient-to-r from-emerald-900 via-teal-900 to-emerald-950 text-white shrink-0">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">✨</span>
+            <span className="font-extrabold text-sm tracking-tight">Navigation 225 Chrétien</span>
+          </div>
+          <button onClick={onCloseMobileSidebar} className="p-1.5 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full transition cursor-pointer">
+            <X size={18} />
           </button>
         </div>
-        <div className="h-[calc(100%-60px)] overflow-y-auto">
+        <div className="flex-1 overflow-y-auto">
           <SidebarContent />
         </div>
       </aside>
@@ -600,23 +610,23 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
 const SidebarItem = ({ icon, label, active, onClick, locked, badgeCount }: any) => (
   <button
     onClick={onClick}
-    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-200 transform active:scale-98 ${active
-        ? 'bg-emerald-50/80 text-emerald-700 font-bold shadow-sm border border-emerald-100/50 sidebar-item-active-glow'
-        : 'text-slate-600 hover:bg-slate-100/70 hover:translate-x-1'
+    className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl transition-all duration-200 text-left cursor-pointer group ${active
+        ? 'bg-gradient-to-r from-emerald-600 to-teal-700 text-white font-extrabold shadow-md shadow-emerald-600/20'
+        : 'text-slate-700 hover:bg-emerald-50/80 hover:text-emerald-800 font-semibold'
       }`}
   >
-    <div className="flex items-center space-x-3 text-sm">
-      <div className="relative">
-        <span className={`transition-transform duration-200 ${active ? 'scale-110 text-emerald-600' : 'text-slate-400 group-hover:scale-110'}`}>{icon}</span>
+    <div className="flex items-center space-x-3 text-xs sm:text-sm min-w-0">
+      <div className="relative shrink-0">
+        <span className={`transition-transform duration-200 inline-block ${active ? 'scale-110 text-white' : 'text-slate-500 group-hover:text-emerald-600 group-hover:scale-110'}`}>{icon}</span>
         {badgeCount > 0 && (
-          <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[9px] font-bold px-1 py-0.5 rounded-full min-w-[16px] text-center border border-white shadow-sm animate-pulse">
+          <span className="absolute -top-1.5 -right-2 bg-red-500 text-white text-[9px] font-extrabold px-1.5 py-0.2 rounded-full min-w-[16px] text-center border-2 border-white shadow-xs animate-pulse">
             {badgeCount > 99 ? '99+' : badgeCount}
           </span>
         )}
       </div>
-      <span>{label}</span>
+      <span className="truncate">{label}</span>
     </div>
-    {locked && <Lock size={12} className="text-slate-400" />}
+    {locked && <Lock size={12} className={active ? 'text-white/80' : 'text-slate-400'} />}
   </button>
 );
 
