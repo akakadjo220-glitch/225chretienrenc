@@ -61,8 +61,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
     // Configuration des Points, Crédits et Abonnements
     const [pointsConfig, setPointsConfig] = useState({
+        premiumDailyPrice: 500,
         premiumMonthlyPrice: 2500,
         premiumQuarterlyPrice: 5000,
+        premiumYearlyPrice: 15000,
         spotlightPriceFcfa: 500,
         pointsPerSpotlight: 50,
         pointsDailyStreak: 10,
@@ -1921,9 +1923,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                         <Sparkles className="text-amber-500" size={18} />
                         Tarifs des Formules Premium (FCFA)
                     </h3>
-                    <div className="space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
-                            <label className="text-xs font-bold text-slate-700 block mb-1">Abonnement Mensuel (1 Mois)</label>
+                            <label className="text-xs font-bold text-slate-700 block mb-1">Pass 1 Jour (24H)</label>
+                            <div className="relative">
+                                <input
+                                    type="number"
+                                    value={pointsConfig.premiumDailyPrice}
+                                    onChange={(e) => setPointsConfig({ ...pointsConfig, premiumDailyPrice: Number(e.target.value) })}
+                                    className="w-full p-2.5 text-xs font-bold rounded-xl border border-slate-200 focus:ring-emerald-500 focus:border-emerald-500"
+                                />
+                                <span className="absolute right-3 top-2.5 text-xs font-extrabold text-slate-400">FCFA</span>
+                            </div>
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-slate-700 block mb-1">Abonnement 1 Mois</label>
                             <div className="relative">
                                 <input
                                     type="number"
@@ -1935,12 +1949,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                             </div>
                         </div>
                         <div>
-                            <label className="text-xs font-bold text-slate-700 block mb-1">Abonnement Trimestriel (3 Mois)</label>
+                            <label className="text-xs font-bold text-slate-700 block mb-1">Abonnement 3 Mois</label>
                             <div className="relative">
                                 <input
                                     type="number"
                                     value={pointsConfig.premiumQuarterlyPrice}
                                     onChange={(e) => setPointsConfig({ ...pointsConfig, premiumQuarterlyPrice: Number(e.target.value) })}
+                                    className="w-full p-2.5 text-xs font-bold rounded-xl border border-slate-200 focus:ring-emerald-500 focus:border-emerald-500"
+                                />
+                                <span className="absolute right-3 top-2.5 text-xs font-extrabold text-slate-400">FCFA</span>
+                            </div>
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-slate-700 block mb-1">Abonnement 1 An (Annuel)</label>
+                            <div className="relative">
+                                <input
+                                    type="number"
+                                    value={pointsConfig.premiumYearlyPrice}
+                                    onChange={(e) => setPointsConfig({ ...pointsConfig, premiumYearlyPrice: Number(e.target.value) })}
                                     className="w-full p-2.5 text-xs font-bold rounded-xl border border-slate-200 focus:ring-emerald-500 focus:border-emerald-500"
                                 />
                                 <span className="absolute right-3 top-2.5 text-xs font-extrabold text-slate-400">FCFA</span>

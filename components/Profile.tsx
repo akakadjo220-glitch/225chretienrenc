@@ -8,6 +8,7 @@ import { compareFaces } from '../utils/deepfaceClient';
 import { PinLockModal } from './PinLockModal';
 import { getCleanDisplayContact } from '../utils/phoneFormatter';
 import { PointsExplanationModal } from './PointsExplanationModal';
+import { PremiumCountdownBadge } from './PremiumCountdownBadge';
 
 const getImlrUrl = (path: string) => {
     if (!path) return '';
@@ -104,7 +105,9 @@ export const Profile: React.FC = () => {
     const [paymentConfig, setPaymentConfig] = useState<{ publicKey: string, currency: string, amount: number } | null>(null);
     const [isProcessingPayment, setIsProcessingPayment] = useState(false);
     const [paymentMode, setPaymentMode] = useState<'SUBSCRIPTION' | 'DONATION'>('SUBSCRIPTION');
+    const [selectedPlan, setSelectedPlan] = useState<'DAY' | 'MONTH' | 'QUARTER' | 'YEAR'>('MONTH');
     const [customDonationAmount, setCustomDonationAmount] = useState<string>('500');
+    const [pointsPricingConfig, setPointsPricingConfig] = useState<any>(null);
 
     // Interest Input State
     const [interestInput, setInterestInput] = useState('');
@@ -227,8 +230,13 @@ export const Profile: React.FC = () => {
                     setPaymentConfig({
                         publicKey: activeKey || 'pk_test_placeholder',
                         currency: settings[0].currency || 'XOF',
-                        amount: settings[0].amount || 3000
+                        amount: settings[0].amount || 2500
                     });
+                }
+
+                const { data: pointsData } = await supabase.from('system_settings').select('value').eq('key', 'points_pricing_config').maybeSingle();
+                if (pointsData?.value) {
+                    setPointsPricingConfig(pointsData.value);
                 }
             } catch (e) {
                 console.log("Config paiement non trouvée");
@@ -340,9 +348,26 @@ export const Profile: React.FC = () => {
         try {
             if (!user || !paymentConfig) throw new Error("Données manquantes");
 
-            const amountToPay = paymentMode === 'DONATION'
-                ? parseInt(customDonationAmount)
-                : paymentConfig.amount;
+            let amountToPay = 2500;
+            let addedDays = 30;
+
+            if (paymentMode === 'DONATION') {
+                amountToPay = parseInt(customDonationAmount);
+            } else {
+                if (selectedPlan === 'DAY') {
+                    amountToPay = pointsPricingConfig?.premiumDailyPrice || 500;
+                    addedDays = 1;
+                } else if (selectedPlan === 'MONTH') {
+                    amountToPay = pointsPricingConfig?.premiumMonthlyPrice || 2500;
+                    addedDays = 30;
+                } else if (selectedPlan === 'QUARTER') {
+                    amountToPay = pointsPricingConfig?.premiumQuarterlyPrice || 5000;
+                    addedDays = 90;
+                } else if (selectedPlan === 'YEAR') {
+                    amountToPay = pointsPricingConfig?.premiumYearlyPrice || 15000;
+                    addedDays = 365;
+                }
+            }
 
             if (isNaN(amountToPay) || amountToPay < 500) {
                 alert("Le montant minimum est de 500 FCFA.");
@@ -353,7 +378,7 @@ export const Profile: React.FC = () => {
             const handler = (window as any).PaystackPop.setup({
                 key: paymentConfig.publicKey,
                 email: user.email,
-                amount: Math.ceil(amountToPay * 100), // En centimes/kobo et sécurisé avec ceil
+                amount: Math.ceil(amountToPay * 100),
                 currency: paymentConfig.currency,
                 ref: (paymentMode === 'DONATION' ? 'DON_' : 'SUBS_') + Math.floor((Math.random() * 1000000000) + 1),
                 metadata: {
@@ -366,12 +391,10 @@ export const Profile: React.FC = () => {
                     ]
                 },
                 callback: async function (response: any) {
-                    // Paiement réussi
                     try {
-                        const amountPaid = paymentMode === 'DONATION' ? parseInt(customDonationAmount) : paymentConfig.amount;
                         await supabase.from('payments').insert({
                             user_id: user.id,
-                            amount: amountPaid,
+                            amount: amountToPay,
                             reference: response.reference,
                             status: response.status,
                             gateway: 'PAYSTACK'
@@ -384,16 +407,16 @@ export const Profile: React.FC = () => {
                                 const currentExpiration = new Date(user.premiumExpiration);
                                 if (currentExpiration > now) newExpirationDate = new Date(currentExpiration);
                             }
-                            newExpirationDate.setDate(newExpirationDate.getDate() + 30);
+                            newExpirationDate.setDate(newExpirationDate.getDate() + addedDays);
                             await supabase.from('profiles').update({ is_premium: true, premium_expiration: newExpirationDate.toISOString() }).eq('id', user.id);
                             setUser(prev => prev ? { ...prev, isPremium: true, premiumExpiration: newExpirationDate.toISOString() } : null);
-                            alert('Paiement réussi ! Votre abonnement a été prolongé de 30 jours.');
+                            alert(`🎉 Paiement réussi ! Votre abonnement Premium a été activé pour ${addedDays} jour(s).`);
                         } else if (paymentMode === 'DONATION') {
-                            const earnedCredits = Math.max(1, Math.floor(amountPaid / 500));
+                            const earnedCredits = Math.max(1, Math.floor(amountToPay / 500));
                             const newCredits = (user.credits || 0) + earnedCredits;
                             await supabase.from('profiles').update({ credits: newCredits }).eq('id', user.id);
                             setUser(prev => prev ? { ...prev, credits: newCredits } : null);
-                            alert(`Merci pour votre don ! Vous avez reçu ${earnedCredits} crédits. 💖`);
+                            alert(`💖 Merci pour votre don de ${amountToPay} FCFA ! Vous avez reçu +${earnedCredits} crédits Spotlight.`);
                         }
                         setShowPremiumModal(false);
                         setShowRenewalModal(false);
@@ -899,6 +922,13 @@ export const Profile: React.FC = () => {
                     <div className="ml-4 mb-2">
                         <h1 className="text-2xl font-bold text-slate-900 flex items-center">{user.name}{user.verificationStatus === VerificationStatus.VERIFIED && (<ShieldCheck className="ml-2 text-emerald-500 h-6 w-6" />)}</h1>
                         <p className="text-sm font-semibold text-slate-600 mt-0.5">{getCleanDisplayContact(user)}</p>
+                        <div className="mt-2">
+                            <PremiumCountdownBadge
+                                isPremium={user.isPremium}
+                                expirationDate={user.premiumExpiration}
+                                onUpgradeClick={() => setShowPremiumModal(true)}
+                            />
+                        </div>
                     </div>
                 </div>
                 <div className="absolute top-4 right-4">{!isEditing && (<button onClick={() => setIsEditing(true)} className="bg-white/20 backdrop-blur border border-white/40 text-white px-4 py-2 rounded-lg font-medium hover:bg-white/30 transition">Modifier</button>)}</div>
@@ -1383,128 +1413,6 @@ export const Profile: React.FC = () => {
                         )}
                     </div>
 
-                    <div className="md:col-span-2 border-t border-slate-100 pt-4 mt-2">
-                        <label className="block text-sm font-medium text-slate-500 mb-2">Statut Abonnement</label>
-                        <div className="flex flex-col sm:flex-row sm:items-center">
-                            {user.isPremium ? (
-                                <div className="flex items-center mb-2 sm:mb-0">
-                                    <span className="bg-gradient-to-r from-amber-200 to-yellow-400 text-yellow-900 text-xs px-3 py-1.5 rounded-full font-bold flex items-center shadow-sm">
-                                        PREMIUM <CheckCircle size={14} className="ml-1.5" />
-                                    </span>
-                                    <div className="ml-4 flex flex-col">
-                                        {user.premiumExpiration ? (
-                                            <>
-                                                <span className="text-xs text-slate-500 flex items-center">
-                                                    <CalendarClock size={12} className="mr-1" /> Expire le {formatDate(user.premiumExpiration)}
-                                                </span>
-                                                {(() => {
-                                                    const daysLeft = getDaysRemaining(user.premiumExpiration);
-                                                    return daysLeft !== null ? (
-                                                        <span className={`text-xs font-bold ${daysLeft < 5 ? 'text-red-500' : 'text-emerald-600'}`}>
-                                                            {daysLeft > 0 ? `${daysLeft} jours restants` : 'Aujourd\'hui'}
-                                                        </span>
-                                                    ) : null;
-                                                })()}
-                                            </>
-                                        ) : (
-                                            <span className="text-xs text-red-500 font-medium">Date d'expiration inconnue</span>
-                                        )}
-                                    </div>
-                                </div>
-                            ) : (
-                                <span className="bg-slate-100 text-slate-500 text-xs px-3 py-1.5 rounded-full font-medium">Gratuit</span>
-                            )}
-
-                            <button onClick={() => setShowPremiumModal(true)} className="ml-4 text-sm text-emerald-600 font-bold hover:text-emerald-700 hover:underline flex items-center">
-                                <Zap size={16} className="mr-1.5 fill-emerald-100" /> {user.isPremium ? 'Prolonger mon abonnement' : 'Passer Premium'}
-                            </button>
-                        </div>
-                    </div>
-
-                    <div className="md:col-span-2 border-t border-slate-100 pt-4 mt-2">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <label className="block text-sm font-bold text-slate-800 flex items-center mb-1">
-                                    <EyeOff size={16} className="mr-2 text-slate-600" /> Mode Invisible (Premium)
-                                </label>
-                                <p className="text-xs text-slate-500 max-w-sm">Vous ne serez visible que par les profils que vous avez aimés. Idéal pour plus de discrétion.</p>
-                            </div>
-                            <button
-                                onClick={handleToggleInvisible}
-                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 ${user.isInvisible ? 'bg-emerald-600' : 'bg-slate-200'}`}
-                            >
-                                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${user.isInvisible ? 'translate-x-6' : 'translate-x-1'}`} />
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* 🔒 CODE PIN DE SÉCURITÉ */}
-                    <div className="md:col-span-2 border-t border-slate-100 pt-4 mt-2">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <label className="block text-sm font-bold text-slate-800 flex items-center mb-1">
-                                    <Lock size={16} className="mr-2 text-emerald-600" /> Verrouillage par Code PIN (4 Chiffres)
-                                </label>
-                                <p className="text-xs text-slate-500 max-w-sm">Protège vos conversations et votre profil avec un code PIN secret à 4 chiffres.</p>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                                {hasPin ? (
-                                    <>
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowSetPinModal(true)}
-                                            className="text-xs bg-emerald-100 text-emerald-800 font-bold px-3 py-1.5 rounded-lg hover:bg-emerald-200 transition"
-                                        >
-                                            Modifier PIN
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={handleRemovePin}
-                                            className="text-xs bg-red-50 text-red-600 font-bold px-3 py-1.5 rounded-lg hover:bg-red-100 transition"
-                                        >
-                                            Désactiver
-                                        </button>
-                                    </>
-                                ) : (
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowSetPinModal(true)}
-                                        className="text-xs bg-emerald-600 text-white font-bold px-3.5 py-2 rounded-xl shadow-sm hover:bg-emerald-700 transition"
-                                    >
-                                        Configurer un PIN 🔒
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-
-                </div>
-            </div>
-
-            {/* ⚡ SPOTLIGHT & CREDITS SECTION */}
-            <div className="md:col-span-2 border-t border-slate-100 pt-4 mt-2">
-                <div className="flex items-center justify-between flex-wrap gap-3">
-                    <div>
-                        <div className="flex items-center mb-1">
-                            <span className="text-sm font-bold text-slate-800 mr-2">⚡ Spotlight</span>
-                            <span className="bg-violet-100 text-violet-700 text-xs px-2 py-0.5 rounded-full font-semibold">
-                                {user.credits || 0} crédit{(user.credits || 0) !== 1 ? 's' : ''}
-                            </span>
-                        </div>
-                        <p className="text-xs text-slate-500 max-w-xs">
-                            {user.boost_expires_at && new Date(user.boost_expires_at) > new Date()
-                                ? `✅ Spotlight actif ! Expire le ${new Date(user.boost_expires_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`
-                                : 'Apparaissez en tête de liste pendant 30 min.'}
-                        </p>
-                    </div>
-                    <button
-                        onClick={handleActivateSpotlight}
-                        disabled={isSaving || (!!user.boost_expires_at && new Date(user.boost_expires_at) > new Date())}
-                        className="bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 text-white text-sm font-bold px-4 py-2 rounded-xl shadow-sm flex items-center transition disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        <Zap size={15} className="mr-1.5 fill-yellow-200" />
-                        {user.boost_expires_at && new Date(user.boost_expires_at) > new Date() ? 'Déjà actif' : 'Activer (1 crédit)'}
-                    </button>
                 </div>
             </div>
 
@@ -1570,18 +1478,83 @@ export const Profile: React.FC = () => {
                             <div className="p-6 space-y-4">
                                 {paymentMode === 'SUBSCRIPTION' ? (
                                     <>
-                                        <ul className="space-y-2 text-sm text-slate-700">
-                                            <li className="flex items-center"><CheckCircle size={16} className="text-emerald-500 mr-2 flex-shrink-0" /> Voir qui vous a liké (Admirateurs)</li>
-                                            <li className="flex items-center"><CheckCircle size={16} className="text-emerald-500 mr-2 flex-shrink-0" /> Super-Likes illémités</li>
-                                            <li className="flex items-center"><CheckCircle size={16} className="text-emerald-500 mr-2 flex-shrink-0" /> Mode Invisible</li>
+                                        <div className="grid grid-cols-2 gap-2 text-left">
+                                            <button
+                                                type="button"
+                                                onClick={() => setSelectedPlan('DAY')}
+                                                className={`p-3 rounded-xl border text-xs font-bold transition flex flex-col cursor-pointer ${
+                                                    selectedPlan === 'DAY'
+                                                        ? 'border-emerald-600 bg-emerald-50 text-emerald-900 ring-2 ring-emerald-500/20'
+                                                        : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                                                }`}
+                                            >
+                                                <span className="text-[10px] text-emerald-600 font-extrabold uppercase">Pass 24H</span>
+                                                <span className="text-sm font-black mt-0.5">{pointsPricingConfig?.premiumDailyPrice || 500} FCFA</span>
+                                                <span className="text-[10px] text-slate-500 font-normal">Accès 1 Jour</span>
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => setSelectedPlan('MONTH')}
+                                                className={`p-3 rounded-xl border text-xs font-bold transition flex flex-col relative cursor-pointer ${
+                                                    selectedPlan === 'MONTH'
+                                                        ? 'border-emerald-600 bg-emerald-50 text-emerald-900 ring-2 ring-emerald-500/20'
+                                                        : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                                                }`}
+                                            >
+                                                <span className="absolute top-1 right-1 text-[9px] bg-amber-400 text-slate-950 font-black px-1.5 py-0.2 rounded">POPULAIRE</span>
+                                                <span className="text-[10px] text-emerald-600 font-extrabold uppercase">1 Mois</span>
+                                                <span className="text-sm font-black mt-0.5">{pointsPricingConfig?.premiumMonthlyPrice || 2500} FCFA</span>
+                                                <span className="text-[10px] text-slate-500 font-normal">30 Jours d'accès</span>
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => setSelectedPlan('QUARTER')}
+                                                className={`p-3 rounded-xl border text-xs font-bold transition flex flex-col cursor-pointer ${
+                                                    selectedPlan === 'QUARTER'
+                                                        ? 'border-emerald-600 bg-emerald-50 text-emerald-900 ring-2 ring-emerald-500/20'
+                                                        : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                                                }`}
+                                            >
+                                                <span className="text-[10px] text-emerald-600 font-extrabold uppercase">3 Mois</span>
+                                                <span className="text-sm font-black mt-0.5">{pointsPricingConfig?.premiumQuarterlyPrice || 5000} FCFA</span>
+                                                <span className="text-[10px] text-slate-500 font-normal">90 Jours d'accès</span>
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => setSelectedPlan('YEAR')}
+                                                className={`p-3 rounded-xl border text-xs font-bold transition flex flex-col cursor-pointer ${
+                                                    selectedPlan === 'YEAR'
+                                                        ? 'border-emerald-600 bg-emerald-50 text-emerald-900 ring-2 ring-emerald-500/20'
+                                                        : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                                                }`}
+                                            >
+                                                <span className="text-[10px] text-emerald-600 font-extrabold uppercase">1 An (Annuel)</span>
+                                                <span className="text-sm font-black mt-0.5">{pointsPricingConfig?.premiumYearlyPrice || 15000} FCFA</span>
+                                                <span className="text-[10px] text-slate-500 font-normal">365 Jours d'accès</span>
+                                            </button>
+                                        </div>
+
+                                        <ul className="space-y-1.5 text-xs text-slate-700 pt-1">
+                                            <li className="flex items-center"><CheckCircle size={14} className="text-emerald-500 mr-2 flex-shrink-0" /> Voir qui vous a liké (Admirateurs secrets)</li>
+                                            <li className="flex items-center"><CheckCircle size={14} className="text-emerald-500 mr-2 flex-shrink-0" /> Super-Likes illimités</li>
+                                            <li className="flex items-center"><CheckCircle size={14} className="text-emerald-500 mr-2 flex-shrink-0" /> Mode Discret & Code PIN 🔒</li>
                                         </ul>
+
                                         <button
-                                            onClick={handleUpgradePremium}
+                                            onClick={initPaystack}
                                             disabled={isProcessingPayment}
-                                            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-xl shadow-lg transition flex items-center justify-center"
+                                            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl shadow-lg transition flex items-center justify-center text-xs sm:text-sm cursor-pointer"
                                         >
-                                            <CreditCard size={20} className="mr-2" />
-                                            {isProcessingPayment ? 'Initialisation...' : `Payer ${paymentConfig?.amount || 1500} ${paymentConfig?.currency || 'XOF'}`}
+                                            <CreditCard size={18} className="mr-2" />
+                                            {isProcessingPayment ? 'Initialisation...' : `S'abonner (${
+                                                selectedPlan === 'DAY' ? (pointsPricingConfig?.premiumDailyPrice || 500) :
+                                                selectedPlan === 'MONTH' ? (pointsPricingConfig?.premiumMonthlyPrice || 2500) :
+                                                selectedPlan === 'QUARTER' ? (pointsPricingConfig?.premiumQuarterlyPrice || 5000) :
+                                                (pointsPricingConfig?.premiumYearlyPrice || 15000)
+                                            } FCFA)`}
                                         </button>
                                     </>
                                 ) : (
