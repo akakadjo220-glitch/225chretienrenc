@@ -397,35 +397,31 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
         </div>
 
         {/* 🔥 BADGE SÉRIE DE FOI (DAILY FAITH STREAK) */}
-        <div className="mb-2.5 p-3 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white shadow-xs border border-amber-300/30 text-left">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2 min-w-0">
-              <div className="bg-white/20 p-1.5 rounded-xl shrink-0">
-                <Flame size={16} className="text-amber-100 fill-amber-200" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[9px] font-black uppercase tracking-wider text-amber-100 leading-none truncate">Série de Foi</p>
-                <p className="text-xs font-black text-white mt-0.5 truncate">{streakCount} {streakCount > 1 ? 'Jours' : 'Jour'}</p>
-              </div>
+        <div className="mb-3 p-3 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white shadow-md shadow-amber-500/20 border border-amber-300/40 text-left flex items-center justify-between animate-in zoom-in duration-300">
+          <div className="flex items-center space-x-2.5">
+            <div className="bg-white/20 p-2 rounded-xl shrink-0">
+              <Flame size={18} className="text-amber-100 fill-amber-200 animate-pulse" />
             </div>
-            <span className="text-[10px] font-black bg-white/20 px-2 py-0.5 rounded-full backdrop-blur-md shrink-0 ml-1">🔥</span>
+            <div>
+              <p className="text-[10px] font-extrabold uppercase tracking-wider text-amber-100">Série de Foi</p>
+              <p className="text-xs font-black text-white">{streakCount} {streakCount > 1 ? 'Jours consécutifs' : 'Premier jour'}</p>
+            </div>
           </div>
+          <span className="text-xs font-black bg-white/20 px-2 py-0.5 rounded-full backdrop-blur-md">🔥</span>
         </div>
 
         {/* 💎 SOLDE DE POINTS & CRÉDITS */}
         <div
           onClick={() => setShowPointsModal(true)}
-          className="mb-4 p-3 rounded-2xl bg-gradient-to-r from-emerald-700 via-teal-800 to-emerald-900 text-white shadow-xs border border-emerald-500/30 text-left space-y-2 cursor-pointer hover:brightness-105 transition"
+          className="mb-5 p-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow-md border border-emerald-500/30 text-left flex items-center justify-between cursor-pointer hover:opacity-95 transition"
         >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2 min-w-0">
-              <div className="bg-white/20 p-1.5 rounded-xl shrink-0">
-                <span className="text-sm">💎</span>
-              </div>
-              <div className="min-w-0">
-                <p className="text-[9px] font-black uppercase tracking-wider text-emerald-100 leading-none truncate">Solde de Points</p>
-                <p className="text-xs font-black text-amber-300 mt-0.5 truncate">{currentUser?.points ?? 150} Pts • {currentUser?.credits ?? 3} Crédits</p>
-              </div>
+          <div className="flex items-center space-x-2.5">
+            <div className="bg-white/20 p-2 rounded-xl shrink-0">
+              <span className="text-base">💎</span>
+            </div>
+            <div>
+              <p className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-100">Solde de Points</p>
+              <p className="text-xs font-black text-white">{currentUser?.points ?? 150} Pts • {currentUser?.credits ?? 3} Crédits</p>
             </div>
           </div>
           <button
@@ -433,9 +429,9 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
               e.stopPropagation();
               setShowPointsModal(true);
             }}
-            className="w-full text-center text-[10px] font-extrabold bg-white/15 hover:bg-white/25 text-white py-1.5 rounded-xl border border-white/20 transition shadow-2xs cursor-pointer flex items-center justify-center gap-1"
+            className="text-[10px] font-bold bg-white text-emerald-800 px-2.5 py-1 rounded-lg hover:bg-emerald-50 transition shadow-sm cursor-pointer whitespace-nowrap"
           >
-            <span>💡 Guide & Conversion</span>
+            Guide & Conversion
           </button>
         </div>
         <nav className="space-y-1.5">
