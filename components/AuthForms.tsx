@@ -5,6 +5,8 @@ import { AVAILABLE_INTERESTS } from '../constants';
 import { supabase, supabaseAdmin } from '../supabaseClient';
 import { sendWhatsAppOtp, formatPhoneNumber } from '../openwaClient';
 import { getDeviceFingerprint, getClientIp, fetchBannedIdentifiers, checkIsBlacklisted } from '../utils/deviceFingerprint';
+import { detectPreciseGPS, REFERENCE_LOCATIONS, PreciseLocationResult } from '../utils/geoService';
+import { LocationSelectorModal } from './LocationSelectorModal';
 
 /**
  * Génère un code OTP à 6 chiffres hautement sécurisé (Cryptographically Secure PRNG)
@@ -18,6 +20,101 @@ export const generateSecureOtp = (): string => {
     }
     return Math.floor(100000 + Math.random() * 900000).toString();
 };
+
+export interface DenominationBubble {
+    id: string;
+    label: string;
+    icon: string;
+    spiritualFocus: string;
+    subtitle: string;
+    glowGradient: string;
+    iconBg: string;
+    borderActive: string;
+    tag: string;
+    membersCount: string;
+    parishPlaceholder: string;
+}
+
+export const DENOMINATION_BUBBLES: DenominationBubble[] = [
+    {
+        id: 'Catholique',
+        label: 'Catholique',
+        icon: '⛪',
+        spiritualFocus: 'Messes & Sacrements',
+        subtitle: 'Liturgie, Foi vivante & Vie Paroissiale',
+        glowGradient: 'from-amber-500/15 via-amber-50/50 to-white',
+        iconBg: 'bg-amber-100 text-amber-900 border-amber-200',
+        borderActive: 'border-amber-500 ring-4 ring-amber-400/40 bg-gradient-to-br from-amber-50/90 to-white shadow-lg shadow-amber-500/10 scale-[1.02]',
+        tag: 'Tradition & Sacrements',
+        membersCount: '3 240+ célibataires',
+        parishPlaceholder: 'Ex: Paroisse St-Jean de Cocody, Ste-Cécile...'
+    },
+    {
+        id: 'Évangélique',
+        label: 'Évangélique',
+        icon: '🔥',
+        spiritualFocus: 'Louange & Foi du Cœur',
+        subtitle: 'Adoration vibrante, Prière & Évangile',
+        glowGradient: 'from-orange-500/15 via-orange-50/50 to-white',
+        iconBg: 'bg-orange-100 text-orange-900 border-orange-200',
+        borderActive: 'border-orange-500 ring-4 ring-orange-400/40 bg-gradient-to-br from-orange-50/90 to-white shadow-lg shadow-orange-500/10 scale-[1.02]',
+        tag: 'Louange & Parole',
+        membersCount: '2 850+ célibataires',
+        parishPlaceholder: 'Ex: Temple de la Grâce, Église des Rachetés...'
+    },
+    {
+        id: 'Assemblées de Dieu',
+        label: 'Assemblées de Dieu',
+        icon: '🕊️',
+        spiritualFocus: 'Saint-Esprit & Mission',
+        subtitle: 'Puissance spirituelle, Communion & Réveil',
+        glowGradient: 'from-emerald-500/15 via-emerald-50/50 to-white',
+        iconBg: 'bg-emerald-100 text-emerald-900 border-emerald-200',
+        borderActive: 'border-emerald-600 ring-4 ring-emerald-500/40 bg-gradient-to-br from-emerald-50/90 to-white shadow-lg shadow-emerald-600/10 scale-[1.02]',
+        tag: 'Mission & Réveil',
+        membersCount: '1 920+ célibataires',
+        parishPlaceholder: 'Ex: Temple Canaan, AD Cocody Angré...'
+    },
+    {
+        id: 'Baptiste',
+        label: 'Baptiste',
+        icon: '💧',
+        spiritualFocus: 'Immersion & Écritures',
+        subtitle: 'Fidélité biblique & Témoignage authentique',
+        glowGradient: 'from-blue-500/15 via-blue-50/50 to-white',
+        iconBg: 'bg-blue-100 text-blue-900 border-blue-200',
+        borderActive: 'border-blue-500 ring-4 ring-blue-400/40 bg-gradient-to-br from-blue-50/90 to-white shadow-lg shadow-blue-500/10 scale-[1.02]',
+        tag: 'Parole de Dieu',
+        membersCount: '980+ célibataires',
+        parishPlaceholder: 'Ex: Église Baptiste Missionnaire de Cocody...'
+    },
+    {
+        id: 'Méthodiste',
+        label: 'Méthodiste',
+        icon: '📖',
+        spiritualFocus: 'Tradition & Sanctification',
+        subtitle: 'Cantiques inspirés & Vie fraternelle engagée',
+        glowGradient: 'from-indigo-500/15 via-indigo-50/50 to-white',
+        iconBg: 'bg-indigo-100 text-indigo-900 border-indigo-200',
+        borderActive: 'border-indigo-500 ring-4 ring-indigo-400/40 bg-gradient-to-br from-indigo-50/90 to-white shadow-lg shadow-indigo-500/10 scale-[1.02]',
+        tag: 'Communion Fraternelle',
+        membersCount: '1 150+ célibataires',
+        parishPlaceholder: 'Ex: Temple du Jubilé de Cocody...'
+    },
+    {
+        id: 'Autre',
+        label: 'Autre Confession',
+        icon: '✝️',
+        spiritualFocus: 'Unité & Fraternité',
+        subtitle: 'Protestante, Église Locale ou Sans Dénomination',
+        glowGradient: 'from-teal-500/15 via-teal-50/50 to-white',
+        iconBg: 'bg-teal-100 text-teal-900 border-teal-200',
+        borderActive: 'border-teal-600 ring-4 ring-teal-500/40 bg-gradient-to-br from-teal-50/90 to-white shadow-lg shadow-teal-600/10 scale-[1.02]',
+        tag: 'Unité Chrétienne',
+        membersCount: '1 400+ célibataires',
+        parishPlaceholder: 'Ex: Nom de votre église ou communauté...'
+    }
+];
 
 interface AuthFormsProps {
     view: AppView;
@@ -164,12 +261,15 @@ export const AuthForms: React.FC<AuthFormsProps> = ({ view, onSwitch, onLogin })
     };
 
     // États pour l'inscription express & algorithme de matching
+    const [registerStep, setRegisterStep] = useState<0 | 1>(0);
     const [selectedGender, setSelectedGender] = useState<'M' | 'F'>('M');
     const [selectedDenomination, setSelectedDenomination] = useState<string>('Catholique');
     const [selectedParish, setSelectedParish] = useState<string>('');
     const [selectedInterests, setSelectedInterests] = useState<string[]>(['📖 Bible & Prière', '🎵 Musique / Chorale']);
     const [birthDate, setBirthDate] = useState<string>('2000-01-15');
     const [parishSuggestions, setParishSuggestions] = useState<string[]>([]);
+
+    const activeBubble = DENOMINATION_BUBBLES.find(b => b.id === selectedDenomination) || DENOMINATION_BUBBLES[0];
 
     useEffect(() => {
         const fetchParishSuggestions = async () => {
@@ -200,45 +300,49 @@ export const AuthForms: React.FC<AuthFormsProps> = ({ view, onSwitch, onLogin })
         };
         fetchInterests();
     }, []);
-    const [geoLocation, setGeoLocation] = useState<{ latitude: number; longitude: number; city: string }>({
+    const [geoLocation, setGeoLocation] = useState<{ latitude: number; longitude: number; city: string; isGps?: boolean }>({
         latitude: 5.3484,
         longitude: -4.0305,
-        city: 'Abidjan, Cocody'
+        city: 'Abidjan, Cocody',
+        isGps: false
     });
     const [geoLoading, setGeoLoading] = useState<boolean>(false);
     const [geoSuccess, setGeoSuccess] = useState<boolean>(false);
+    const [isLocationModalOpen, setIsLocationModalOpen] = useState<boolean>(false);
 
     const isLogin = view === AppView.AUTH_LOGIN;
     const isAdminLogin = view === AppView.AUTH_ADMIN_LOGIN;
     const isRegister = view === AppView.AUTH_REGISTER;
 
-    // Fonction de détection GPS avec repli propre
-    const requestGeoLocation = useCallback(() => {
-        if (typeof navigator !== 'undefined' && navigator.geolocation) {
-            setGeoLoading(true);
-            navigator.geolocation.getCurrentPosition(
-                (pos) => {
-                    setGeoLocation({
-                        latitude: pos.coords.latitude,
-                        longitude: pos.coords.longitude,
-                        city: 'Abidjan (GPS Détecté)'
-                    });
-                    setGeoLoading(false);
-                    setGeoSuccess(true);
-                },
-                (err) => {
-                    console.info("GPS non disponible (coordonnées par défaut d'Abidjan utilisées) :", err?.message || err);
-                    setGeoLoading(false);
-                    setGeoSuccess(false);
-                },
-                {
-                    enableHighAccuracy: false, // Position rapide via IP/réseau mobile sans bloquer sur le GPS satellite
-                    timeout: 10000,           // 10 secondes d'attente max
-                    maximumAge: 300000        // Cache de 5 minutes
-                }
-            );
+    // Fonction de détection GPS haute précision avec reverse geocoding automatique
+    const requestGeoLocation = useCallback(async () => {
+        setGeoLoading(true);
+        try {
+            const res = await detectPreciseGPS();
+            setGeoLocation({
+                latitude: res.latitude,
+                longitude: res.longitude,
+                city: res.city,
+                isGps: true
+            });
+            setGeoSuccess(true);
+        } catch (err: any) {
+            console.info("GPS non disponible ou refusé, conservation de la commune sélectionnée :", err?.message || err);
+            setGeoSuccess(false);
+        } finally {
+            setGeoLoading(false);
         }
     }, []);
+
+    const handleSelectPreciseLocation = (loc: PreciseLocationResult) => {
+        setGeoLocation({
+            latitude: loc.latitude,
+            longitude: loc.longitude,
+            city: loc.city,
+            isGps: loc.isGps
+        });
+        setGeoSuccess(loc.isGps);
+    };
 
     // Détection GPS au montage sur le formulaire d'inscription
     useEffect(() => {
@@ -251,9 +355,8 @@ export const AuthForms: React.FC<AuthFormsProps> = ({ view, onSwitch, onLogin })
     const [parishes, setParishes] = useState<{ id: string, name: string }[]>([]);
     const [loadingParishes, setLoadingParishes] = useState(false);
 
-    // URL de l'image de fond (Mains unies / Union Africaine / Alliances)
-    // Image spécifique demandée : Homme passant la bague au doigt
-    const BG_IMAGE_URL = "https://images.unsplash.com/photo-1610212550368-3c65df51d7c3?q=80&w=1974&auto=format&fit=crop";
+    // URL de l'image de fond (Mains unies / Union Chrétienne / Échange d'alliances)
+    const BG_IMAGE_URL = "https://images.unsplash.com/photo-1515934751635-c81c6bc9a2d8?q=80&w=1974&auto=format&fit=crop";
 
     // Chargement des paroisses au montage si on est sur la page d'inscription
     useEffect(() => {
@@ -1280,14 +1383,24 @@ export const AuthForms: React.FC<AuthFormsProps> = ({ view, onSwitch, onLogin })
                     </div>
 
                     <div className="text-center lg:text-left">
-                        <h2 className="text-2xl sm:text-3xl font-bold text-slate-900">
-                            {isLogin ? 'Connexion' : 'Créer un compte'}
+                        <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+                            {isLogin 
+                                ? 'Connexion' 
+                                : (registerStep === 0 ? 'Rejoindre 225 Chrétien' : 'Créer votre compte')}
                         </h2>
                         <p className="mt-1.5 text-slate-600 text-sm">
                             {isLogin ? 'Pas encore de compte ?' : 'Vous avez déjà un compte ?'}{' '}
                             <button
-                                onClick={() => { setError(null); onSwitch(isLogin ? AppView.AUTH_REGISTER : AppView.AUTH_LOGIN); }}
-                                className="font-bold text-emerald-600 hover:text-emerald-700 hover:underline transition-colors"
+                                onClick={() => { 
+                                    setError(null); 
+                                    if (isLogin) {
+                                        setRegisterStep(0);
+                                        onSwitch(AppView.AUTH_REGISTER);
+                                    } else {
+                                        onSwitch(AppView.AUTH_LOGIN);
+                                    }
+                                }}
+                                className="font-bold text-emerald-600 hover:text-emerald-700 hover:underline transition-colors cursor-pointer"
                             >
                                 {isLogin ? 'Inscrivez-vous' : 'Connectez-vous'}
                             </button>
@@ -1313,19 +1426,157 @@ export const AuthForms: React.FC<AuthFormsProps> = ({ view, onSwitch, onLogin })
                         </div>
                     )}
 
-                    <form className="space-y-4" onSubmit={handleSubmit}>
-                        {!isLogin && (
-                            <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-500 text-left">
-                                {/* Indicator Express */}
-                                <div className="bg-emerald-50/80 border border-emerald-200/60 p-2.5 rounded-2xl flex items-center justify-between">
-                                    <div className="flex items-center space-x-2 text-xs font-semibold text-emerald-900">
-                                        <Sparkles size={15} className="text-emerald-600" />
-                                        <span>Inscription Express (30s)</span>
+                    {/* ÉTAPE 0 : SAS SPIRITUEL & SPHÈRES TACTILES GLASSMORPHISM (OPTION 1 UX PRO) */}
+                    {!isLogin && registerStep === 0 && (
+                        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-400 text-left">
+                            {/* Indicateur de Progression Émotionnelle */}
+                            <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-slate-50 border border-emerald-200/80 p-3 rounded-2xl flex items-center justify-between shadow-2xs">
+                                <div className="flex items-center space-x-2.5 text-xs font-black text-emerald-950">
+                                    <div className="h-6 w-6 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs font-black shadow-xs">
+                                        1
                                     </div>
-                                    <span className="text-[11px] font-bold bg-emerald-600 text-white px-2.5 py-0.5 rounded-full shadow-xs">
-                                        Étape 1 / 2
-                                    </span>
+                                    <span className="tracking-tight">Sas Spirituel : Votre Sensibilité Chrétienne</span>
                                 </div>
+                                <span className="text-[10px] font-extrabold uppercase tracking-wider bg-emerald-600 text-white px-2.5 py-1 rounded-full shadow-2xs flex items-center gap-1">
+                                    <span>🕊️</span>
+                                    <span>Étape 1/2</span>
+                                </span>
+                            </div>
+
+                            {/* Titre & Guide Visuel */}
+                            <div className="space-y-1">
+                                <h3 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+                                    <span>Quelle est votre foi chrétienne ?</span>
+                                </h3>
+                                <p className="text-xs text-slate-600 leading-relaxed font-medium">
+                                    Touchez votre sensibilité pour être mis en relation avec des célibataires qui partagent votre cœur et vos valeurs.
+                                </p>
+                            </div>
+
+                            {/* Grille des 6 Sphères Tactiles Glassmorphism */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                                {DENOMINATION_BUBBLES.map((bubble) => {
+                                    const isSelected = selectedDenomination === bubble.id;
+                                    return (
+                                        <button
+                                            key={bubble.id}
+                                            type="button"
+                                            onClick={() => {
+                                                setSelectedDenomination(bubble.id);
+                                                setTimeout(() => {
+                                                    setRegisterStep(1);
+                                                }, 180);
+                                            }}
+                                            className={`relative p-4 rounded-3xl border text-left transition-all duration-200 cursor-pointer group flex flex-col justify-between overflow-hidden shadow-xs active:scale-95 ${
+                                                isSelected
+                                                    ? bubble.borderActive
+                                                    : 'bg-white/95 hover:bg-white border-slate-200/80 hover:border-emerald-300 hover:shadow-md hover:-translate-y-0.5'
+                                            }`}
+                                        >
+                                            {/* En-tête de la sphère : Icône 3D Frosted + Badge Validation/Tag */}
+                                            <div className="flex items-center justify-between w-full mb-3">
+                                                <div className={`h-12 w-12 rounded-2xl flex items-center justify-center text-2xl shadow-2xs border shrink-0 group-hover:scale-110 group-hover:rotate-3 transition-transform ${bubble.iconBg}`}>
+                                                    {bubble.icon}
+                                                </div>
+
+                                                {isSelected ? (
+                                                    <div className="h-6 w-6 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-md animate-in zoom-in ring-2 ring-white">
+                                                        <Check size={14} strokeWidth={3} />
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 bg-slate-100/90 group-hover:bg-emerald-50 group-hover:text-emerald-800 px-2.5 py-1 rounded-full border border-slate-200/50 transition-colors">
+                                                        {bubble.tag}
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            {/* Corps Textuel */}
+                                            <div className="space-y-1 my-1">
+                                                <div className="font-black text-slate-900 text-base tracking-tight group-hover:text-emerald-800 transition-colors">
+                                                    {bubble.label}
+                                                </div>
+                                                <div className="text-[11px] font-extrabold text-emerald-700">
+                                                    {bubble.spiritualFocus}
+                                                </div>
+                                                <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed font-normal">
+                                                    {bubble.subtitle}
+                                                </p>
+                                            </div>
+
+                                            {/* Pied de Sphère : Preuve Sociale (Social Proof) & Clic */}
+                                            <div className="mt-3 pt-2.5 border-t border-slate-100/80 flex items-center justify-between">
+                                                <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-600 bg-slate-50 group-hover:bg-white px-2 py-0.5 rounded-lg border border-slate-100 shadow-2xs">
+                                                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                                                    <span>{bubble.membersCount}</span>
+                                                </div>
+
+                                                <span className="text-[11px] font-black text-emerald-700 group-hover:translate-x-1 transition-transform flex items-center gap-0.5">
+                                                    <span>Choisir</span>
+                                                    <span>→</span>
+                                                </span>
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            {/* Bouton de Validation Fluide */}
+                            <div className="pt-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setRegisterStep(1)}
+                                    className="w-full py-3.5 px-5 bg-gradient-to-r from-emerald-600 via-emerald-700 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-black rounded-2xl shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 text-sm cursor-pointer active:scale-98 transform hover:-translate-y-0.5"
+                                >
+                                    <span>Continuer avec ma sensibilité ({selectedDenomination})</span>
+                                    <ArrowRight size={18} />
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* FORMULAIRE PRINCIPAL (LOGIN OU ETAPE 1 D'INSCRIPTION) */}
+                    {(isLogin || registerStep === 1) && (
+                        <form className="space-y-4" onSubmit={handleSubmit}>
+                            {!isLogin && (
+                                <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-500 text-left">
+                                    {/* Indicator Express */}
+                                    <div className="bg-emerald-50/80 border border-emerald-200/60 p-2.5 rounded-2xl flex items-center justify-between">
+                                        <div className="flex items-center space-x-2 text-xs font-semibold text-emerald-900">
+                                            <Sparkles size={15} className="text-emerald-600" />
+                                            <span>Inscription Express (30s)</span>
+                                        </div>
+                                        <span className="text-[11px] font-bold bg-emerald-600 text-white px-2.5 py-0.5 rounded-full shadow-xs">
+                                            Étape 2 / 2
+                                        </span>
+                                    </div>
+
+                                    {/* Badge Rappel Confession avec bouton de retour immédiat vers les bulles */}
+                                    <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-slate-50 border border-emerald-200/90 p-3 rounded-2xl flex items-center justify-between shadow-2xs">
+                                        <div className="flex items-center space-x-3 text-xs text-slate-800">
+                                            <div className="text-xl p-2 rounded-xl bg-white shadow-2xs border border-emerald-100 shrink-0">
+                                                {activeBubble.icon}
+                                            </div>
+                                            <div>
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="text-[10px] uppercase tracking-wider font-extrabold text-emerald-800">Confession :</span>
+                                                    <span className="font-black text-slate-900 text-xs sm:text-sm">{activeBubble.label}</span>
+                                                </div>
+                                                <div className="flex items-center gap-2 text-[10px] text-slate-500 font-medium">
+                                                    <span className="text-emerald-700 font-bold">{activeBubble.spiritualFocus}</span>
+                                                    <span>•</span>
+                                                    <span className="text-slate-500">{activeBubble.membersCount}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setRegisterStep(0)}
+                                            className="text-[11px] font-black text-emerald-700 hover:text-emerald-900 bg-white hover:bg-emerald-100/60 px-3 py-1.5 rounded-xl border border-emerald-200 shadow-2xs transition cursor-pointer active:scale-95 flex items-center gap-1 shrink-0 ml-2"
+                                        >
+                                            <span>Changer</span>
+                                            <span>✎</span>
+                                        </button>
+                                    </div>
 
                                 {/* Choix du Sexe (Homme / Femme) */}
                                 <div>
@@ -1382,51 +1633,92 @@ export const AuthForms: React.FC<AuthFormsProps> = ({ view, onSwitch, onLogin })
                                     </div>
                                 </div>
 
-                                {/* Géolocalisation GPS Obligatoire */}
-                                <div className="bg-slate-50 border border-slate-200/80 p-2.5 rounded-xl flex items-center justify-between">
-                                    <div className="flex items-center space-x-2 text-xs font-medium text-slate-700">
-                                        <MapPin size={15} className={geoSuccess ? "text-emerald-600" : "text-amber-500"} />
-                                        <span>{geoLoading ? "Détection GPS en cours..." : `Position : ${geoLocation.city}`}</span>
+                                {/* Géolocalisation GPS & Commune Précise */}
+                                <div className="space-y-1.5 text-left">
+                                    <div className="flex justify-between items-center ml-1">
+                                        <label className="text-xs font-semibold text-slate-600 flex items-center gap-1">
+                                            <MapPin size={13} className="text-emerald-600" />
+                                            <span>Emplacement & Commune :</span>
+                                        </label>
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsLocationModalOpen(true)}
+                                            className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 hover:underline cursor-pointer"
+                                        >
+                                            Changer de ville ↗
+                                        </button>
                                     </div>
-                                    <button
-                                        type="button"
-                                        onClick={requestGeoLocation}
-                                        disabled={geoLoading}
-                                        className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full transition-all cursor-pointer ${geoSuccess ? "bg-emerald-100 text-emerald-800 border border-emerald-200" : "bg-amber-100 text-amber-800 border border-amber-200 hover:bg-amber-200 active:scale-95"}`}
-                                        title={geoSuccess ? "GPS détecté avec succès" : "Cliquer pour ré-essayer la détection GPS"}
-                                    >
-                                        {geoLoading ? "Recherche..." : (geoSuccess ? "GPS Actif ✓" : "Réessayer GPS")}
-                                    </button>
-                                </div>
 
-                                {/* Confession Chrétienne (Scroll Horizontal Défilant) */}
-                                <div>
-                                    <div className="flex justify-between items-center mb-1 ml-1">
-                                        <label className="text-xs font-semibold text-slate-600">Confession Chrétienne :</label>
-                                        <span className="text-[10px] text-slate-400 font-medium">Défiler →</span>
+                                    {/* Barre Principale de Position */}
+                                    <div
+                                        onClick={() => setIsLocationModalOpen(true)}
+                                        className="bg-white hover:bg-slate-50 border border-slate-300 rounded-xl p-2.5 flex items-center justify-between shadow-xs transition cursor-pointer group"
+                                    >
+                                        <div className="flex items-center space-x-2 text-xs font-bold text-slate-800 truncate pr-2">
+                                            <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${geoLoading ? 'bg-amber-400 animate-ping' : geoSuccess ? 'bg-emerald-500' : 'bg-teal-500'}`} />
+                                            <span className="truncate">
+                                                {geoLoading ? "🛰️ Localisation satellite en cours..." : geoLocation.city}
+                                            </span>
+                                        </div>
+
+                                        <div className="flex items-center space-x-1.5 shrink-0">
+                                            {geoLocation.isGps && (
+                                                <span className="text-[10px] bg-emerald-100 text-emerald-800 font-extrabold px-2 py-0.5 rounded-md border border-emerald-200">
+                                                    GPS ✓
+                                                </span>
+                                            )}
+                                            <span className="text-[11px] font-bold text-slate-500 group-hover:text-emerald-700 bg-slate-100 group-hover:bg-emerald-50 px-2 py-1 rounded-lg transition">
+                                                Modifier
+                                            </span>
+                                        </div>
                                     </div>
-                                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 pt-0.5 no-scrollbar scroll-smooth">
-                                        {['Catholique', 'Évangélique', 'Méthodiste', 'Baptiste', 'Assemblées de Dieu'].map((denom) => (
+
+                                    {/* Chips d'accès rapide aux communes populaires */}
+                                    <div className="flex items-center gap-1 overflow-x-auto pb-1 no-scrollbar pt-0.5">
+                                        <span className="text-[10px] text-slate-400 font-medium shrink-0 ml-1">Rapide :</span>
+                                        {[
+                                            { name: 'Abidjan, Cocody', short: 'Cocody', lat: 5.3484, lon: -4.0305 },
+                                            { name: 'Abidjan, Cocody (Angré)', short: 'Angré', lat: 5.3980, lon: -3.9850 },
+                                            { name: 'Abidjan, Cocody (Riviera)', short: 'Riviera', lat: 5.3650, lon: -3.9600 },
+                                            { name: 'Abidjan, Yopougon', short: 'Yopougon', lat: 5.3400, lon: -4.0800 },
+                                            { name: 'Abidjan, Marcory', short: 'Marcory', lat: 5.3050, lon: -3.9850 },
+                                            { name: 'Yamoussoukro', short: 'Yamoussoukro', lat: 6.8276, lon: -5.2893 },
+                                            { name: 'Bouaké', short: 'Bouaké', lat: 7.6900, lon: -5.0300 },
+                                            { name: 'France, Paris & Île-de-France', short: 'Paris (Diaspora)', lat: 48.8566, lon: 2.3522 }
+                                        ].map(quickLoc => (
                                             <button
-                                                key={denom}
+                                                key={quickLoc.name}
                                                 type="button"
-                                                onClick={() => setSelectedDenomination(denom)}
-                                                className={`px-3 py-2 rounded-xl text-xs font-semibold border shrink-0 transition-all active:scale-95 min-h-[38px] ${selectedDenomination === denom
-                                                        ? 'bg-emerald-700 text-white border-emerald-700 shadow-xs'
-                                                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                                                    }`}
+                                                onClick={() => {
+                                                    setGeoLocation({
+                                                        latitude: quickLoc.lat,
+                                                        longitude: quickLoc.lon,
+                                                        city: quickLoc.name,
+                                                        isGps: false
+                                                    });
+                                                    setGeoSuccess(false);
+                                                }}
+                                                className={`text-[10px] px-2.5 py-1 rounded-lg font-bold border shrink-0 transition-all cursor-pointer active:scale-95 ${
+                                                    geoLocation.city === quickLoc.name
+                                                        ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                                                        : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200'
+                                                }`}
                                             >
-                                                {denom}
+                                                {quickLoc.short}
                                             </button>
                                         ))}
                                     </div>
-                                    <input type="hidden" name="denomination" value={selectedDenomination} />
                                 </div>
 
-                                {/* Paroisse / Église (Sélecteur Hybride Recherche + Saisie Libre) */}
+                                {/* Champ invisible de transmission de la confession choisie au sas */}
+                                <input type="hidden" name="denomination" value={selectedDenomination} />
+
+                                {/* Paroisse / Église (Adapté au choix de confession) */}
                                 <div>
                                     <div className="flex justify-between items-center mb-1 ml-1">
-                                        <label className="text-xs font-semibold text-slate-600">Votre Paroisse / Église :</label>
+                                        <label className="text-xs font-semibold text-slate-600">
+                                            Votre Paroisse / Église ({activeBubble.label}) :
+                                        </label>
                                         <span className="text-[10px] text-emerald-600 font-bold">✨ Saisissez ou choisissez</span>
                                     </div>
                                     <div className="relative group">
@@ -1438,7 +1730,7 @@ export const AuthForms: React.FC<AuthFormsProps> = ({ view, onSwitch, onLogin })
                                             value={selectedParish}
                                             onChange={(e) => setSelectedParish(e.target.value)}
                                             required
-                                            placeholder="Rechercher ou saisir votre église..."
+                                            placeholder={activeBubble.parishPlaceholder}
                                             className="pl-9 block w-full py-2.5 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-shadow min-h-[46px]"
                                         />
                                         <datalist id="parish-suggestions-list">
@@ -1686,6 +1978,7 @@ export const AuthForms: React.FC<AuthFormsProps> = ({ view, onSwitch, onLogin })
                             {isLoading ? <Loader className="animate-spin h-5 w-5" /> : (isLogin ? 'Se connecter' : (otpChannel === 'WHATSAPP' ? 'Valider & recevoir mon code WhatsApp' : 'Valider & recevoir mon code Email'))}
                         </button>
                     </form>
+                    )}
 
                     {isLogin && (
                         <div className="text-center pt-4">
@@ -1699,6 +1992,16 @@ export const AuthForms: React.FC<AuthFormsProps> = ({ view, onSwitch, onLogin })
                     )}
                 </div>
             </div>
+
+            {/* Modal de Sélection de Localisation & Commune */}
+            <LocationSelectorModal
+                isOpen={isLocationModalOpen}
+                onClose={() => setIsLocationModalOpen(false)}
+                currentLocationName={geoLocation.city}
+                currentLatitude={geoLocation.latitude}
+                currentLongitude={geoLocation.longitude}
+                onSelectLocation={handleSelectPreciseLocation}
+            />
         </div>
     );
 };

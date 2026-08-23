@@ -147,6 +147,9 @@ export interface MatchProfile {
   name: string;
   age: number;
   location: string;
+  latitude?: number;
+  longitude?: number;
+  distanceKm?: number;
   parish: string;
   denomination?: string;
   bio: string;
@@ -212,7 +215,9 @@ export interface Conversation {
 export interface Report {
   id: string;
   reporterName: string;
+  reporterAvatar?: string;
   reportedUserName: string;
+  reportedUserAvatar?: string;
   reportedUserId: string;
   reason: string;
   contentSnippet?: string;

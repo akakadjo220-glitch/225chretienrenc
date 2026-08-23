@@ -3,13 +3,15 @@ import { User, VerificationStatus } from '../types';
 import { AVAILABLE_INTERESTS } from '../constants';
 import { supabase } from '../supabaseClient';
 import { compressImage } from '../utils/imageCompressor';
-import { UserCheck, ShieldCheck, Shield, Camera, AlertCircle, CheckCircle, Clock, Lock, Plus, X, Tag, FileText, CreditCard, Zap, Video, Play, Loader, Info, StopCircle, RefreshCw, Image as ImageIcon, Trash2, Phone, CalendarClock, AlertTriangle, Mic, EyeOff, Eye } from 'lucide-react';
+import { UserCheck, ShieldCheck, Shield, Camera, AlertCircle, CheckCircle, Clock, Lock, Plus, X, Tag, FileText, CreditCard, Zap, Video, Play, Loader, Info, StopCircle, RefreshCw, Image as ImageIcon, Trash2, Phone, CalendarClock, AlertTriangle, Mic, EyeOff, Eye, MapPin, Compass } from 'lucide-react';
 import { compareFaces } from '../utils/deepfaceClient';
 import { PinLockModal } from './PinLockModal';
 import { getCleanDisplayContact } from '../utils/phoneFormatter';
 import { PointsExplanationModal } from './PointsExplanationModal';
 import { PremiumCountdownBadge } from './PremiumCountdownBadge';
 import { calculateAge } from '../matchingEngine';
+import { LocationSelectorModal } from './LocationSelectorModal';
+import { detectPreciseGPS, PreciseLocationResult } from '../utils/geoService';
 
 const getImlrUrl = (path: string) => {
     if (!path) return '';
@@ -33,6 +35,8 @@ export const Profile: React.FC = () => {
     const [showPointsModal, setShowPointsModal] = useState(false);
     const [showRenewalModal, setShowRenewalModal] = useState(false); // Modal de rappel d'expiration
     const [renewalDaysLeft, setRenewalDaysLeft] = useState<number | null>(null);
+    const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
+    const [isDetectingGps, setIsDetectingGps] = useState(false);
 
     // États pour les données dynamiques
     const [parishes, setParishes] = useState<{ id: string, name: string }[]>([]);
@@ -202,6 +206,9 @@ export const Profile: React.FC = () => {
                             email: session.user.email,
                             role: model.role,
                             parish: model.parish,
+                            location: model.location || 'Abidjan, Cocody',
+                            latitude: model.latitude || 5.3484,
+                            longitude: model.longitude || -4.0305,
                             phone: model.phone,
                             baptismYear: model.baptism_year,
                             isPremium: model.is_premium,
@@ -221,6 +228,7 @@ export const Profile: React.FC = () => {
                             birthDate: currentUser.birthDate || '',
                             denomination: denomination || '',
                             church: church || '',
+                            location: currentUser.location || 'Abidjan, Cocody',
                             phone: currentUser.phone || '',
                             baptismYear: currentUser.baptismYear?.toString() || '',
                             interests: currentUser.interests || []
@@ -326,19 +334,31 @@ export const Profile: React.FC = () => {
     const handleRequestCommunityCertification = async () => {
         if (!user) return;
 
-        const newReq = {
-            id: 'cert-' + Date.now() + '-' + Math.random().toString(36).substring(2, 5),
-            userId: user.id,
-            userName: user.name,
-            userEmail: user.email,
-            userAvatar: user.avatarUrl,
-            parish: user.parish || `${formData.denomination} - ${formData.church}`,
-            notes: certNotes,
-            status: 'PENDING',
-            submittedDate: new Date().toLocaleDateString('fr-FR')
-        };
-
         try {
+            let baptismPath = null;
+            if (baptismFile) {
+                const baptismExt = baptismFile.name.split('.').pop();
+                baptismPath = `verifications/${user.id}/baptism_${Date.now()}.${baptismExt}`;
+                await supabase.storage.from('Private').upload(baptismPath, baptismFile);
+                await supabase.from('profiles').update({ 
+                    document_baptism_url: baptismPath,
+                    updated_at: new Date().toISOString()
+                }).eq('id', user.id);
+            }
+
+            const newReq = {
+                id: 'cert-' + Date.now() + '-' + Math.random().toString(36).substring(2, 5),
+                userId: user.id,
+                userName: user.name,
+                userEmail: user.email,
+                userAvatar: user.avatarUrl,
+                parish: user.parish || `${formData.denomination} - ${formData.church}`,
+                baptismProofUrl: baptismPath,
+                notes: certNotes || (baptismFile ? "Certificat de baptême joint" : "Recommandation paroissiale demandée"),
+                status: 'PENDING',
+                submittedDate: new Date().toLocaleDateString('fr-FR')
+            };
+
             const { data } = await supabase.from('system_settings').select('value').eq('key', 'certification_requests').maybeSingle();
             let reqList: any[] = (data?.value && Array.isArray(data.value)) ? data.value : [];
             reqList = reqList.filter((r: any) => r.userId !== user.id);
@@ -349,14 +369,16 @@ export const Profile: React.FC = () => {
                 value: reqList,
                 updated_at: new Date().toISOString()
             }, { onConflict: 'key' });
-        } catch (e) {
-            console.error("Erreur envoi demande certification Supabase:", e);
-        }
 
-        setHasPendingCertification(true);
-        setPendingCertNotes(certNotes);
-        setCertNotes('');
-        alert("Votre demande de certification a été transmise en base de données Supabase avec succès !");
+            setHasPendingCertification(true);
+            setPendingCertNotes(certNotes || (baptismFile ? "Certificat de baptême joint" : ""));
+            setCertNotes('');
+            setBaptismFile(null);
+            alert("🕊️ Votre demande de Sceau Spirituel & Paroissial a été transmise aux Ambassadeurs et Administrateurs avec succès !");
+        } catch (e: any) {
+            console.error("Erreur envoi demande certification Supabase:", e);
+            alert("Erreur lors de la transmission de la demande : " + e.message);
+        }
     };
 
     // --- PAYSTACK INTEGRATION ---
@@ -585,6 +607,47 @@ export const Profile: React.FC = () => {
         }
     };
 
+    const handleUpdateProfileLocation = async (loc: PreciseLocationResult) => {
+        if (!user) return;
+        setIsSaving(true);
+        try {
+            await supabase.from('profiles').update({
+                location: loc.city,
+                latitude: loc.latitude,
+                longitude: loc.longitude
+            }).eq('id', user.id);
+
+            setUser(prev => prev ? {
+                ...prev,
+                location: loc.city,
+                latitude: loc.latitude,
+                longitude: loc.longitude
+            } : null);
+
+            setFormData(prev => ({ ...prev, location: loc.city }));
+            alert(`📍 Localisation mise à jour avec succès : ${loc.city}`);
+        } catch (e: any) {
+            console.error("Erreur mise à jour localisation :", e);
+            alert("Erreur lors de la mise à jour de la localisation.");
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleDirectGpsRefresh = async () => {
+        setIsDetectingGps(true);
+        try {
+            const res = await detectPreciseGPS();
+            await handleUpdateProfileLocation(res);
+        } catch (err: any) {
+            console.warn("GPS non accessible :", err);
+            alert("Impossible d'accéder au GPS. Vous pouvez choisir votre commune dans la liste.");
+            setIsLocationModalOpen(true);
+        } finally {
+            setIsDetectingGps(false);
+        }
+    };
+
     const handleAvatarClick = () => { avatarInputRef.current?.click(); };
     const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -627,10 +690,10 @@ export const Profile: React.FC = () => {
         if (!files || files.length === 0 || !user) return;
 
         const currentGalleryCount = user.photos?.length || 0;
-        const MAX_GALLERY_PHOTOS = 4; // Total max = 1 avatar + 4 galerie = 5 photos
+        const MAX_GALLERY_PHOTOS = 2; // Total max = 1 avatar + 2 galerie = 3 photos au total
 
         if (currentGalleryCount >= MAX_GALLERY_PHOTOS) {
-            alert("La galerie est limitée à 5 photos au total (1 photo principale + 4 photos secondaires). Supprimez une photo existante pour en ajouter une nouvelle.");
+            alert("La galerie est limitée à 3 photos au total (1 photo principale + 2 photos secondaires). Supprimez une photo existante pour en ajouter une nouvelle.");
             if (galleryInputRef.current) galleryInputRef.current.value = '';
             return;
         }
@@ -712,13 +775,18 @@ export const Profile: React.FC = () => {
     };
 
     const startCamera = async () => {
+        if (!navigator?.mediaDevices?.getUserMedia) {
+            alert("L'enregistrement direct par caméra nécessite une connexion sécurisée (HTTPS ou localhost). Veuillez autoriser l'accès à la caméra dans votre navigateur.");
+            return;
+        }
+
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 480, height: 640, facingMode: "user" }, audio: true });
             streamRef.current = stream;
             setIsCameraActive(true);
-        } catch (err) {
-            console.error("Erreur accès caméra:", err);
-            alert("Impossible d'accéder à la caméra. Veuillez vérifier les permissions.");
+        } catch (err: any) {
+            console.error("Erreur accès caméra direct:", err);
+            alert("Impossible d'accéder à la caméra. Veuillez autoriser l'accès à la caméra dans les permissions de votre navigateur.");
         }
     };
 
@@ -774,7 +842,7 @@ export const Profile: React.FC = () => {
             }, 1000);
         } catch (e) {
             console.error("Erreur init MediaRecorder", e);
-            alert("Erreur d'initialisation de l'enregistrement vidéo. Essayez un autre navigateur.");
+            alert("Erreur d'initialisation de l'enregistrement vidéo. Essayez l'option de fichier ou un autre navigateur.");
         }
     };
     const stopRecording = () => {
@@ -788,6 +856,10 @@ export const Profile: React.FC = () => {
     // --- AUDIO TESTIMONIAL ---
     const AUDIO_MAX_SECONDS = 30;
     const startAudioTestimonial = async () => {
+        if (!navigator?.mediaDevices?.getUserMedia) {
+            alert("L'enregistrement audio direct nécessite une connexion sécurisée (HTTPS ou localhost).");
+            return;
+        }
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             audioChunksRef.current = [];
@@ -836,7 +908,10 @@ export const Profile: React.FC = () => {
     const handleRequestVerification = async () => {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session || !user) { alert("Votre session a expiré. Veuillez vous reconnecter."); return; }
-        if (!idFile || !baptismFile || !videoFile) { alert("Veuillez fournir tous les fichiers requis (Pièce d'identité, Baptême et Vidéo Liveness)."); return; }
+        if (!idFile || !videoFile) { 
+            alert("Veuillez fournir les éléments obligatoires : votre Pièce d'identité et la Vidéo Liveness de 5 secondes."); 
+            return; 
+        }
         if (videoFile.size === 0) { alert("La vidéo est vide. Veuillez ré-enregistrer."); return; }
         if (videoFile.size > 5 * 1024 * 1024) { alert("Votre vidéo est trop lourde (>5Mo). Veuillez ré-enregistrer une vidéo plus courte."); return; }
 
@@ -895,7 +970,6 @@ export const Profile: React.FC = () => {
                     aiVerified = compareResult.verified || aiMatchScore >= 60;
                 } catch (deepfaceErr: any) {
                     console.warn("Exception contrôle DeepFace:", deepfaceErr);
-                    // Si le service est hors-ligne, score estimé par défaut
                     aiVerified = true;
                     aiMatchScore = 88;
                 }
@@ -908,10 +982,13 @@ export const Profile: React.FC = () => {
             await supabase.storage.from('Private').upload(idPath, idFile);
             setUploadProgress(60);
 
-            // 4. Upload Baptism File
-            const baptismExt = baptismFile.name.split('.').pop();
-            const baptismPath = `verifications/${user.id}/baptism_${Date.now()}.${baptismExt}`;
-            await supabase.storage.from('Private').upload(baptismPath, baptismFile);
+            // 4. Upload Baptism File (OPTIONNEL)
+            let baptismPath = null;
+            if (baptismFile) {
+                const baptismExt = baptismFile.name.split('.').pop();
+                baptismPath = `verifications/${user.id}/baptism_${Date.now()}.${baptismExt}`;
+                await supabase.storage.from('Private').upload(baptismPath, baptismFile);
+            }
             setUploadProgress(80);
 
             // 5. Upload Video Proof
@@ -921,15 +998,19 @@ export const Profile: React.FC = () => {
             setUploadProgress(95);
 
             // 6. Update Profile with PENDING status for Admin review
-            await supabase.from('profiles').update({
+            const updatePayload: any = {
                 verification_status: VerificationStatus.PENDING,
                 document_id_url: idPath,
-                document_baptism_url: baptismPath,
                 video_proof_url: videoPath,
                 liveness_video_url: videoPath,
                 ai_match_score: aiMatchScore || 90,
-                ai_verified: aiVerified
-            }).eq('id', user.id);
+                updated_at: new Date().toISOString()
+            };
+            if (baptismPath) {
+                updatePayload.document_baptism_url = baptismPath;
+            }
+
+            await supabase.from('profiles').update(updatePayload).eq('id', user.id);
 
             setUploadProgress(100);
             setTimeout(() => {
@@ -940,11 +1021,10 @@ export const Profile: React.FC = () => {
                 setVideoFile(null);
                 alert(
                     `🎉 Validation biométrique IA réussie (Score DeepFace: ${aiMatchScore || 90}%).\n\n` +
-                    `Votre dossier complet (CNI, Certificat de Baptême et Vidéo Liveness) a été transmis à l'administrateur avec succès pour validation finale (Niveau 2) !`
+                    `Votre dossier de vérification (${baptismPath ? 'avec Certificat de Baptême inclus 🕊️' : 'Vérification Membre'}) a été transmis à l'administrateur avec succès pour validation finale !`
                 );
             }, 1000);
         } catch (error: any) {
-            console.error("Erreur upload dossier vérification", error);
             setUploadProgress(0);
             alert(`Erreur technique lors de l'envoi des fichiers: ${error.message || error}`);
         }
@@ -984,18 +1064,151 @@ export const Profile: React.FC = () => {
             case VerificationStatus.UNVERIFIED:
             default:
                 return (
-                    <div className="bg-white border border-slate-200 rounded-xl p-6 mb-8 shadow-sm">
-                        <div className="flex items-center justify-between mb-4"><h3 className="text-lg font-bold text-slate-800 flex items-center"><Shield className="mr-2 text-slate-400" /> Vérification Complète</h3><span className="bg-slate-100 text-slate-600 text-xs px-2 py-1 rounded uppercase font-bold">Requis</span></div>
+                    <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 mb-8 shadow-sm text-left">
+                        <div className="flex items-center justify-between mb-5 pb-3 border-b border-slate-100">
+                            <div>
+                                <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                                    <Shield className="text-emerald-600" size={22} />
+                                    <span>Vérification & Certification du Profil</span>
+                                </h3>
+                                <p className="text-xs text-slate-500 mt-0.5">Validation d'identité sécurisée par IA et engagement spirituel.</p>
+                            </div>
+                            <span className="bg-emerald-100 text-emerald-800 text-[10px] px-2.5 py-1 rounded-full uppercase font-black tracking-wider">
+                                Niveau 2
+                            </span>
+                        </div>
+
                         {uploadProgress > 0 ? (
-                            <div className="w-full bg-slate-200 rounded-full h-2.5 mb-4"><div className="bg-emerald-600 h-2.5 rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }}></div><p className="text-center text-xs text-slate-500 mt-2">Envoi sécurisé ({uploadProgress}%)...</p></div>
+                            <div className="w-full bg-slate-100 rounded-full h-3 mb-4 overflow-hidden border border-slate-200">
+                                <div className="bg-emerald-600 h-3 rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }}></div>
+                                <p className="text-center text-xs text-slate-600 font-bold mt-2">Envoi sécurisé en cours ({uploadProgress}%)...</p>
+                            </div>
                         ) : (
                             <div className="space-y-6">
-                                <div><h4 className="font-bold text-slate-700 mb-3 text-sm uppercase tracking-wide">Étape 1 : Documents</h4><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><label className={`border-2 border-dashed rounded-lg p-4 flex flex-col items-center justify-center text-center cursor-pointer transition group ${idFile ? 'border-emerald-400 bg-emerald-50' : 'border-slate-300 hover:bg-slate-50'}`}><input type="file" className="hidden" accept="image/*,.pdf" onChange={(e) => handleFileChange(e, 'ID')} /><div className={`p-2 rounded-full mb-2 transition ${idFile ? 'bg-emerald-200' : 'bg-slate-100 group-hover:scale-110'}`}>{idFile ? <CheckCircle className="text-emerald-700 h-5 w-5" /> : <UserCheck className="text-slate-500 h-5 w-5" />}</div><span className="font-semibold text-slate-700 text-xs">Pièce d'identité</span></label><label className={`border-2 border-dashed rounded-lg p-4 flex flex-col items-center justify-center text-center cursor-pointer transition group ${baptismFile ? 'border-blue-400 bg-blue-50' : 'border-slate-300 hover:bg-slate-50'}`}><input type="file" className="hidden" accept="image/*,.pdf" onChange={(e) => handleFileChange(e, 'BAPTISM')} /><div className={`p-2 rounded-full mb-2 transition ${baptismFile ? 'bg-blue-200' : 'bg-slate-100 group-hover:scale-110'}`}>{baptismFile ? <CheckCircle className="text-blue-700 h-5 w-5" /> : <FileText className="text-slate-500 h-5 w-5" />}</div><span className="font-semibold text-slate-700 text-xs">Baptême / Engagement chrétien</span></label></div></div>
-                                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200"><h4 className="font-bold text-slate-700 mb-3 text-sm uppercase tracking-wide">Étape 2 : Preuve de Vie & IA DeepFace (5 secondes max)</h4><div className="flex flex-col md:flex-row gap-6 items-start"><div className="flex-1 text-center md:text-left"><p className="text-sm text-slate-600 mb-2">Prouvez à notre IA que vous n'êtes pas un bot :</p><div className="text-xl font-medium text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg py-3 px-4 inline-block mb-4">Tournez la tête de gauche à droite lentement.</div><p className="text-xs text-slate-500">Cliquez sur la caméra. L'enregistrement dure exactement <strong>5 secondes</strong> et s'arrête automatiquement. L'IA comparera votre visage à votre photo d'identité (moins de 3 Mo).</p></div><div className="flex-1 w-full flex flex-col items-center justify-center">{!videoFile && !isCameraActive ? (<button onClick={startCamera} className="w-full h-48 rounded-xl border-2 border-slate-300 border-dashed flex flex-col items-center justify-center bg-white hover:bg-slate-50 transition"><Video className="text-slate-400 mb-2" size={32} /><span className="text-slate-600 font-medium">Activer la caméra</span></button>) : !videoFile && isCameraActive ? (<div className="relative w-full h-48 rounded-xl overflow-hidden bg-black border-2 border-emerald-500"><video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover transform -scale-x-100" /><div className="absolute bottom-4 left-0 right-0 flex justify-center space-x-4 z-20">{!isRecording ? (<button onClick={startRecording} className="bg-red-600 text-white rounded-full px-5 py-2.5 shadow-lg hover:bg-red-700 transform hover:scale-105 transition font-bold text-xs flex items-center gap-2" title="Filmer 5 secondes"><div className="h-3 w-3 bg-white rounded-full animate-ping"></div> Démarrer (5s)</button>) : (<button onClick={stopRecording} className="bg-red-600 text-white rounded-full px-5 py-2.5 shadow-lg font-bold text-xs flex items-center gap-2 animate-pulse" title="Arrêter"><StopCircle size={18} /> Arrêt auto dans {videoCountdown}s</button>)}</div>{isRecording && (<div className="absolute top-2 right-2 flex items-center bg-red-600/90 px-2.5 py-1 rounded-full text-white text-xs font-extrabold z-20"><div className="w-2 h-2 bg-white rounded-full mr-1.5 animate-ping"></div>REC 00:0{videoCountdown}</div>)}</div>) : (<div className="relative w-full h-48 bg-black rounded-xl overflow-hidden border-2 border-emerald-500 flex items-center justify-center group">{videoUrl && (<video src={videoUrl} controls className="w-full h-full object-contain" />)}<button onClick={resetVideo} className="absolute top-2 right-2 bg-white text-slate-800 rounded-full p-1.5 shadow-md hover:bg-slate-100 z-30" title="Recommencer"><RefreshCw size={14} /></button></div>)}</div></div></div>
+                                {/* SECTION 1 : VÉRIFICATION D'IDENTITÉ & VIDÉO (OBLIGATOIRE) */}
+                                <div className="p-4 sm:p-5 bg-slate-50/80 rounded-2xl border border-slate-200/80 space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <h4 className="font-extrabold text-slate-900 text-xs sm:text-sm uppercase tracking-wider flex items-center gap-2">
+                                            <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px]">1</span>
+                                            <span>Identité & Sécurité Biométrique (Requis)</span>
+                                        </h4>
+                                        <span className="text-[10px] bg-emerald-100 text-emerald-800 font-black px-2 py-0.5 rounded-full uppercase">Obligatoire</span>
+                                    </div>
+
+                                    {/* Upload CNI */}
+                                    <div>
+                                        <label className={`border-2 border-dashed rounded-xl p-4 flex flex-col items-center justify-center text-center cursor-pointer transition group ${idFile ? 'border-emerald-500 bg-emerald-50' : 'border-slate-300 hover:bg-white bg-white/70'}`}>
+                                            <input type="file" className="hidden" accept="image/*,.pdf" onChange={(e) => handleFileChange(e, 'ID')} />
+                                            <div className={`p-2.5 rounded-full mb-2 transition ${idFile ? 'bg-emerald-200 text-emerald-800' : 'bg-slate-100 text-slate-500 group-hover:scale-110'}`}>
+                                                {idFile ? <CheckCircle className="h-5 w-5" /> : <UserCheck className="h-5 w-5" />}
+                                            </div>
+                                            <span className="font-bold text-slate-800 text-xs">
+                                                {idFile ? `✓ ${idFile.name}` : "Pièce d'Identité (CNI / Passeport)"}
+                                            </span>
+                                            <span className="text-[10px] text-slate-500 mt-0.5">Photo nette et lisible sans reflets</span>
+                                        </label>
+                                    </div>
+
+                                    {/* Preuve de vie vidéo 5s */}
+                                    <div>
+                                        <p className="text-xs font-bold text-slate-700 mb-1.5">Preuve de Vie Vidéo Directe (5 secondes) :</p>
+                                        <p className="text-[11px] text-slate-500 mb-3">Filmez 5 secondes en direct face à la caméra en tournant lentement la tête pour confirmer votre authenticité.</p>
+
+                                        <div className="w-full flex flex-col items-center justify-center">
+                                            {!videoFile && !isCameraActive ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={startCamera}
+                                                    className="w-full h-36 sm:h-40 rounded-2xl border-2 border-emerald-400 border-dashed flex flex-col items-center justify-center bg-emerald-50/20 hover:bg-emerald-50/60 transition cursor-pointer p-5 group shadow-2xs"
+                                                >
+                                                    <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                                                        <Video size={24} />
+                                                    </div>
+                                                    <span className="text-slate-900 font-black text-sm">Activer la caméra directe (5s)</span>
+                                                    <span className="text-[11px] text-emerald-800 font-bold mt-1">Enregistrement vidéo en direct uniquement</span>
+                                                </button>
+                                            ) : !videoFile && isCameraActive ? (
+                                                <div className="relative w-full h-48 rounded-2xl overflow-hidden bg-black border-2 border-emerald-500 shadow-md">
+                                                    <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover transform -scale-x-100" />
+                                                    <div className="absolute bottom-3 left-0 right-0 flex justify-center space-x-4 z-20">
+                                                        {!isRecording ? (
+                                                            <button type="button" onClick={startRecording} className="bg-red-600 text-white rounded-full px-6 py-2.5 shadow-lg hover:bg-red-700 font-black text-xs flex items-center gap-2 cursor-pointer transition active:scale-95">
+                                                                <div className="h-3 w-3 bg-white rounded-full animate-ping"></div>
+                                                                <span>Démarrer l'enregistrement (5s)</span>
+                                                            </button>
+                                                        ) : (
+                                                            <button type="button" onClick={stopRecording} className="bg-red-600 text-white rounded-full px-6 py-2.5 shadow-lg font-black text-xs flex items-center gap-2 animate-pulse cursor-pointer">
+                                                                <StopCircle size={16} />
+                                                                <span>Arrêt auto dans {videoCountdown}s</span>
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                    {isRecording && (
+                                                        <div className="absolute top-2.5 right-2.5 flex items-center bg-red-600/90 px-3 py-1 rounded-full text-white text-xs font-black z-20 shadow-md">
+                                                            <div className="w-2 h-2 bg-white rounded-full mr-1.5 animate-ping"></div>
+                                                            <span>REC 00:0{videoCountdown}</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <div className="relative w-full h-48 bg-black rounded-2xl overflow-hidden border-2 border-emerald-500 flex items-center justify-center group shadow-md">
+                                                    {videoUrl && (<video src={videoUrl} controls className="w-full h-full object-contain" />)}
+                                                    <button type="button" onClick={resetVideo} className="absolute top-2.5 right-2.5 bg-white text-slate-800 rounded-full p-2 shadow-md hover:bg-slate-100 z-30 cursor-pointer font-bold flex items-center gap-1 text-xs" title="Refaire la vidéo">
+                                                        <RefreshCw size={14} />
+                                                        <span>Reprendre</span>
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* SECTION 2 : SCEAU SPIRITUEL & BAPTÊME (OPTIONNEL / VALORISÉ) */}
+                                <div className="p-4 sm:p-5 bg-gradient-to-r from-amber-50/70 to-yellow-50/70 rounded-2xl border border-amber-200 space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <h4 className="font-extrabold text-amber-950 text-xs sm:text-sm uppercase tracking-wider flex items-center gap-2">
+                                            <span className="w-5 h-5 rounded-full bg-amber-600 text-white flex items-center justify-center text-[10px]">2</span>
+                                            <span>Certificat de Baptême & Engagement (Optionnel 🕊️)</span>
+                                        </h4>
+                                        <span className="text-[10px] bg-amber-200 text-amber-900 font-black px-2 py-0.5 rounded-full uppercase">Facultatif</span>
+                                    </div>
+                                    <p className="text-[11px] text-amber-800 leading-relaxed">
+                                        Ajoutez votre certificat de baptême ou attestation paroissiale quand vous le souhaitez pour débloquer le <strong>Badge Or "Baptême Certifié 🕊️"</strong> et obtenir un boost algorithmique dans le matching.
+                                    </p>
+
+                                    <label className={`border-2 border-dashed rounded-xl p-4 flex flex-col items-center justify-center text-center cursor-pointer transition group ${baptismFile ? 'border-amber-500 bg-amber-100/70' : 'border-amber-300 hover:bg-white bg-white/60'}`}>
+                                        <input type="file" className="hidden" accept="image/*,.pdf" onChange={(e) => handleFileChange(e, 'BAPTISM')} />
+                                        <div className={`p-2.5 rounded-full mb-2 transition ${baptismFile ? 'bg-amber-300 text-amber-950' : 'bg-amber-100 text-amber-800 group-hover:scale-110'}`}>
+                                            {baptismFile ? <CheckCircle className="h-5 w-5 text-amber-950" /> : <FileText className="h-5 w-5" />}
+                                        </div>
+                                        <span className="font-bold text-amber-950 text-xs">
+                                            {baptismFile ? `✓ ${baptismFile.name}` : "Certificat de Baptême / Attestation"}
+                                        </span>
+                                        <span className="text-[10px] text-amber-700 mt-0.5">Non obligatoire pour débloquer les rencontres</span>
+                                    </label>
+                                </div>
                             </div>
                         )}
+
                         {uploadProgress === 0 && (
-                            <div className="mt-6 flex justify-end"><button onClick={handleRequestVerification} disabled={!idFile || !baptismFile || !videoFile} className={`px-6 py-2 rounded-lg font-bold shadow-sm transition flex items-center ${idFile && baptismFile && videoFile ? 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-md' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}><Lock size={16} className="mr-2" /> Soumettre</button></div>
+                            <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-100">
+                                <p className="text-[11px] text-slate-500">
+                                    {!idFile || !videoFile ? "⚠️ Veuillez fournir la CNI et la vidéo 5s pour soumettre." : "✓ Prêt à envoyer à l'administrateur !"}
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={handleRequestVerification}
+                                    disabled={!idFile || !videoFile}
+                                    className={`w-full sm:w-auto px-6 py-3 rounded-xl font-extrabold shadow-sm transition flex items-center justify-center gap-2 text-xs cursor-pointer ${
+                                        idFile && videoFile 
+                                            ? 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-md transform active:scale-98' 
+                                            : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                                    }`}
+                                >
+                                    <Lock size={15} />
+                                    <span>Soumettre ma demande de vérification</span>
+                                </button>
+                            </div>
                         )}
                     </div>
                 );
@@ -1103,77 +1316,109 @@ export const Profile: React.FC = () => {
                     {renderVerificationStatus()}
 
                     {user.verificationStatus === VerificationStatus.VERIFIED && (
-                        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-8 animate-in fade-in">
-                            <div className="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-amber-50 to-slate-50 flex items-center justify-between">
-                                <div className="flex items-center">
-                                    <div className="bg-amber-100 p-2 rounded-full mr-3"><ShieldCheck className="h-5 w-5 text-amber-600" /></div>
+                        <div className="bg-white rounded-2xl shadow-sm border border-amber-200/80 overflow-hidden mb-8 animate-in fade-in">
+                            <div className="px-6 py-4 border-b border-amber-100 bg-gradient-to-r from-amber-500/15 via-amber-500/5 to-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-left">
+                                <div className="flex items-center gap-3">
+                                    <div className="bg-amber-500 text-white p-2.5 rounded-xl shadow-xs">
+                                        <ShieldCheck className="h-5 w-5" />
+                                    </div>
                                     <div>
-                                        <h3 className="font-bold text-slate-800 text-sm">Certification "Anti-Brouteurs" par Ambassadeurs 🛡️</h3>
-                                        <p className="text-[11px] text-slate-500">Validation physique de votre appartenance paroissiale pour le badge de confiance ultime.</p>
+                                        <h3 className="font-extrabold text-amber-950 text-sm flex items-center gap-1.5">
+                                            <span>Sceau Spirituel & Paroissial 🕊️✨</span>
+                                            <span className="text-[10px] bg-amber-200 text-amber-900 font-black px-2 py-0.5 rounded-full uppercase">Palier Excellence</span>
+                                        </h3>
+                                        <p className="text-[11px] text-amber-800/90">Certificat de baptême et/ou parrainage physique par les ambassadeurs paroissiaux.</p>
                                     </div>
                                 </div>
                                 {isCommunityCertified ? (
-                                    <span className="text-xs bg-amber-100 text-amber-800 border border-amber-200 px-3 py-1 rounded-full font-bold flex items-center gap-1 shadow-sm">
-                                        🛡️ Certifié par la Communauté
+                                    <span className="text-xs bg-amber-100 text-amber-900 border border-amber-300 px-3.5 py-1 rounded-full font-black flex items-center gap-1.5 shadow-2xs self-start sm:self-auto">
+                                        🕊️ Sceau Validé (Badge Or)
                                     </span>
                                 ) : (
-                                    <span className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-full font-semibold">Non Certifié</span>
+                                    <span className="text-[11px] bg-amber-50 text-amber-800 border border-amber-200 px-2.5 py-1 rounded-full font-bold self-start sm:self-auto">
+                                        Facultatif & Boost +25%
+                                    </span>
                                 )}
                             </div>
 
-                            <div className="p-6 space-y-4">
+                            <div className="p-6 space-y-5">
                                 {isCommunityCertified ? (
-                                    <div className="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-4 text-xs text-emerald-800 leading-relaxed text-left">
-                                        <strong className="text-emerald-950 block mb-1">Félicitations ! Votre profil est certifié par la communauté.</strong>
-                                        Les ambassadeurs de votre paroisse locale ont validé votre présence et votre engagement. Vous portez désormais le badge de confiance le plus élevé de l'application.
+                                    <div className="bg-gradient-to-br from-amber-50 to-yellow-50 border border-amber-200 rounded-2xl p-5 text-xs text-amber-900 leading-relaxed text-left space-y-2">
+                                        <div className="flex items-center gap-2 font-extrabold text-amber-950 text-sm">
+                                            <span>🕊️✨</span>
+                                            <span>Félicitations ! Vous possédez le Sceau Spirituel & Paroissial.</span>
+                                        </div>
+                                        <p className="text-amber-800">
+                                            Votre certificat de baptême et/ou votre engagement auprès de votre église locale ont été authentifiés. Le badge d'Excellence <strong>"Baptême & Paroisse Certifiés 🕊️"</strong> est affiché sur votre profil avec un boost de visibilité auprès des membres.
+                                        </p>
                                     </div>
                                 ) : hasPendingCertification ? (
-                                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3 text-left">
-                                        <div className="flex items-center gap-2 text-amber-800 font-bold text-xs">
-                                            <Clock size={14} className="animate-pulse" />
-                                            <span>Demande de certification locale en cours d'examen...</span>
+                                    <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-5 space-y-3 text-left">
+                                        <div className="flex items-center gap-2 text-amber-900 font-extrabold text-xs">
+                                            <Clock size={15} className="animate-spin text-amber-600" />
+                                            <span>Demande de Sceau Spirituel transmise (En attente d'examen)</span>
                                         </div>
-                                        <p className="text-xs text-slate-600 leading-relaxed">
-                                            Votre demande a été transmise aux ambassadeurs de la paroisse : <strong className="text-slate-800">{formData.church || user.parish || 'Votre église'}</strong>.
+                                        <p className="text-xs text-amber-800 leading-relaxed">
+                                            Votre dossier a été soumis aux ambassadeurs et modérateurs de la paroisse : <strong className="text-amber-950">{formData.church || user.parish || 'Votre paroisse'}</strong>.
                                         </p>
-                                        <div className="bg-white/80 p-3 rounded-lg border border-amber-100 text-xs text-slate-500 italic">
-                                            Notes transmises : "{pendingCertNotes}"
-                                        </div>
+                                        {pendingCertNotes && (
+                                            <div className="bg-white/90 p-3.5 rounded-xl border border-amber-200 text-xs text-slate-700 italic">
+                                                Note / Éléments transmis : "{pendingCertNotes}"
+                                            </div>
+                                        )}
                                     </div>
                                 ) : (
-                                    <div className="space-y-4 text-left">
+                                    <div className="space-y-5 text-left">
                                         <p className="text-xs text-slate-600 leading-relaxed">
-                                            Pour obtenir le badge ultime de confiance et rassurer pleinement vos futurs matchs chrétiens, demandez une certification physique auprès de l'un des ambassadeurs bénévoles de votre église locale.
+                                            Pour sublimer votre profil chrétien et rassurer pleinement la communauté, vous pouvez demander le <strong>Sceau Spirituel & Paroissial</strong> en fournissant votre certificat de baptême et/ou en indiquant votre engagement paroissial (chorale, groupe de jeunesse, bénévole).
                                         </p>
 
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <div className="space-y-1.5">
-                                                <label className="text-xs font-bold text-slate-700 block">Votre paroisse / église de rattachement</label>
-                                                <input
-                                                    type="text"
-                                                    disabled
-                                                    value={user.parish || `${formData.denomination} - ${formData.church}`}
-                                                    className="w-full text-xs rounded-xl border-slate-200 bg-slate-100 text-slate-600 p-2.5 cursor-not-allowed"
-                                                />
+                                            {/* OPTION 1 : SCAN DU CERTIFICAT */}
+                                            <div className="space-y-2">
+                                                <label className="text-xs font-bold text-slate-700 block">
+                                                    1. Certificat de Baptême / Attestation (Photo ou PDF)
+                                                </label>
+                                                <label className={`border-2 border-dashed rounded-xl p-3.5 flex flex-col items-center justify-center text-center cursor-pointer transition ${baptismFile ? 'border-amber-500 bg-amber-50' : 'border-slate-300 hover:bg-slate-50 bg-slate-50/50'}`}>
+                                                    <input type="file" className="hidden" accept="image/*,.pdf" onChange={(e) => handleFileChange(e, 'BAPTISM')} />
+                                                    <FileText size={18} className={`mb-1 ${baptismFile ? 'text-amber-600' : 'text-slate-400'}`} />
+                                                    <span className="text-xs font-bold text-slate-800">
+                                                        {baptismFile ? `✓ ${baptismFile.name}` : "Sélectionner un fichier..."}
+                                                    </span>
+                                                    <span className="text-[10px] text-slate-400 mt-0.5">Format JPG, PNG ou PDF</span>
+                                                </label>
                                             </div>
-                                            <div className="space-y-1.5">
-                                                <label className="text-xs font-bold text-slate-700 block">Note de recommandation pour l'Ambassadeur</label>
+
+                                            {/* OPTION 2 : NOTE PAROISSIALE & AMBASSADEUR */}
+                                            <div className="space-y-2">
+                                                <label className="text-xs font-bold text-slate-700 block">
+                                                    2. Note d'engagement pour l'Ambassadeur
+                                                </label>
                                                 <textarea
                                                     value={certNotes}
                                                     onChange={(e) => setCertNotes(e.target.value)}
-                                                    placeholder="Ex: Je suis membre de la chorale Sainte Cécile..."
-                                                    rows={2}
-                                                    className="w-full text-xs rounded-xl border-slate-200 focus:ring-emerald-500 focus:border-emerald-500 p-2.5 bg-slate-50/50 resize-none"
+                                                    placeholder="Ex: Membre de la chorale Sainte-Cécile, référent : Père Paul..."
+                                                    rows={3}
+                                                    className="w-full text-xs rounded-xl border-slate-300 focus:ring-amber-500 focus:border-amber-500 p-2.5 bg-slate-50/50 resize-none"
                                                 />
                                             </div>
                                         </div>
 
-                                        <div className="flex justify-end pt-2">
+                                        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 border-t border-slate-100">
+                                            <p className="text-[11px] text-slate-500">
+                                                Paroisse déclarée : <strong className="text-slate-800">{user.parish || `${formData.denomination} - ${formData.church}`}</strong>
+                                            </p>
                                             <button
+                                                type="button"
                                                 onClick={handleRequestCommunityCertification}
-                                                className="bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition shadow-md flex items-center gap-1.5 cursor-pointer"
+                                                disabled={!baptismFile && !certNotes.trim()}
+                                                className={`w-full sm:w-auto px-5 py-2.5 rounded-xl font-bold text-xs transition shadow-md flex items-center justify-center gap-1.5 cursor-pointer ${
+                                                    baptismFile || certNotes.trim()
+                                                        ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-amber-600/20'
+                                                        : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                                                }`}
                                             >
-                                                <span>🛡️</span> Demander la certification
+                                                <span>🕊️ Demander le Sceau Spirituel</span>
                                             </button>
                                         </div>
                                     </div>
@@ -1560,58 +1805,100 @@ export const Profile: React.FC = () => {
                                 )}
                             </div>
 
-                            <div>
-                                <label className="block text-sm font-medium text-slate-500 mb-1">Année de baptême <span className="text-xs text-slate-400 font-normal">(Optionnel)</span></label>
-                                {isEditing ? (
-                                    <input type="number" placeholder="Ex: 2018 (Facultatif)" value={formData.baptismYear} onChange={(e) => setFormData({ ...formData, baptismYear: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-emerald-500 focus:border-emerald-500" />
-                                ) : (
-                                    <p className="text-slate-900 font-medium text-lg">{user.baptismYear || 'Non renseignée (Optionnel)'}</p>
-                                )}
-                            </div>
+                            {/* LOCALISATION & COMMUNE */}
+                            <div className="sm:col-span-2 p-4 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-left">
+                                <div className="flex items-center space-x-3">
+                                    <div className="h-10 w-10 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold shrink-0 shadow-xs">
+                                        <MapPin size={20} />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Localisation & Commune</label>
+                                        <p className="text-slate-900 font-extrabold text-base flex items-center gap-2 mt-0.5">
+                                            <span>{user.location || 'Abidjan, Cocody'}</span>
+                                            <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full border border-emerald-200">
+                                                Actif
+                                            </span>
+                                        </p>
+                                        <p className="text-[11px] text-slate-400">Utilisé pour calculer la distance réelle avec vos matchs chrétiens.</p>
+                                    </div>
+                                </div>
 
+                                <div className="flex items-center gap-2 shrink-0">
+                                    <button
+                                        type="button"
+                                        onClick={handleDirectGpsRefresh}
+                                        disabled={isDetectingGps}
+                                        className="px-3.5 py-2 bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-300 rounded-xl text-xs font-extrabold transition flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
+                                        title="Actualiser automatiquement votre position avec le GPS du téléphone"
+                                    >
+                                        {isDetectingGps ? <Loader size={14} className="animate-spin text-emerald-600" /> : <Compass size={14} />}
+                                        <span>{isDetectingGps ? "Recherche GPS..." : "GPS Direct"}</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsLocationModalOpen(true)}
+                                        className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-extrabold transition shadow-xs cursor-pointer active:scale-95"
+                                    >
+                                        Changer de commune
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
-                    {/* GALLERY SECTION (Max 5 photos, 3 photos min required to unlock matches) */}
+                    {/* GALLERY SECTION (Max 3 photos au total = 1 avatar + 2 secondaires) */}
                     {(() => {
                         const totalPhotosCount = (user.avatarUrl ? 1 : 0) + (user.photos?.length || 0);
-                        const isUnlocked = totalPhotosCount >= 3;
+                        const isUnlocked = user.verificationStatus === VerificationStatus.VERIFIED || user.role === 'ADMIN' || totalPhotosCount >= 3;
                         return (
                             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-8">
                                 <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex flex-wrap justify-between items-center gap-2">
                                     <h3 className="font-bold text-slate-800 flex items-center">
-                                        <ImageIcon size={18} className="mr-2 text-slate-500" /> Ma Galerie ({totalPhotosCount}/5 photos)
+                                        <ImageIcon size={18} className="mr-2 text-slate-500" /> Ma Galerie ({totalPhotosCount}/3 photos)
                                     </h3>
                                     <button
                                         onClick={handleGalleryClick}
-                                        disabled={isUploadingGallery || (user.photos && user.photos.length >= 4)}
-                                        className={`text-sm text-white px-3.5 py-1.5 rounded-lg flex items-center font-medium transition cursor-pointer ${isUploadingGallery || (user.photos && user.photos.length >= 4) ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-slate-800 hover:bg-slate-700'}`}
+                                        disabled={isUploadingGallery || (user.photos && user.photos.length >= 2)}
+                                        className={`text-sm text-white px-3.5 py-1.5 rounded-lg flex items-center font-medium transition cursor-pointer ${isUploadingGallery || (user.photos && user.photos.length >= 2) ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-slate-800 hover:bg-slate-700'}`}
                                     >
                                         {isUploadingGallery ? <Loader size={14} className="animate-spin mr-1.5" /> : <Plus size={14} className="mr-1.5" />}
                                         Ajouter des photos
                                     </button>
                                 </div>
                                 <div className="p-6">
-                                    {/* Badge Condition 4 */}
-                                    <div className={`p-3.5 rounded-xl border mb-4 flex items-center justify-between text-xs sm:text-sm font-semibold ${isUnlocked ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-amber-50 border-amber-200 text-amber-900'}`}>
-                                        <div className="flex items-center gap-2">
-                                            {isUnlocked ? <CheckCircle size={18} className="text-emerald-600 flex-shrink-0" /> : <AlertTriangle size={18} className="text-amber-600 flex-shrink-0" />}
-                                            <span>
-                                                {isUnlocked
-                                                    ? `🟢 Condition 4 Validée : ${totalPhotosCount}/5 photos chargées. Votre profil est déverrouillé pour les rencontres !`
-                                                    : `⚠️ 4ème Condition Obligatoire : ${totalPhotosCount}/3 photos (Publiez au moins 3 vraies photos pour débloquer les rencontres).`}
+                                    {/* Badge Condition 4 - Disposition Soignée & Responsive */}
+                                    <div className={`p-4 rounded-2xl border mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs sm:text-sm font-medium ${isUnlocked ? 'bg-emerald-50/80 border-emerald-200 text-emerald-900' : 'bg-amber-50/80 border-amber-200 text-amber-950'}`}>
+                                        <div className="flex items-start sm:items-center gap-3">
+                                            <div className={`p-2 rounded-xl shrink-0 ${isUnlocked ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                                                {isUnlocked ? <CheckCircle size={20} /> : <AlertTriangle size={20} />}
+                                            </div>
+                                            <div className="space-y-0.5 text-left">
+                                                <div className="font-extrabold text-xs sm:text-sm">
+                                                    {isUnlocked ? 'Condition 4 : Galerie Photo Validée' : `4ème Condition Obligatoire : ${totalPhotosCount}/3 photos`}
+                                                </div>
+                                                <p className="text-[11px] sm:text-xs opacity-90 leading-tight">
+                                                    {isUnlocked
+                                                        ? `Votre galerie contient ${totalPhotosCount}/3 photos. Votre profil est déverrouillé pour les rencontres !`
+                                                        : 'Publiez au moins 3 vraies photos pour débloquer les rencontres.'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="shrink-0 self-start sm:self-center">
+                                            <span className={`inline-flex items-center whitespace-nowrap font-black text-xs px-3 py-1.5 rounded-full border shadow-2xs ${
+                                                isUnlocked 
+                                                    ? 'bg-emerald-100 text-emerald-800 border-emerald-300' 
+                                                    : 'bg-white text-amber-800 border-amber-300'
+                                            }`}>
+                                                {isUnlocked ? '✓ Débloqué' : `${3 - totalPhotosCount} photo${3 - totalPhotosCount > 1 ? 's' : ''} manquante${3 - totalPhotosCount > 1 ? 's' : ''}`}
                                             </span>
                                         </div>
-                                        <span className="font-bold text-xs uppercase px-2 py-0.5 rounded-full bg-white border shadow-2xs">
-                                            {isUnlocked ? 'Débloqué' : `${3 - totalPhotosCount} manquante(s)`}
-                                        </span>
                                     </div>
 
                                     <p className="text-xs text-slate-500 mb-4">
                                         🔒 Les photos de votre galerie sont automatiquement contrôlées par notre IA faciale biométrique. La 1ère photo est votre photo principale.
                                     </p>
 
-                                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                                    <div className="grid grid-cols-3 gap-3 sm:gap-4 max-w-xl">
                                         {/* Avatar photo principale */}
                                         <div className="relative aspect-square rounded-xl overflow-hidden group shadow-sm border-2 border-emerald-500">
                                             <img src={user.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
@@ -1635,13 +1922,13 @@ export const Profile: React.FC = () => {
                                         ))}
 
                                         {/* Bouton Ajouter si slots disponibles */}
-                                        {(!user.photos || user.photos.length < 4) && (
+                                        {(!user.photos || user.photos.length < 2) && (
                                             <div
                                                 onClick={handleGalleryClick}
                                                 className="aspect-square rounded-xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 cursor-pointer hover:bg-emerald-50/50 hover:border-emerald-400 hover:text-emerald-600 transition"
                                             >
                                                 <Plus size={28} />
-                                                <span className="text-xs mt-1 font-semibold">Ajouter ({user.photos?.length || 0}/4)</span>
+                                                <span className="text-xs mt-1 font-semibold">Ajouter ({user.photos?.length || 0}/2)</span>
                                             </div>
                                         )}
                                     </div>
@@ -1651,7 +1938,7 @@ export const Profile: React.FC = () => {
                     })()}
 
                     {/* Interests Section */}
-                    < div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden" >
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                         <div className="px-6 py-4 border-b border-slate-100 bg-slate-50"><h3 className="font-bold text-slate-800 flex items-center"><Tag size={18} className="mr-2 text-slate-500" /> Centres d'intérêt</h3></div>
                         <div className="p-6">
                             {isEditing && (
@@ -1678,44 +1965,51 @@ export const Profile: React.FC = () => {
                                 )}
                             </div>
                         </div>
-                    </div >
+                    </div>
                 </div>
             )}
 
             {/* Premium Modal (Purchase) */}
             {
                 showPremiumModal && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                        <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowPremiumModal(false)} />
-                        <div className="bg-white rounded-2xl shadow-xl w-full max-w-md relative z-10 overflow-hidden">
-                            {/* Header */}
-                            <div className="bg-gradient-to-br from-yellow-400 to-orange-500 p-6 text-white text-center">
-                                <h3 className="text-2xl font-bold">
+                    <div className="fixed inset-0 z-[80] flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+                        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity" onClick={() => setShowPremiumModal(false)} />
+                        <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md relative z-10 my-auto max-h-[88dvh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-100">
+                            {/* Header avec Bouton Fermer */}
+                            <div className="bg-gradient-to-br from-yellow-400 via-amber-500 to-orange-500 p-4 sm:p-5 text-white text-center relative shrink-0">
+                                <button
+                                    onClick={() => setShowPremiumModal(false)}
+                                    className="absolute top-3 right-3 text-white/80 hover:text-white p-1.5 rounded-full hover:bg-black/20 transition cursor-pointer"
+                                    title="Fermer"
+                                >
+                                    <X size={20} />
+                                </button>
+                                <h3 className="text-xl sm:text-2xl font-black font-display pr-6">
                                     {paymentMode === 'DONATION' ? '💖 Soutenir la Mission' : '⭐ Devenir Premium'}
                                 </h3>
-                                <p className="text-yellow-100 text-sm mt-1">
-                                    {paymentMode === 'DONATION' ? 'Un don libre, de la communauté pour la mission.' : 'Débloquez tous les avantages.'}
+                                <p className="text-amber-100 text-xs sm:text-sm mt-0.5 font-medium">
+                                    {paymentMode === 'DONATION' ? 'Un don libre pour soutenir la mission chrétienne.' : 'Débloquez tous les avantages sans limites.'}
                                 </p>
                             </div>
                             {/* Tabs */}
-                            <div className="flex border-b border-slate-200">
+                            <div className="flex border-b border-slate-200 shrink-0 bg-slate-50/70">
                                 <button
                                     onClick={() => setPaymentMode('SUBSCRIPTION')}
-                                    className={`flex-1 text-sm font-semibold py-3 transition ${paymentMode === 'SUBSCRIPTION' ? 'border-b-2 border-emerald-500 text-emerald-600' : 'text-slate-400 hover:text-slate-600'
+                                    className={`flex-1 text-xs sm:text-sm font-bold py-3 transition cursor-pointer ${paymentMode === 'SUBSCRIPTION' ? 'border-b-2 border-emerald-600 text-emerald-700 bg-white' : 'text-slate-500 hover:text-slate-700'
                                         }`}
                                 >
                                     🏆 Abonnement
                                 </button>
                                 <button
                                     onClick={() => setPaymentMode('DONATION')}
-                                    className={`flex-1 text-sm font-semibold py-3 transition ${paymentMode === 'DONATION' ? 'border-b-2 border-rose-500 text-rose-600' : 'text-slate-400 hover:text-slate-600'
+                                    className={`flex-1 text-xs sm:text-sm font-bold py-3 transition cursor-pointer ${paymentMode === 'DONATION' ? 'border-b-2 border-rose-500 text-rose-600 bg-white' : 'text-slate-500 hover:text-slate-700'
                                         }`}
                                 >
                                     💖 Don Libre + Crédits
                                 </button>
                             </div>
-                            {/* Content */}
-                            <div className="p-6 space-y-4">
+                            {/* Content avec Défilement Fluide */}
+                            <div className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
                                 {paymentMode === 'SUBSCRIPTION' ? (
                                     <>
                                         <div className="grid grid-cols-2 gap-2 text-left">
@@ -1775,14 +2069,16 @@ export const Profile: React.FC = () => {
                                             <button
                                                 type="button"
                                                 onClick={() => setSelectedPlan('YEAR')}
-                                                className={`p-3 rounded-xl border text-xs font-bold transition flex flex-col col-span-2 sm:col-span-1 cursor-pointer ${selectedPlan === 'YEAR'
+                                                className={`p-3 rounded-xl border text-xs font-bold transition flex flex-col col-span-2 cursor-pointer ${selectedPlan === 'YEAR'
                                                         ? 'border-emerald-600 bg-emerald-50 text-emerald-900 ring-2 ring-emerald-500/20'
                                                         : 'border-slate-200 text-slate-700 hover:bg-slate-50'
                                                     }`}
                                             >
-                                                <span className="text-[10px] text-emerald-600 font-extrabold uppercase">1 An (Annuel)</span>
-                                                <span className="text-sm font-black mt-0.5">{pointsPricingConfig?.premiumYearlyPrice || 15000} FCFA</span>
-                                                <span className="text-[10px] text-slate-500 font-normal">365 Jours d'accès</span>
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-[10px] text-emerald-600 font-extrabold uppercase">1 An (Annuel - Meilleure offre)</span>
+                                                    <span className="text-sm font-black">{pointsPricingConfig?.premiumYearlyPrice || 15000} FCFA</span>
+                                                </div>
+                                                <span className="text-[10px] text-slate-500 font-normal">365 Jours d'accès illimité</span>
                                             </button>
                                         </div>
 
@@ -1795,7 +2091,7 @@ export const Profile: React.FC = () => {
                                         <button
                                             onClick={initPaystack}
                                             disabled={isProcessingPayment}
-                                            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl shadow-lg transition flex items-center justify-center text-xs sm:text-sm cursor-pointer"
+                                            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-2xl shadow-lg transition flex items-center justify-center text-xs sm:text-sm cursor-pointer"
                                         >
                                             <CreditCard size={18} className="mr-2" />
                                             {isProcessingPayment ? 'Initialisation...' : `S'abonner (${selectedPlan === 'DAY' ? (pointsPricingConfig?.premiumDailyPrice || 500) :
@@ -1825,13 +2121,13 @@ export const Profile: React.FC = () => {
                                         <button
                                             onClick={initPaystack}
                                             disabled={isProcessingPayment}
-                                            className="w-full bg-rose-500 hover:bg-rose-600 text-white font-bold py-4 rounded-xl shadow-lg transition flex items-center justify-center"
+                                            className="w-full bg-rose-500 hover:bg-rose-600 text-white font-bold py-3.5 rounded-2xl shadow-lg transition flex items-center justify-center cursor-pointer"
                                         >
                                             💖 {isProcessingPayment ? 'Initialisation...' : `Faire un don de ${customDonationAmount || '...'} FCFA`}
                                         </button>
                                     </>
                                 )}
-                                <button onClick={() => setShowPremiumModal(false)} className="w-full text-slate-400 hover:text-slate-600 text-sm">Fermer</button>
+                                <button onClick={() => setShowPremiumModal(false)} className="w-full text-slate-400 hover:text-slate-600 text-xs sm:text-sm py-1 cursor-pointer">Fermer</button>
                             </div>
                         </div>
                     </div>
@@ -1841,9 +2137,9 @@ export const Profile: React.FC = () => {
             {/* Renewal Reminder Modal */}
             {
                 showRenewalModal && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowRenewalModal(false)} />
-                        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative z-10 p-6 animate-in zoom-in-95 duration-300 border-2 border-amber-300">
+                    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 overflow-y-auto">
+                        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity" onClick={() => setShowRenewalModal(false)} />
+                        <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm relative z-10 p-6 animate-in zoom-in-95 duration-200 border-2 border-amber-300 my-auto max-h-[88dvh] overflow-y-auto">
                             <div className="text-center">
                                 <div className="bg-amber-100 p-4 rounded-full inline-flex mb-4 animate-bounce">
                                     <AlertTriangle className="h-10 w-10 text-amber-600" />
@@ -1857,15 +2153,15 @@ export const Profile: React.FC = () => {
                                 <div className="space-y-3">
                                     <button
                                         onClick={() => { setShowRenewalModal(false); initPaystack(); }}
-                                        className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold hover:bg-emerald-700 shadow-lg transition flex items-center justify-center"
+                                        className="w-full bg-emerald-600 text-white py-3.5 rounded-2xl font-bold hover:bg-emerald-700 shadow-lg transition flex items-center justify-center cursor-pointer"
                                     >
                                         <Zap size={18} className="mr-2" /> Renouveler maintenant
                                     </button>
                                     <button
                                         onClick={() => setShowRenewalModal(false)}
-                                        className="text-sm text-slate-400 hover:text-slate-600"
+                                        className="text-sm text-slate-400 hover:text-slate-600 w-full py-1 cursor-pointer"
                                     >
-                                        Je le ferai plus tard
+                                        Plus tard
                                     </button>
                                 </div>
                             </div>
@@ -1891,6 +2187,16 @@ export const Profile: React.FC = () => {
                 onClose={() => setShowPointsModal(false)}
                 user={user}
                 onPointsUpdated={(newPts, newCreds) => setUser(prev => prev ? { ...prev, points: newPts, credits: newCreds } as any : null)}
+            />
+
+            {/* MODALE DE LOCALISATION & GÉOLOCALISATION GPS 📍 */}
+            <LocationSelectorModal
+                isOpen={isLocationModalOpen}
+                onClose={() => setIsLocationModalOpen(false)}
+                currentLocationName={user?.location || 'Abidjan, Cocody'}
+                currentLatitude={user?.latitude}
+                currentLongitude={user?.longitude}
+                onSelectLocation={handleUpdateProfileLocation}
             />
         </div>
     );

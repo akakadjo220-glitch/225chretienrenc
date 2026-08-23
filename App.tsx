@@ -323,10 +323,15 @@ const App: React.FC = () => {
     );
   }
 
-  const isUserDashboard = currentView === AppView.USER_DASHBOARD;
+  const isUserDashboard = 
+    currentView === AppView.USER_DASHBOARD || 
+    currentView === AppView.LIKES_YOU || 
+    currentView === AppView.MESSAGES || 
+    currentView === AppView.FORUM || 
+    currentView === AppView.PROFILE;
 
   return (
-    <div className={`bg-slate-50 font-sans ${isPrivacyBlurred ? 'privacy-blur-active' : ''} ${isUserDashboard ? 'h-screen h-[100dvh] overflow-hidden flex flex-col' : 'min-h-screen'}`}>
+    <div className={`bg-slate-50 font-sans min-h-screen flex flex-col ${isPrivacyBlurred ? 'privacy-blur-active' : ''}`}>
       {/* Gestionnaire de Notifications & Gestionnaire de Session Inactive */}
       <NotificationManager />
       <SessionTimeoutManager

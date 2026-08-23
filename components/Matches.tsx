@@ -31,7 +31,7 @@ const getCuratedPlaceholder = (gender: 'M' | 'F' | undefined, id: string) => {
 };
 
 import { MatchProfile } from '../types';
-import { Check, X, MapPin, ShieldCheck, Search, Star, MessageCircle, Loader, CreditCard, CheckCircle, RefreshCw, SlidersHorizontal, ChevronDown, HeartHandshake, Mic, Lock } from 'lucide-react';
+import { Check, X, MapPin, ShieldCheck, Search, Star, MessageCircle, Loader, CreditCard, CheckCircle, RefreshCw, SlidersHorizontal, ChevronDown, HeartHandshake, Mic, Lock, Plus } from 'lucide-react';
 import { generateDeepMatchScore, DeepMatchResult } from '../aiClient';
 import { calculateAge, calculateChristianMatchScore, isSameParishFuzzy, detectProfileFraud, recordInteractionAndTrainMl, extractDenomination } from '../matchingEngine';
 
@@ -51,6 +51,7 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedParish, setSelectedParish] = useState('');
+    const [maxDistanceKm, setMaxDistanceKm] = useState<number | null>(null);
     const [parishesList, setParishesList] = useState<{ id: string, name: string }[]>([]);
 
     // Deck Logic States
@@ -98,7 +99,24 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
             const { data: { session } } = await supabase.auth.getSession();
             if (session?.user) {
                 const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle();
-                setCurrentUser({ ...session.user, ...profile, lookingFor: profile.looking_for });
+                let parsedPhotos: string[] = [];
+                if (profile?.photos_urls) {
+                    if (Array.isArray(profile.photos_urls)) {
+                        parsedPhotos = profile.photos_urls;
+                    } else if (typeof profile.photos_urls === 'string') {
+                        try {
+                            parsedPhotos = JSON.parse(profile.photos_urls);
+                        } catch {
+                            parsedPhotos = [profile.photos_urls];
+                        }
+                    }
+                }
+                setCurrentUser({ 
+                    ...session.user, 
+                    ...(profile || {}), 
+                    photos_urls: parsedPhotos, 
+                    lookingFor: profile?.looking_for 
+                });
             }
         };
         initUser();
@@ -189,7 +207,7 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
     /**
      * CŒUR DU SYSTÈME DE RECUPERATION DES PROFILS
      */
-    const fetchMatches = async (includeSeenProfiles = false, searchStr = '', parishStr = '') => {
+    const fetchMatches = async (includeSeenProfiles = false, searchStr = '', parishStr = '', maxDist: number | null = maxDistanceKm) => {
         setIsLoading(true);
         try {
             const currentUserId = currentUser?.id;
@@ -288,6 +306,14 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
                 return !fraudCheck.isBlocked;
             });
 
+            // --- ETAPE 3.6 : FILTRAGE GÉOLOCALISÉ PAR DISTANCE MAXIMALE ---
+            if (maxDist !== null && maxDist > 0) {
+                candidates = candidates.filter((u: any) => {
+                    const matchAnalysis = calculateChristianMatchScore(currentUserModel, u);
+                    return matchAnalysis.distanceKm <= maxDist;
+                });
+            }
+
             // Sort: Boosted profiles first, then shuffle
             const now = new Date();
             const boosted = candidates.filter((u: any) => u.boost_expires_at && new Date(u.boost_expires_at) > now);
@@ -305,6 +331,7 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
 
                 // Badges gamification
                 const calculatedBadges: string[] = [];
+                if (record.document_baptism_url) calculatedBadges.push('BAPTISM_CERTIFIED');
                 if (record.verification_status === 'VERIFIED') calculatedBadges.push('COMMUNITY_CERTIFIED');
 
                 // --- BOOST DE PAROISSE ---
@@ -322,17 +349,22 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
                 if (hasFullProfile) calculatedBadges.push('⭐ Complet');
 
                 const locationStr = record.location || record.parish || 'Abidjan';
-                const locationWithDistance = `${locationStr} (${matchAnalysis.distanceKm} km)`;
+                const dist = matchAnalysis.distanceKm;
+                const distanceBadge = dist !== undefined ? (dist < 1 ? ' • < 1 km' : ` • ${dist} km`) : '';
+                const locationWithDistance = `${locationStr}${distanceBadge}`;
 
                 return {
                     id: record.id,
                     name: rName,
                     age: realAge,
                     location: locationWithDistance,
+                    latitude: record.latitude,
+                    longitude: record.longitude,
+                    distanceKm: dist,
                     parish: record.parish || 'Non renseignée',
                     bio: record.bio || "Membre de la communauté chrétienne.",
                     imageUrl: record.avatar_url ? getImlrUrl(record.avatar_url) : getCuratedPlaceholder(record.gender, record.id),
-                    photos: record.photos ? record.photos.map((p: string) => getImlrUrl(p)) : [],
+                    photos: (record.photos_urls || record.photos || []).map((p: string) => getImlrUrl(p)),
                     percentage: matchAnalysis.score,
                     interests: parseInterests(record.interests),
                     testimonial_audio_url: record.testimonial_audio_url
@@ -370,23 +402,24 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
     }, [currentUser]);
 
     const handleManualRefresh = () => {
-        fetchMatches(false, searchQuery, selectedParish);
+        fetchMatches(false, searchQuery, selectedParish, maxDistanceKm);
     };
 
     const handleResetHistory = () => {
-        fetchMatches(true, searchQuery, selectedParish);
+        fetchMatches(true, searchQuery, selectedParish, maxDistanceKm);
     };
 
     const handleApplyFilters = () => {
-        fetchMatches(false, searchQuery, selectedParish);
+        fetchMatches(false, searchQuery, selectedParish, maxDistanceKm);
         setIsFilterModalOpen(false);
     };
 
     const handleResetFilters = () => {
         setSearchQuery('');
         setSelectedParish('');
+        setMaxDistanceKm(null);
         setCurrentIndex(0);
-        fetchMatches(false, '', '');
+        fetchMatches(false, '', '', null);
         setIsFilterModalOpen(false);
     };
 
@@ -772,9 +805,15 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
         return <div className="flex justify-center items-center h-64"><Loader className="animate-spin text-emerald-600" /></div>;
     }
 
-    const totalUserPhotos = (currentUser?.avatar_url || currentUser?.avatarUrl ? 1 : 0) + (currentUser?.photos_urls?.length || currentUser?.photos?.length || 0);
+    const totalUserPhotos = (currentUser?.avatar_url || currentUser?.avatarUrl ? 1 : 0) + (Array.isArray(currentUser?.photos_urls) ? currentUser.photos_urls.length : (currentUser?.photos?.length || 0));
 
-    if (currentUser && totalUserPhotos < 3) {
+    const isVerifiedOrBypassed = currentUser?.verification_status === 'VERIFIED' || 
+                                 currentUser?.verificationStatus === VerificationStatus.VERIFIED || 
+                                 currentUser?.role === 'ADMIN' || 
+                                 currentUser?.liveness_verified === true;
+
+    // Si le profil n'est PAS vérifié/bypassé et qu'il n'a pas atteint les 3 photos obligatoires
+    if (currentUser && !isVerifiedOrBypassed && totalUserPhotos < 3) {
         return (
             <div className="flex flex-col items-center justify-center p-8 bg-white border border-amber-200 rounded-3xl shadow-lg my-8 text-center max-w-lg mx-auto">
                 <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center text-amber-600 mb-4 shadow-inner">
@@ -805,7 +844,7 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
     const currentProfile = filteredMatches[currentIndex];
     const isAlreadyMatched = currentProfile ? knownMatchIds.has(currentProfile.id) : false;
     const isDeckEmpty = currentIndex >= filteredMatches.length;
-    const hasActiveFilters = searchQuery || selectedParish;
+    const hasActiveFilters = Boolean(searchQuery || selectedParish || maxDistanceKm !== null);
 
     return (
         <div className="flex flex-col h-full w-full relative">
@@ -819,9 +858,9 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
                         <div className="bg-gradient-to-r from-rose-500 to-pink-600 p-5 text-white flex justify-between items-center">
                             <div>
                                 <h3 className="text-xl font-bold">❤️ Mes Admirateurs</h3>
-                                <p className="text-rose-100 text-sm">{admirateursList.length} personne{admirateursList.length !== 1 ? 's' : ''} vous aime</p>
+                                <p className="text-xs text-rose-100 mt-0.5">Personnes ayant aimé votre profil chrétien</p>
                             </div>
-                            <button onClick={() => setShowAdmirateurs(false)} className="bg-white/20 p-2 rounded-full hover:bg-white/30">
+                            <button onClick={() => setShowAdmirateurs(false)} className="bg-white/20 p-2 rounded-full hover:bg-white/30 text-white transition">
                                 <X size={18} />
                             </button>
                         </div>
@@ -880,40 +919,77 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
             {isFilterModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
                     <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsFilterModalOpen(false)} />
-                    <div className="bg-white w-full sm:w-[400px] sm:rounded-2xl rounded-t-2xl p-6 relative z-10 animate-in slide-in-from-bottom duration-300">
-                        <div className="flex justify-between items-center mb-6">
-                            <h3 className="text-xl font-bold text-slate-800 flex items-center">
-                                <SlidersHorizontal className="mr-2 text-emerald-600" /> Filtres
+                    <div className="bg-white w-full sm:w-[420px] sm:rounded-2xl rounded-t-2xl p-6 relative z-10 animate-in slide-in-from-bottom duration-300">
+                        <div className="flex justify-between items-center mb-5">
+                            <h3 className="text-xl font-black text-slate-800 flex items-center">
+                                <SlidersHorizontal className="mr-2 text-emerald-600" /> Filtres de Découverte
                             </h3>
-                            <button onClick={() => setIsFilterModalOpen(false)} className="bg-slate-100 p-2 rounded-full hover:bg-slate-200">
+                            <button onClick={() => setIsFilterModalOpen(false)} className="bg-slate-100 p-2 rounded-full hover:bg-slate-200 cursor-pointer">
                                 <X size={20} className="text-slate-600" />
                             </button>
                         </div>
 
-                        <div className="space-y-6">
+                        <div className="space-y-5">
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-2">Mots-clés (Nom, Bio, Intérêt)</label>
+                                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Mots-clés (Nom, Bio, Intérêt)</label>
                                 <div className="relative">
-                                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                                    <input type="text" className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:bg-white transition" placeholder="Ex: Chorale, Abidjan..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                                    <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                                    <input type="text" className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:bg-white text-sm transition" placeholder="Ex: Chorale, Abidjan, Musique..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
                                 </div>
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-2">Paroisse</label>
+                                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Paroisse / Église</label>
                                 <div className="relative">
-                                    <MapPin className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                                    <select value={selectedParish} onChange={(e) => setSelectedParish(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:bg-white transition appearance-none">
+                                    <MapPin className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                                    <select value={selectedParish} onChange={(e) => setSelectedParish(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:bg-white text-sm transition appearance-none">
                                         <option value="">Toutes les paroisses</option>
                                         {parishesList.map(parish => (<option key={parish.id} value={parish.name}>{parish.name}</option>))}
                                     </select>
-                                    <ChevronDown className="absolute right-3 top-3 h-4 w-4 text-slate-400 pointer-events-none" />
+                                    <ChevronDown className="absolute right-3 top-3.5 h-4 w-4 text-slate-400 pointer-events-none" />
                                 </div>
                             </div>
 
-                            <div className="pt-4 flex gap-3">
-                                <button onClick={handleResetFilters} className="flex-1 py-3 text-slate-500 font-medium hover:bg-slate-50 rounded-xl transition">Réinitialiser</button>
-                                <button onClick={handleApplyFilters} className="flex-1 py-3 bg-emerald-600 text-white font-bold rounded-xl shadow-lg hover:bg-emerald-700 transition">Chercher</button>
+                            {/* RAYON GÉOGRAPHIQUE GPS */}
+                            <div>
+                                <div className="flex justify-between items-center mb-1.5">
+                                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Rayon GPS de Proximité</label>
+                                    <span className="text-xs font-black text-emerald-700">
+                                        {maxDistanceKm === null ? 'Tous (Sans limite)' : `Moins de ${maxDistanceKm} km`}
+                                    </span>
+                                </div>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {[
+                                        { label: 'Tous', value: null },
+                                        { label: '≤ 5 km', value: 5 },
+                                        { label: '≤ 15 km', value: 15 },
+                                        { label: '≤ 30 km', value: 30 },
+                                        { label: '≤ 75 km', value: 75 },
+                                        { label: '≤ 150 km', value: 150 }
+                                    ].map(dist => (
+                                        <button
+                                            key={dist.label}
+                                            type="button"
+                                            onClick={() => setMaxDistanceKm(dist.value)}
+                                            className={`py-2 px-2 text-xs font-bold rounded-xl border transition-all cursor-pointer ${
+                                                maxDistanceKm === dist.value
+                                                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                                                    : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                                            }`}
+                                        >
+                                            {dist.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="pt-2 flex gap-3">
+                                <button onClick={handleResetFilters} className="flex-1 py-3 text-slate-600 font-bold hover:bg-slate-100 rounded-xl transition text-xs cursor-pointer border border-slate-200">
+                                    Réinitialiser
+                                </button>
+                                <button onClick={handleApplyFilters} className="flex-1 py-3 bg-emerald-600 text-white font-bold rounded-xl shadow-md hover:bg-emerald-700 transition text-xs cursor-pointer">
+                                    Appliquer les filtres
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -1041,7 +1117,11 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
                                             </>
                                         )}
                                         {currentProfile.badges && currentProfile.badges.map((badge, idx) => (
-                                            badge === 'COMMUNITY_CERTIFIED' ? (
+                                            badge === 'BAPTISM_CERTIFIED' ? (
+                                                <span key={idx} className="flex items-center gap-1 bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-500 text-slate-950 border border-yellow-200 text-[9px] sm:text-[10px] font-black px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full shadow-md">
+                                                    🕊️ Baptême Certifié
+                                                </span>
+                                            ) : badge === 'COMMUNITY_CERTIFIED' ? (
                                                 <span key={idx} className="flex items-center gap-1 bg-gradient-to-r from-amber-500 to-emerald-600 backdrop-blur-md text-white border border-amber-300/60 text-[9px] sm:text-[10px] font-extrabold px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full shadow-lg shadow-amber-500/30 animate-pulse">
                                                     🛡️✨ Certifié Communauté (Niveau 3)
                                                 </span>

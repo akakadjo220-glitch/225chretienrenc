@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { AlertTriangle, UserCheck, DollarSign, Users, LayoutDashboard, Shield, Check, X, Eye, Ban, Trash2, Search, Flag, MapPin, PlusCircle, Settings, LogOut, Play, Calendar, LinkIcon, Edit, FileText, Download, Crown, RefreshCw, CreditCard, CheckCircle, Save, Phone, MessageCircle, Send, Sparkles, Zap } from 'lucide-react';
+import { AlertTriangle, UserCheck, DollarSign, Users, LayoutDashboard, Shield, Check, X, Eye, Ban, Trash2, Search, Flag, MapPin, PlusCircle, Settings, LogOut, Play, Calendar, LinkIcon, Edit, FileText, Download, Crown, RefreshCw, CreditCard, CheckCircle, Save, Phone, MessageCircle, Send, Sparkles, Zap, ShieldCheck, Loader } from 'lucide-react';
 import { VerificationStatus, User, UserStatus, Report, Parish, AppEvent, PaymentSettings, PaymentTransaction, DashboardTab, PriestContact } from '../types';
 import { supabase, supabaseAdmin } from '../supabaseClient';
 import { getOpenWAConfig, saveOpenWAConfig, testOpenWAConnection, OpenWAConfig, DEFAULT_OPENWA_CONFIG } from '../openwaClient';
@@ -63,6 +63,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     const [transactions, setTransactions] = useState<PaymentTransaction[]>([]);
     const [txCurrentPage, setTxCurrentPage] = useState<number>(1);
     const [txSearchQuery, setTxSearchQuery] = useState<string>('');
+
+    // Moderation States
+    const [reportSearchQuery, setReportSearchQuery] = useState<string>('');
+    const [reportStatusFilter, setReportStatusFilter] = useState<'ALL' | 'OPEN' | 'RESOLVED' | 'DISMISSED'>('ALL');
+    const [selectedReport, setSelectedReport] = useState<Report | null>(null);
     const [txStatusFilter, setTxStatusFilter] = useState<string>('ALL');
 
     // Configuration des Points, Crédits et Abonnements
@@ -107,9 +112,90 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
         }
     };
 
+    // --- SYSTÈME DE POPUP / MODALE PERSONNALISÉE (REMPLACE WINDOW.CONFIRM & ALERT) ---
+    interface CustomDialogState {
+        isOpen: boolean;
+        type: 'CONFIRM' | 'ALERT' | 'SUCCESS' | 'DANGER' | 'INFO';
+        title: string;
+        message: string;
+        confirmText?: string;
+        cancelText?: string;
+        confirmStyle?: 'emerald' | 'amber' | 'rose' | 'slate';
+        onConfirm?: () => void;
+        onCancel?: () => void;
+    }
+
+    const [customDialog, setCustomDialog] = useState<CustomDialogState>({
+        isOpen: false,
+        type: 'INFO',
+        title: '',
+        message: ''
+    });
+
+    const triggerConfirm = ({
+        title,
+        message,
+        confirmText = 'Confirmer',
+        cancelText = 'Annuler',
+        confirmStyle = 'emerald',
+        onConfirm,
+        onCancel
+    }: {
+        title: string;
+        message: string;
+        confirmText?: string;
+        cancelText?: string;
+        confirmStyle?: 'emerald' | 'amber' | 'rose' | 'slate';
+        onConfirm: () => void;
+        onCancel?: () => void;
+    }) => {
+        setCustomDialog({
+            isOpen: true,
+            type: confirmStyle === 'rose' ? 'DANGER' : 'CONFIRM',
+            title,
+            message,
+            confirmText,
+            cancelText,
+            confirmStyle,
+            onConfirm: () => {
+                setCustomDialog(prev => ({ ...prev, isOpen: false }));
+                onConfirm();
+            },
+            onCancel: () => {
+                setCustomDialog(prev => ({ ...prev, isOpen: false }));
+                if (onCancel) onCancel();
+            }
+        });
+    };
+
+    const triggerAlert = ({
+        title,
+        message,
+        type = 'INFO',
+        onClose
+    }: {
+        title: string;
+        message: string;
+        type?: 'SUCCESS' | 'ALERT' | 'DANGER' | 'INFO';
+        onClose?: () => void;
+    }) => {
+        setCustomDialog({
+            isOpen: true,
+            type,
+            title,
+            message,
+            confirmText: 'Compris',
+            onConfirm: () => {
+                setCustomDialog(prev => ({ ...prev, isOpen: false }));
+                if (onClose) onClose();
+            }
+        });
+    };
+
     // Selection & Modal States
     const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
     const [searchUserQuery, setSearchUserQuery] = useState('');
+    const [isBypassingUserId, setIsBypassingUserId] = useState<string | null>(null);
 
     // Parish Modal
     const [isParishModalOpen, setIsParishModalOpen] = useState(false);
@@ -253,19 +339,53 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
         }
     };
 
-    // Charger les demandes de certification directement depuis Supabase DB
+    // Charger les demandes de Sceau Spirituel & Certifications Paroissiales directement depuis Supabase DB
     const loadCertificationRequests = async () => {
         let list: any[] = [];
         try {
-            const { data } = await supabase.from('system_settings').select('value').eq('key', 'certification_requests').maybeSingle();
-            if (data?.value && Array.isArray(data.value)) {
-                list = data.value;
+            // 1. Demandes issues de system_settings (recommandations ambassadeurs & notes paroissiales)
+            const { data: sysData } = await supabase.from('system_settings').select('value').eq('key', 'certification_requests').maybeSingle();
+            if (sysData?.value && Array.isArray(sysData.value)) {
+                list = [...sysData.value];
+            }
+
+            // 2. Demandes issues des profils avec certificat de baptême
+            const { data: baptismProfiles } = await supabase
+                .from('profiles')
+                .select('id, full_name, name, email, avatar_url, parish, document_baptism_url, updated_at, created_at')
+                .not('document_baptism_url', 'is', null);
+
+            if (baptismProfiles && baptismProfiles.length > 0) {
+                for (const p of baptismProfiles) {
+                    const existingIndex = list.findIndex((item: any) => item.userId === p.id);
+                    let baptismUrl = p.document_baptism_url;
+                    if (baptismUrl && !baptismUrl.startsWith('http')) {
+                        const { data: signed } = await supabase.storage.from('Private').createSignedUrl(baptismUrl, 3600);
+                        baptismUrl = signed?.signedUrl || supabase.storage.from('Private').getPublicUrl(baptismUrl).data.publicUrl;
+                    }
+
+                    if (existingIndex === -1) {
+                        list.push({
+                            id: 'cert-' + p.id,
+                            userId: p.id,
+                            userName: p.full_name || p.name || 'Membre 225',
+                            userEmail: p.email || 'Non renseigné',
+                            userAvatar: p.avatar_url,
+                            parish: p.parish || 'Non renseignée',
+                            baptismProofUrl: baptismUrl,
+                            notes: "Certificat de baptême téléversé pour l'obtention du Sceau Spirituel.",
+                            status: 'PENDING',
+                            submittedDate: new Date(p.updated_at || p.created_at || new Date()).toLocaleDateString('fr-FR')
+                        });
+                    } else if (baptismUrl) {
+                        list[existingIndex].baptismProofUrl = baptismUrl;
+                    }
+                }
             }
         } catch (e) {
             console.error("Error reading cert requests from Supabase:", e);
         }
         
-        // Charger les requêtes réelles depuis Supabase DB
         setCertificationRequests(list);
     };
 
@@ -283,14 +403,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                 updated_at: new Date().toISOString()
             }, { onConflict: 'key' });
 
-            await supabase.from('profiles').update({ verification_status: 'VERIFIED' }).eq('id', userId);
+            await supabase.from('profiles').update({ 
+                verification_status: 'VERIFIED',
+                updated_at: new Date().toISOString()
+            }).eq('id', userId);
+
+            alert("🕊️ Félicitations ! Le Sceau Spirituel & Paroissial a été validé avec succès. Le badge d'Excellence est maintenant actif sur le profil du membre.");
         } catch (e) {
             console.error("Erreur validation certification Supabase:", e);
+            alert("Une erreur s'est produite lors de la validation.");
         }
 
         loadCertificationRequests();
         setSelectedCertRequest(null);
-        alert("Félicitations ! L'utilisateur a été certifié en base de données Supabase avec succès.");
     };
 
     const handleRejectCertification = async (reqId: string) => {
@@ -307,7 +432,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
         loadCertificationRequests();
         setSelectedCertRequest(null);
-        alert("La demande de certification a été rejetée.");
+        alert("La demande de Sceau Spirituel a été rejetée.");
     };
 
     const renderAmbassadeurs = () => {
@@ -317,43 +442,71 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
         return (
             <div className="space-y-6 animate-in fade-in">
                 <div className="flex justify-between items-center">
-                    <h2 className="text-xl font-bold text-slate-800">Espace Ambassadeurs — Certifications Physiques</h2>
-                    <button onClick={loadCertificationRequests} className="p-2 bg-white border rounded-lg hover:bg-slate-50 transition" title="Rafraîchir">
-                        <RefreshCw size={18} />
+                    <div>
+                        <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                            <span>🕊️</span>
+                            <span>Espace Ambassadeurs — Sceau Spirituel & Paroissial</span>
+                        </h2>
+                        <p className="text-slate-500 text-xs mt-1">
+                            Examinez les certificats de baptême et les parrainages paroissiaux de terrain pour décerner le Badge Or d'Excellence Spirituelle.
+                        </p>
+                    </div>
+                    <button onClick={loadCertificationRequests} className="p-2.5 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition shadow-xs flex items-center gap-1.5 text-xs font-bold text-slate-700 cursor-pointer" title="Rafraîchir">
+                        <RefreshCw size={15} />
+                        <span>Actualiser</span>
                     </button>
                 </div>
                 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     <div className="lg:col-span-2 space-y-6">
-                        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                            <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 text-left">
-                                <h3 className="font-bold text-slate-800 text-sm">Demandes en attente de vérification physique</h3>
+                        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                            <div className="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-amber-500/10 to-amber-600/5 text-left flex items-center justify-between">
+                                <h3 className="font-bold text-amber-950 text-sm flex items-center gap-2">
+                                    <Shield size={16} className="text-amber-600" />
+                                    <span>Demandes de Sceau Spirituel en attente ({pending.length})</span>
+                                </h3>
+                                <span className="text-[11px] font-extrabold bg-amber-100 text-amber-900 px-2.5 py-0.5 rounded-full border border-amber-200">
+                                    Palier Excellence
+                                </span>
                             </div>
                             <table className="min-w-full divide-y divide-slate-200">
                                 <thead className="bg-slate-50/50">
                                     <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Membre</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Paroisse / Église</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Date</th>
-                                        <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase">Action</th>
+                                        <th className="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Membre</th>
+                                        <th className="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Paroisse / Église</th>
+                                        <th className="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Preuves fournies</th>
+                                        <th className="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Date</th>
+                                        <th className="px-6 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody className="bg-white divide-y divide-slate-200">
                                     {pending.map(req => (
-                                        <tr key={req.id} className={selectedCertRequest?.id === req.id ? 'bg-slate-50' : ''}>
+                                        <tr key={req.id} className={selectedCertRequest?.id === req.id ? 'bg-amber-50/60' : 'hover:bg-slate-50/70 transition'}>
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <div className="flex items-center">
-                                                    <img className="h-9 w-9 rounded-full object-cover mr-3 border" src={req.userAvatar || `https://ui-avatars.com/api/?name=${req.userName}`} alt="" />
+                                                    <img className="h-10 w-10 rounded-full object-cover mr-3 border-2 border-amber-400 shadow-2xs" src={req.userAvatar || `https://ui-avatars.com/api/?name=${req.userName}`} alt="" />
                                                     <div className="text-left">
                                                         <div className="text-sm font-bold text-slate-900">{req.userName}</div>
                                                         <div className="text-xs text-slate-500">{req.userEmail}</div>
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4 text-xs font-medium text-slate-700 text-left">{req.parish}</td>
+                                            <td className="px-6 py-4 text-xs font-bold text-slate-700 text-left">{req.parish}</td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-left space-y-1">
+                                                {req.baptismProofUrl && (
+                                                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-amber-100 text-amber-900 border border-amber-300 mr-1">
+                                                        📄 Certificat joint
+                                                    </span>
+                                                )}
+                                                {req.notes && (
+                                                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-teal-100 text-teal-900 border border-teal-300">
+                                                        ⛪ Recommandation
+                                                    </span>
+                                                )}
+                                            </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-500 text-left">{req.submittedDate}</td>
                                             <td className="px-6 py-4 whitespace-nowrap text-right text-xs font-bold">
-                                                <button onClick={() => setSelectedCertRequest(req)} className="text-emerald-600 hover:text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-lg transition">
+                                                <button onClick={() => setSelectedCertRequest(req)} className="text-amber-800 hover:text-amber-950 bg-amber-100 hover:bg-amber-200 px-3.5 py-1.5 rounded-xl transition font-extrabold border border-amber-300 shadow-2xs cursor-pointer">
                                                     Examiner
                                                 </button>
                                             </td>
@@ -361,8 +514,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                                     ))}
                                     {pending.length === 0 && (
                                         <tr>
-                                            <td colSpan={4} className="px-6 py-8 text-center text-slate-400 italic">
-                                                Aucune demande en attente.
+                                            <td colSpan={5} className="px-6 py-10 text-center text-slate-400 italic text-xs">
+                                                Aucune demande de Sceau Spirituel en attente actuellement.
                                             </td>
                                         </tr>
                                     )}
@@ -370,9 +523,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                             </table>
                         </div>
                         
-                        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                            <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 text-left">
-                                <h3 className="font-bold text-slate-800 text-sm">Membres certifiés récemment</h3>
+                        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                            <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 text-left flex items-center justify-between">
+                                <h3 className="font-bold text-slate-800 text-sm">Membres dotés du Sceau Spirituel & Paroissial ({approved.length})</h3>
+                                <span className="text-[10px] font-bold text-slate-400">Badge Or Actif</span>
                             </div>
                             <table className="min-w-full divide-y divide-slate-200">
                                 <tbody className="bg-white divide-y divide-slate-200">
@@ -380,14 +534,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                                         <tr key={req.id}>
                                             <td className="px-6 py-3 whitespace-nowrap">
                                                 <div className="flex items-center">
-                                                    <img className="h-8 w-8 rounded-full object-cover mr-3 border" src={req.userAvatar} alt="" />
+                                                    <img className="h-8 w-8 rounded-full object-cover mr-3 border-2 border-amber-400" src={req.userAvatar || `https://ui-avatars.com/api/?name=${req.userName}`} alt="" />
                                                     <span className="text-sm font-bold text-slate-800">{req.userName}</span>
                                                 </div>
                                             </td>
                                             <td className="px-6 py-3 text-xs text-slate-500 text-left">{req.parish}</td>
                                             <td className="px-6 py-3 text-right">
-                                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                                                    🛡️ Certifié
+                                                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs">
+                                                    🕊️ Sceau Validé
                                                 </span>
                                             </td>
                                         </tr>
@@ -406,47 +560,78 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                     
                     <div className="lg:col-span-1">
                         {selectedCertRequest ? (
-                            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 sticky top-6 text-left space-y-5 animate-in slide-in-from-right duration-300">
-                                <div className="text-center pb-4 border-b">
-                                    <img className="h-16 w-16 rounded-full object-cover mx-auto mb-3 border-2 border-emerald-500" src={selectedCertRequest.userAvatar} alt="" />
-                                    <h3 className="text-lg font-bold text-slate-900">{selectedCertRequest.userName}</h3>
+                            <div className="bg-white rounded-2xl shadow-xl border border-amber-200 p-6 sticky top-6 text-left space-y-5 animate-in slide-in-from-right duration-300">
+                                <div className="text-center pb-4 border-b border-slate-100">
+                                    <div className="relative inline-block">
+                                        <img className="h-18 w-18 rounded-full object-cover mx-auto mb-2 border-3 border-amber-500 shadow-md" src={selectedCertRequest.userAvatar || `https://ui-avatars.com/api/?name=${selectedCertRequest.userName}`} alt="" />
+                                        <span className="absolute bottom-1 right-0 text-base">🕊️</span>
+                                    </div>
+                                    <h3 className="text-lg font-extrabold text-slate-900">{selectedCertRequest.userName}</h3>
                                     <p className="text-xs text-slate-500">{selectedCertRequest.userEmail}</p>
                                 </div>
                                 
-                                <div className="space-y-3 text-xs">
+                                <div className="space-y-4 text-xs">
                                     <div>
                                         <span className="font-bold text-slate-400 uppercase tracking-wider text-[9px] block">Paroisse / Église déclarée</span>
-                                        <span className="text-slate-800 font-semibold text-sm mt-0.5 block">{selectedCertRequest.parish}</span>
+                                        <span className="text-slate-800 font-extrabold text-sm mt-0.5 block">{selectedCertRequest.parish}</span>
+                                    </div>
+
+                                    {/* PREUVE 1 : SCAN DU CERTIFICAT DE BAPTEME */}
+                                    <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-3.5 space-y-2">
+                                        <span className="font-bold text-amber-950 uppercase tracking-wider text-[10px] flex items-center gap-1.5">
+                                            <FileText size={14} className="text-amber-600" />
+                                            <span>Certificat de Baptême joint :</span>
+                                        </span>
+                                        {selectedCertRequest.baptismProofUrl ? (
+                                            <div className="space-y-2 pt-1">
+                                                <div className="h-40 rounded-lg overflow-hidden border border-amber-300 bg-white flex items-center justify-center">
+                                                    <img src={selectedCertRequest.baptismProofUrl} alt="Certificat de baptême" className="max-h-full max-w-full object-contain" />
+                                                </div>
+                                                <a 
+                                                    href={selectedCertRequest.baptismProofUrl} 
+                                                    target="_blank" 
+                                                    rel="noopener noreferrer" 
+                                                    className="inline-flex items-center justify-center w-full py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition shadow-xs cursor-pointer"
+                                                >
+                                                    Ouvrir le document en taille réelle ↗
+                                                </a>
+                                            </div>
+                                        ) : (
+                                            <p className="text-[11px] text-amber-800 italic">
+                                                Aucun certificat numérique joint. La demande repose sur la recommandation paroissiale de terrain.
+                                            </p>
+                                        )}
                                     </div>
                                     
+                                    {/* PREUVE 2 : NOTE D'ENGAGEMENT ET AMBASSADEUR */}
                                     <div>
-                                        <span className="font-bold text-slate-400 uppercase tracking-wider text-[9px] block">Note de recommandation paroissiale</span>
-                                        <p className="bg-slate-50 border p-3 rounded-xl text-slate-700 italic leading-relaxed mt-1">
+                                        <span className="font-bold text-slate-400 uppercase tracking-wider text-[9px] block">Note d'engagement & Recommandation</span>
+                                        <p className="bg-slate-50 border border-slate-200 p-3 rounded-xl text-slate-700 italic leading-relaxed mt-1 text-xs">
                                             "{selectedCertRequest.notes || 'Aucune note fournie.'}"
                                         </p>
                                     </div>
                                     
-                                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-[11px] text-amber-800 leading-normal">
-                                        <strong className="font-bold block mb-1">Rôle de l'Ambassadeur :</strong>
-                                        Vérifiez auprès de votre base de données locale ou lors de votre rencontre dominicale que ce membre participe activement et qu'il n'est pas un faux profil.
+                                    <div className="bg-teal-50 border border-teal-200 rounded-xl p-3 text-[11px] text-teal-900 leading-normal">
+                                        <strong className="font-bold block mb-1">Rôle de l'Ambassadeur / Modérateur :</strong>
+                                        Validez que le document ou la présence à la paroisse est authentique. La validation attribuera le <strong>Badge Or "Baptême & Paroisse Certifiés 🕊️"</strong>.
                                     </div>
                                 </div>
                                 
                                 <div className="flex gap-3 pt-2">
-                                    <button onClick={() => handleRejectCertification(selectedCertRequest.id)} className="flex-1 bg-red-50 text-red-600 hover:bg-red-100 font-bold py-2.5 rounded-xl transition text-xs">
+                                    <button onClick={() => handleRejectCertification(selectedCertRequest.id)} className="flex-1 bg-red-50 text-red-600 hover:bg-red-100 font-bold py-2.5 rounded-xl transition text-xs cursor-pointer">
                                         Rejeter
                                     </button>
-                                    <button onClick={() => handleApproveCertification(selectedCertRequest.id, selectedCertRequest.userId)} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl transition text-xs shadow-md shadow-emerald-600/20">
-                                        Certifier
+                                    <button onClick={() => handleApproveCertification(selectedCertRequest.id, selectedCertRequest.userId)} className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-extrabold py-2.5 rounded-xl transition text-xs shadow-md shadow-amber-600/20 flex items-center justify-center gap-1 cursor-pointer">
+                                        <span>🕊️ Valider le Sceau</span>
                                     </button>
                                 </div>
                             </div>
                         ) : (
                             <div className="bg-slate-50 p-8 text-center text-slate-400 rounded-2xl border border-dashed border-slate-200">
                                 <Shield className="mx-auto text-slate-300 h-10 w-10 mb-3" />
-                                <h4 className="font-bold text-slate-600 text-sm">Examen de demande</h4>
+                                <h4 className="font-bold text-slate-600 text-sm">Examen du Sceau Spirituel</h4>
                                 <p className="text-xs text-slate-400 mt-1 leading-normal">
-                                    Sélectionnez une demande dans le tableau pour examiner la recommandation de l'utilisateur.
+                                    Sélectionnez un membre dans le tableau pour examiner son certificat de baptême et sa note paroissiale.
                                 </p>
                             </div>
                         )}
@@ -535,24 +720,35 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
             // 4. Fetch Reports
             try {
-                const { data: reportsResult } = await supabase
+                const { data: reportsResult, error: repErr } = await supabase
                     .from('reports')
-                    .select(`*, reporter_user:profiles!reporter_id(full_name), reported_user:profiles!reported_user_id(full_name)`)
+                    .select('*')
                     .order('created_at', { ascending: false });
 
-                const formattedReports: Report[] = (reportsResult || []).map((r: any) => ({
-                    id: r.id,
-                    type: r.type || 'PROFILE',
-                    reporterName: r.reporter_user?.full_name || 'Inconnu',
-                    reportedUserName: r.reported_user?.full_name || 'Utilisateur supprimé',
-                    reportedUserId: r.reported_user_id,
-                    reason: r.reason,
-                    contentSnippet: '',
-                    date: new Date(r.created_at).toLocaleDateString(),
-                    status: r.status
-                }));
+                if (repErr) console.warn("Notice fetch reports:", repErr);
+
+                const formattedReports: Report[] = (reportsResult || []).map((r: any) => {
+                    const reportedProfile = rawUsers.find((u: any) => u.id === r.reported_user_id);
+                    const reporterProfile = rawUsers.find((u: any) => u.id === r.reporter_id);
+
+                    return {
+                        id: r.id,
+                        type: r.type || 'PROFILE',
+                        reporterName: r.reporter_name || reporterProfile?.full_name || reporterProfile?.name || 'Membre 225 Chrétien',
+                        reporterAvatar: reporterProfile?.avatar_url,
+                        reportedUserName: r.reported_user_name || reportedProfile?.full_name || reportedProfile?.name || 'Profil Signalé',
+                        reportedUserAvatar: reportedProfile?.avatar_url,
+                        reportedUserId: r.reported_user_id,
+                        reason: r.reason || "Signalement de comportement suspect ou demande de fonds",
+                        contentSnippet: r.details || r.snippet || '',
+                        date: new Date(r.created_at || new Date()).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+                        status: r.status || 'OPEN'
+                    };
+                });
                 setReports(formattedReports);
-            } catch (e) { }
+            } catch (e) {
+                console.error("Erreur chargement reports:", e);
+            }
 
             // 5. Fetch Payment Settings & Transactions
             try {
@@ -611,12 +807,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                     submittedDate: new Date(u.updated_at || u.created_at || new Date()).toLocaleDateString('fr-FR'),
                     verificationCode: u.id.substring(0, 4).toUpperCase(),
                     videoProofUrl: videoUrl,
+                    idProofUrl: idUrl,
+                    baptismProofUrl: baptismUrl,
+                    hasBaptismDoc: !!baptismUrl,
+                    hasIdDoc: !!idUrl,
+                    hasVideoDoc: !!videoUrl,
                     aiMatchScore: aiScore,
                     aiVerified: u.ai_verified !== false,
                     status: VerificationStatus.PENDING,
                     documents: [
-                        { type: 'ID', name: 'Pièce d\'Identité (CNI / Passeport)', url: idUrl },
-                        { type: 'BAPTISM', name: 'Certificat de Baptême', url: baptismUrl }
+                        { type: 'ID', name: 'Pièce d\'Identité (CNI / Passeport)', isRequired: true, url: idUrl },
+                        { type: 'BAPTISM', name: 'Certificat de Baptême (Sceau Spirituel)', isRequired: false, url: baptismUrl }
                     ]
                 };
             });
@@ -665,36 +866,144 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
         e.preventDefault();
         try {
             if (paymentSettings.id) {
-                await supabase.from('settings').update(paymentSettings).eq('id', paymentSettings.id);
+                await supabaseAdmin.from('settings').update(paymentSettings).eq('id', paymentSettings.id);
             } else {
-                await supabase.from('settings').insert([paymentSettings]);
+                await supabaseAdmin.from('settings').insert([paymentSettings]);
             }
-            alert("Configuration sauvegardée !");
+            triggerAlert({
+                title: "✅ Paramètres Enregistrés",
+                message: "La configuration des passerelles de paiement a été sauvegardée avec succès.",
+                type: "SUCCESS"
+            });
             loadAllData();
-        } catch (e) {
-            alert("Erreur sauvegarde configuration.");
+        } catch (e: any) {
+            triggerAlert({
+                title: "❌ Erreur",
+                message: "Erreur lors de la sauvegarde : " + (e.message || "Problème réseau"),
+                type: "DANGER"
+            });
         }
+    };
+
+    const handleBypassUserVerification = (userId: string, currentStatus: VerificationStatus, targetUser?: User) => {
+        const isAlreadyVerified = currentStatus === VerificationStatus.VERIFIED;
+        const targetName = targetUser?.name || 'ce membre';
+        
+        const dialogTitle = isAlreadyVerified
+            ? "⚡ Révoquer la Vérification (Niveau 2)"
+            : "⚡ Bypass de Validation Admin (Niveau 2)";
+
+        const dialogMessage = isAlreadyVerified
+            ? `Êtes-vous certain de vouloir révoquer le statut de vérification de ${targetName} et repasser son profil en Non vérifié ?`
+            : `Êtes-vous sûr de vouloir forcer la validation et certifier le profil de ${targetName} sans exiger les étapes d'IA DeepFace ou de documents ?\n\nCette action est journalisée avec traçabilité administrateur.`;
+
+        triggerConfirm({
+            title: dialogTitle,
+            message: dialogMessage,
+            confirmText: isAlreadyVerified ? "Révoquer le statut" : "Valider immédiatement (Bypass)",
+            confirmStyle: isAlreadyVerified ? "amber" : "emerald",
+            onConfirm: async () => {
+                const newStatus = isAlreadyVerified ? VerificationStatus.UNVERIFIED : VerificationStatus.VERIFIED;
+                setIsBypassingUserId(userId);
+
+                // Cybersécurité : Audit logging sécurisé
+                secureLog('ADMIN_BYPASS_VERIFICATION', `L'administrateur a ${isAlreadyVerified ? 'révoqué' : 'validé par bypass'} le profil de l'utilisateur ${userId} (${targetName})`, {
+                    userId,
+                    targetName,
+                    previousStatus: currentStatus,
+                    newStatus,
+                    timestamp: new Date().toISOString()
+                });
+
+                // Optimistic UI Update pour zéro temps de latence
+                setUsers(prev => prev.map(u => u.id === userId ? { ...u, verificationStatus: newStatus } : u));
+                setVerificationRequests(prev => prev.filter(r => r.userId !== userId));
+                if (selectedRequest?.userId === userId) {
+                    setSelectedRequest(null);
+                }
+
+                try {
+                    const updatePayload: any = {
+                        verification_status: newStatus,
+                        liveness_verified: !isAlreadyVerified,
+                        updated_at: new Date().toISOString()
+                    };
+
+                    const { error } = await supabaseAdmin
+                        .from('profiles')
+                        .update(updatePayload)
+                        .eq('id', userId);
+
+                    if (error) throw error;
+
+                    triggerAlert({
+                        title: !isAlreadyVerified ? "✅ Profil Validé par Bypass" : "✅ Statut Révoqué",
+                        message: `Le profil de ${targetName} a été ${!isAlreadyVerified ? 'validé et certifié avec succès (Bypass Niveau 2 activé).' : 'repassé en statut non vérifié.'}`,
+                        type: "SUCCESS"
+                    });
+                } catch (error: any) {
+                    console.error("Erreur bypass verification:", error);
+                    // Rollback en cas d'erreur
+                    setUsers(prev => prev.map(u => u.id === userId ? { ...u, verificationStatus: currentStatus } : u));
+                    triggerAlert({
+                        title: "❌ Erreur de mise à jour",
+                        message: error.message || "Erreur lors de la mise à jour du statut de vérification.",
+                        type: "DANGER"
+                    });
+                } finally {
+                    setIsBypassingUserId(null);
+                }
+            }
+        });
     };
 
     const handleApproveVerification = async (userId: string) => {
         try {
-            await supabase.from('profiles').update({ verification_status: 'VERIFIED' }).eq('id', userId);
+            await supabaseAdmin.from('profiles').update({ 
+                verification_status: 'VERIFIED',
+                liveness_verified: true,
+                updated_at: new Date().toISOString()
+            }).eq('id', userId);
             loadAllData();
             setSelectedRequest(null);
-        } catch (e) { alert("Erreur lors de la validation"); }
+            triggerAlert({
+                title: "✅ Profil Approuvé",
+                message: "Le profil a été certifié et validé avec succès.",
+                type: "SUCCESS"
+            });
+        } catch (e: any) {
+            triggerAlert({
+                title: "❌ Erreur",
+                message: "Erreur lors de la validation : " + (e.message || "Erreur inconnue"),
+                type: "DANGER"
+            });
+        }
     };
 
     const handleRejectVerification = async (userId: string) => {
         try {
-            await supabase.from('profiles').update({ verification_status: 'REJECTED' }).eq('id', userId);
+            await supabaseAdmin.from('profiles').update({ 
+                verification_status: 'REJECTED',
+                updated_at: new Date().toISOString()
+            }).eq('id', userId);
             loadAllData();
             setSelectedRequest(null);
-        } catch (e) { alert("Erreur lors du rejet"); }
+            triggerAlert({
+                title: "Statut Mis à Jour",
+                message: "La demande de vérification a été rejetée.",
+                type: "INFO"
+            });
+        } catch (e: any) {
+            triggerAlert({
+                title: "❌ Erreur",
+                message: "Erreur lors du rejet : " + (e.message || "Erreur inconnue"),
+                type: "DANGER"
+            });
+        }
     };
 
     // --- MODIFICATION PREMIUM (CORRIGÉE & SÉCURISÉE) ---
     const toggleUserPremium = async (e: React.MouseEvent, userId: string, currentStatus: boolean | undefined) => {
-        // Prévention des erreurs de script
         if (e && e.stopPropagation) e.stopPropagation();
 
         const newStatus = !currentStatus;
@@ -703,130 +1012,255 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
         setUsers(prev => prev.map(u => u.id === userId ? { ...u, isPremium: newStatus } : u));
 
         try {
-            const { error } = await supabase.from('profiles').update({ is_premium: newStatus }).eq('id', userId);
+            const { error } = await supabaseAdmin.from('profiles').update({ is_premium: newStatus }).eq('id', userId);
             if (error) throw error;
         } catch (error: any) {
             console.error("Echec mise à jour", error);
-            // Rollback en cas d'échec total (on remet l'ancien statut)
             setUsers(prev => prev.map(u => u.id === userId ? { ...u, isPremium: currentStatus } : u));
-            console.warn("Impossible de mettre à jour le statut Premium. Vérifiez les permissions.");
+            triggerAlert({
+                title: "❌ Erreur Premium",
+                message: "Impossible de modifier le statut Premium.",
+                type: "DANGER"
+            });
         }
     };
 
-    const toggleUserBan = async (userId: string, currentStatus: UserStatus | undefined = UserStatus.ACTIVE, targetUserObj?: any) => {
+    const toggleUserBan = (userId: string, currentStatus: UserStatus | undefined = UserStatus.ACTIVE, targetUserObj?: any) => {
         const safeStatus = currentStatus || UserStatus.ACTIVE;
         const isBanning = safeStatus !== UserStatus.BANNED;
-        const confirmMsg = isBanning 
-            ? "⛔ Êtes-vous sûr de vouloir BANNIR cet utilisateur et BLOQUER son numéro, son email, son IP et son appareil ?" 
-            : "Êtes-vous sûr de vouloir débannir cet utilisateur ?";
+        const targetName = targetUserObj?.name || 'ce membre';
         
-        if (!window.confirm(confirmMsg)) return;
+        triggerConfirm({
+            title: isBanning ? "⛔ Bannissement & Blocage de Sécurité" : "Débannir l'Utilisateur",
+            message: isBanning 
+                ? `Êtes-vous certain de vouloir BANNIR ${targetName} et BLOQUER son numéro, son email, son IP et son appareil ?` 
+                : `Êtes-vous certain de vouloir débannir ${targetName} et rétablir son accès ?`,
+            confirmText: isBanning ? "Oui, bannir & blacklister" : "Débannir",
+            confirmStyle: isBanning ? "rose" : "emerald",
+            onConfirm: async () => {
+                const newStatus = isBanning ? UserStatus.BANNED : UserStatus.ACTIVE;
+                setUsers(prev => prev.map(u => u.id === userId ? { ...u, status: newStatus } : u));
 
-        const newStatus = isBanning ? UserStatus.BANNED : UserStatus.ACTIVE;
+                try {
+                    await supabaseAdmin.from('profiles').update({ status: newStatus }).eq('id', userId);
 
-        // Optimistic UI update
-        setUsers(prev => prev.map(u => u.id === userId ? { ...u, status: newStatus } : u));
+                    if (isBanning) {
+                        const phone = targetUserObj?.phone || targetUserObj?.name;
+                        const email = targetUserObj?.email;
+                        const clientIp = await getClientIp();
+                        const fingerprint = getDeviceFingerprint();
 
-        try {
-            // 1. Update profiles table
-            await supabase.from('profiles').update({ status: newStatus }).eq('id', userId);
+                        const itemsToBan: any[] = [
+                            { type: 'USER_ID', value: userId, reason: `Banni par l'admin (${targetUserObj?.name || 'Membre'})` }
+                        ];
+                        if (phone) itemsToBan.push({ type: 'PHONE', value: phone, reason: `Numéro banni (${targetUserObj?.name || 'Membre'})` });
+                        if (email) itemsToBan.push({ type: 'EMAIL', value: email, reason: `Email banni (${targetUserObj?.name || 'Membre'})` });
+                        if (clientIp) itemsToBan.push({ type: 'IP', value: clientIp, reason: `IP bannie (${targetUserObj?.name || 'Membre'})` });
+                        if (fingerprint) itemsToBan.push({ type: 'FINGERPRINT', value: fingerprint, reason: `Appareil banni (${targetUserObj?.name || 'Membre'})` });
 
-            if (isBanning) {
-                // 2. Extrait le téléphone, l'email, l'IP et l'empreinte appareil
-                const phone = targetUserObj?.phone || targetUserObj?.name;
-                const email = targetUserObj?.email;
-                const clientIp = await getClientIp();
-                const fingerprint = getDeviceFingerprint();
-
-                const itemsToBan: any[] = [
-                    { type: 'USER_ID', value: userId, reason: `Banni par l'admin (${targetUserObj?.name || 'Membre'})` }
-                ];
-                if (phone) itemsToBan.push({ type: 'PHONE', value: phone, reason: `Numéro banni (${targetUserObj?.name || 'Membre'})` });
-                if (email) itemsToBan.push({ type: 'EMAIL', value: email, reason: `Email banni (${targetUserObj?.name || 'Membre'})` });
-                if (clientIp) itemsToBan.push({ type: 'IP', value: clientIp, reason: `IP bannie (${targetUserObj?.name || 'Membre'})` });
-                if (fingerprint) itemsToBan.push({ type: 'FINGERPRINT', value: fingerprint, reason: `Appareil banni (${targetUserObj?.name || 'Membre'})` });
-
-                await banIdentifiers(itemsToBan);
-                alert(`⛔ Utilisateur ${targetUserObj?.name || userId} BANNÍ et BLACKLISTÉ avec succès !\n\nNuméro (${phone || 'N/A'}), Email, IP et Appareil bloqués.`);
+                        await banIdentifiers(itemsToBan);
+                        triggerAlert({
+                            title: "⛔ Utilisateur Banni & Blacklisté",
+                            message: `L'utilisateur ${targetName} a été banni avec succès. Le numéro (${phone || 'N/A'}), l'email, l'adresse IP et l'appareil ont été bloqués.`,
+                            type: "SUCCESS"
+                        });
+                    } else {
+                        triggerAlert({
+                            title: "✅ Utilisateur Réactivé",
+                            message: `Le compte de ${targetName} est de nouveau actif.`,
+                            type: "SUCCESS"
+                        });
+                    }
+                } catch (error: any) {
+                    console.error("Erreur changement statut ban", error);
+                    setUsers(prev => prev.map(u => u.id === userId ? { ...u, status: currentStatus } : u));
+                    triggerAlert({
+                        title: "❌ Erreur",
+                        message: "Erreur lors de la mise à jour du statut.",
+                        type: "DANGER"
+                    });
+                }
             }
-        } catch (error: any) {
-            console.error("Erreur changement statut ban", error);
-            setUsers(prev => prev.map(u => u.id === userId ? { ...u, status: currentStatus } : u));
-            alert("Erreur lors de la mise à jour du statut.");
-        }
+        });
     };
 
-    const deleteUser = async (userId: string, targetUserObj?: any) => {
-        if (window.confirm('🚨 ATTENTION CYBERSÉCURITÉ :\n\nÊtes-vous sûr de vouloir SUPPRIMER et BLACKLISTER cet utilisateur définitivement ?\n\nLe numéro de téléphone, l\'email, l\'adresse IP et l\'appareil seront bloqués dans la liste noire de sécurité pour empêcher toute réinscription ou reconnexion !')) {
-            try {
-                // 1. Supprimer de profiles DB
-                await supabase.from('profiles').delete().eq('id', userId);
-
-                // 2. Tenter la suppression dans Supabase Auth s'il y a les droits admin
+    const deleteUser = (userId: string, targetUserObj?: any) => {
+        const targetName = targetUserObj?.name || 'ce membre';
+        triggerConfirm({
+            title: "🚨 Suppression Définitive & Blacklist",
+            message: `ATTENTION CYBERSÉCURITÉ :\n\nÊtes-vous certain de vouloir SUPPRIMER et BLACKLISTER ${targetName} définitivement ?\n\nLe numéro de téléphone, l'email, l'adresse IP et l'appareil seront inscrits dans la liste noire pour empêcher toute réinscription !`,
+            confirmText: "Supprimer & Blacklister",
+            confirmStyle: "rose",
+            onConfirm: async () => {
                 try {
-                    await supabaseAdmin.auth.admin.deleteUser(userId);
-                } catch (authErr) {
-                    console.warn("Notice: Suppression auth direct via client restreinte, la liste noire assure l'expulsion totale.", authErr);
+                    await supabaseAdmin.from('profiles').delete().eq('id', userId);
+
+                    try {
+                        await supabaseAdmin.auth.admin.deleteUser(userId);
+                    } catch (authErr) {
+                        console.warn("Notice suppression auth:", authErr);
+                    }
+
+                    const phone = targetUserObj?.phone || targetUserObj?.name;
+                    const email = targetUserObj?.email;
+                    const clientIp = await getClientIp();
+                    const fingerprint = getDeviceFingerprint();
+
+                    const itemsToBan: any[] = [
+                        { type: 'USER_ID', value: userId, reason: `Supprimé et banni (${targetUserObj?.name || 'Membre'})` }
+                    ];
+                    if (phone) itemsToBan.push({ type: 'PHONE', value: phone, reason: `Numéro banni (${targetUserObj?.name || 'Membre'})` });
+                    if (email) itemsToBan.push({ type: 'EMAIL', value: email, reason: `Email banni (${targetUserObj?.name || 'Membre'})` });
+                    if (clientIp) itemsToBan.push({ type: 'IP', value: clientIp, reason: `IP bannie (${targetUserObj?.name || 'Membre'})` });
+                    if (fingerprint) itemsToBan.push({ type: 'FINGERPRINT', value: fingerprint, reason: `Appareil banni (${targetUserObj?.name || 'Membre'})` });
+
+                    await banIdentifiers(itemsToBan);
+                    setUsers(prev => prev.filter(u => u.id !== userId));
+
+                    triggerAlert({
+                        title: "🗑️ Compte Supprimé & Blacklisté",
+                        message: `Le compte de ${targetName} a été supprimé et ses identifiants sont désormais bloqués dans la liste noire.`,
+                        type: "SUCCESS"
+                    });
+                } catch (e: any) {
+                    triggerAlert({
+                        title: "❌ Erreur de suppression",
+                        message: e.message || "Erreur lors de la suppression.",
+                        type: "DANGER"
+                    });
                 }
-
-                // 3. Ajouter à la Liste Noire (Blacklist) pour bloquer IP, Fingerprint, Téléphone & Email
-                const phone = targetUserObj?.phone || targetUserObj?.name;
-                const email = targetUserObj?.email;
-                const clientIp = await getClientIp();
-                const fingerprint = getDeviceFingerprint();
-
-                const itemsToBan: any[] = [
-                    { type: 'USER_ID', value: userId, reason: `Supprimé et banni (${targetUserObj?.name || 'Membre'})` }
-                ];
-                if (phone) itemsToBan.push({ type: 'PHONE', value: phone, reason: `Numéro banni (${targetUserObj?.name || 'Membre'})` });
-                if (email) itemsToBan.push({ type: 'EMAIL', value: email, reason: `Email banni (${targetUserObj?.name || 'Membre'})` });
-                if (clientIp) itemsToBan.push({ type: 'IP', value: clientIp, reason: `IP bannie (${targetUserObj?.name || 'Membre'})` });
-                if (fingerprint) itemsToBan.push({ type: 'FINGERPRINT', value: fingerprint, reason: `Appareil banni (${targetUserObj?.name || 'Membre'})` });
-
-                // Viser également spécifiquement le numéro 0779604919 s'il s'agit du compte supprimé
-                if (phone?.includes('0779604919') || email?.includes('0779604919') || targetUserObj?.name?.includes('0779604919')) {
-                    itemsToBan.push({ type: 'PHONE', value: '0779604919', reason: 'Numéro 0779604919 banni' });
-                    itemsToBan.push({ type: 'EMAIL', value: 'wa_0779604919@225chretien.ci', reason: 'Email 0779604919 banni' });
-                }
-
-                await banIdentifiers(itemsToBan);
-
-                setUsers(prev => prev.filter(u => u.id !== userId));
-                alert(`🗑️ Compte ${targetUserObj?.name || userId} SUPPRIMÉ et BLACKLISTÉ !\n\nLe numéro (${phone || 'N/A'}), l'email, l'adresse IP et l'appareil ont été bloqués définitivement.`);
-            } catch (e: any) {
-                alert(`Erreur suppression: ${e.message || e}`);
             }
-        }
+        });
     };
 
     const resolveReport = async (reportId: string) => {
         try {
-            await supabase.from('reports').update({ status: 'RESOLVED' }).eq('id', reportId);
+            await supabaseAdmin.from('reports').update({ status: 'RESOLVED' }).eq('id', reportId);
             setReports(prev => prev.map(r => r.id === reportId ? { ...r, status: 'RESOLVED' } : r));
-        } catch (e) { alert("Erreur update report"); }
+            triggerAlert({
+                title: "✅ Signalement Résolu",
+                message: "Le signalement a été marqué comme traité.",
+                type: "SUCCESS"
+            });
+        } catch (e: any) {
+            triggerAlert({
+                title: "❌ Erreur",
+                message: "Erreur mise à jour signalement.",
+                type: "DANGER"
+            });
+        }
     };
 
     const dismissReport = async (reportId: string) => {
         try {
-            await supabase.from('reports').update({ status: 'DISMISSED' }).eq('id', reportId);
+            await supabaseAdmin.from('reports').update({ status: 'DISMISSED' }).eq('id', reportId);
             setReports(prev => prev.map(r => r.id === reportId ? { ...r, status: 'DISMISSED' } : r));
-        } catch (e) { alert("Erreur update report"); }
+            triggerAlert({
+                title: "Signalement Ignoré",
+                message: "Le signalement a été archivé sans suite.",
+                type: "INFO"
+            });
+        } catch (e: any) {
+            triggerAlert({
+                title: "❌ Erreur",
+                message: "Erreur mise à jour signalement.",
+                type: "DANGER"
+            });
+        }
     };
 
-    const deleteParish = async (id: string) => {
-        if (window.confirm('Supprimer cette paroisse ?')) {
-            try {
-                await supabase.from('parishes').delete().eq('id', id);
-                setParishes(prev => prev.filter(p => p.id !== id));
-            } catch (e) { alert("Erreur suppression paroisse"); }
+    const handleBanReportedUser = (report: Report) => {
+        const targetUser = users.find(u => u.id === report.reportedUserId);
+        if (!targetUser) {
+            triggerAlert({
+                title: "Utilisateur Introuvable",
+                message: "Le profil lié à ce signalement n'existe plus ou a déjà été supprimé.",
+                type: "WARNING"
+            });
+            return;
         }
+
+        triggerConfirm({
+            title: `Bannir ${targetUser.name} ?`,
+            message: `Ce profil fait l'objet d'un signalement pour : "${report.reason}". Souhaitez-vous le suspendre immédiatement de la communauté ?`,
+            confirmText: "Bannir Définitivement",
+            confirmColor: "bg-red-600 hover:bg-red-700",
+            onConfirm: async () => {
+                await toggleUserBan(targetUser.id, targetUser.status, targetUser);
+                await resolveReport(report.id);
+            }
+        });
+    };
+
+    const handleCreateTestReport = async () => {
+        const potentialTarget = users.find(u => u.role !== 'ADMIN') || users[0];
+        if (!potentialTarget) {
+            triggerAlert({
+                title: "Aucun utilisateur",
+                message: "Veuillez d'abord inscrire un membre pour créer un signalement test.",
+                type: "WARNING"
+            });
+            return;
+        }
+
+        try {
+            const { error } = await supabaseAdmin.from('reports').insert({
+                reporter_name: "Sœur Grâce (Paroisse St-Jean)",
+                reported_user_name: potentialTarget.name,
+                reported_user_id: potentialTarget.id,
+                reason: "Demande suspecte de transfert d'argent (Wave / Orange Money) en prétextant une urgence médicale",
+                status: 'OPEN',
+                type: 'MESSAGE'
+            });
+
+            if (error) throw error;
+
+            triggerAlert({
+                title: "🚨 Signalement Test Créé",
+                message: "Un signalement de démonstration a été généré avec succès !",
+                type: "SUCCESS"
+            });
+            loadAllData();
+        } catch (e: any) {
+            triggerAlert({
+                title: "❌ Erreur",
+                message: e.message || "Erreur création signalement test.",
+                type: "DANGER"
+            });
+        }
+    };
+
+    const deleteParish = (id: string) => {
+        triggerConfirm({
+            title: "Supprimer la Paroisse",
+            message: "Êtes-vous certain de vouloir supprimer cette paroisse de la liste ?",
+            confirmText: "Supprimer",
+            confirmStyle: "rose",
+            onConfirm: async () => {
+                try {
+                    await supabaseAdmin.from('parishes').delete().eq('id', id);
+                    setParishes(prev => prev.filter(p => p.id !== id));
+                    triggerAlert({
+                        title: "✅ Paroisse Supprimée",
+                        message: "La paroisse a été retirée avec succès.",
+                        type: "SUCCESS"
+                    });
+                } catch (e: any) {
+                    triggerAlert({
+                        title: "❌ Erreur",
+                        message: "Erreur lors de la suppression.",
+                        type: "DANGER"
+                    });
+                }
+            }
+        });
     };
 
     const handleAddParish = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!newParish.name || !newParish.city) return;
         try {
-            const { data, error } = await supabase.from('parishes').insert([{
+            const { data, error } = await supabaseAdmin.from('parishes').insert([{
                 name: newParish.name, city: newParish.city, member_count: Number(newParish.count) || 0
             }]).select();
 
@@ -834,17 +1268,46 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             const record = data[0];
 
             setParishes([...parishes, { id: record.id, name: record.name, city: record.city, memberCount: record.member_count }]);
-            setNewParish({ name: '', city: '', count: '' }); setIsParishModalOpen(false);
-        } catch (e) { alert("Erreur création paroisse"); }
+            setNewParish({ name: '', city: '', count: '' }); 
+            setIsParishModalOpen(false);
+            triggerAlert({
+                title: "✅ Paroisse Ajoutée",
+                message: `La paroisse ${record.name} a été ajoutée au répertoire.`,
+                type: "SUCCESS"
+            });
+        } catch (e: any) {
+            triggerAlert({
+                title: "❌ Erreur",
+                message: "Erreur création paroisse.",
+                type: "DANGER"
+            });
+        }
     };
 
-    const deleteEvent = async (id: string) => {
-        if (window.confirm('Supprimer cet événement ?')) {
-            try {
-                await supabase.from('events').delete().eq('id', id);
-                setEvents(prev => prev.filter(e => e.id !== id));
-            } catch (e) { alert("Erreur suppression événement"); }
-        }
+    const deleteEvent = (id: string) => {
+        triggerConfirm({
+            title: "Supprimer l'Événement",
+            message: "Êtes-vous certain de vouloir supprimer cet événement chrétien ?",
+            confirmText: "Supprimer",
+            confirmStyle: "rose",
+            onConfirm: async () => {
+                try {
+                    await supabaseAdmin.from('events').delete().eq('id', id);
+                    setEvents(prev => prev.filter(e => e.id !== id));
+                    triggerAlert({
+                        title: "✅ Événement Supprimé",
+                        message: "L'événement a été retiré du calendrier.",
+                        type: "SUCCESS"
+                    });
+                } catch (e: any) {
+                    triggerAlert({
+                        title: "❌ Erreur",
+                        message: "Erreur suppression événement.",
+                        type: "DANGER"
+                    });
+                }
+            }
+        });
     };
 
     const openCreateEventModal = () => {
@@ -869,18 +1332,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
         try {
             const eventData = { title: newEvent.title, date: new Date(newEvent.date).toISOString(), location: newEvent.location, description: newEvent.description, link: newEvent.link };
             if (editingEventId) {
-                await supabase.from('events').update(eventData).eq('id', editingEventId);
+                await supabaseAdmin.from('events').update(eventData).eq('id', editingEventId);
                 const updatedEvent: AppEvent = { id: editingEventId, ...eventData };
                 setEvents(prev => prev.map(e => e.id === editingEventId ? updatedEvent : e));
             } else {
-                const { data, error } = await supabase.from('events').insert([eventData]).select();
+                const { data, error } = await supabaseAdmin.from('events').insert([eventData]).select();
                 if (error) throw error;
                 const record = data[0];
                 const newEventObj: AppEvent = { id: record.id, title: record.title, date: record.date, location: record.location, description: record.description, link: record.link };
                 setEvents([newEventObj, ...events]);
             }
             setIsEventModalOpen(false);
-        } catch (e) { alert("Erreur sauvegarde événement."); }
+            triggerAlert({
+                title: "✅ Événement Enregistré",
+                message: "L'événement a été sauvegardé avec succès.",
+                type: "SUCCESS"
+            });
+        } catch (e: any) {
+            triggerAlert({
+                title: "❌ Erreur",
+                message: "Erreur sauvegarde événement : " + (e.message || "Erreur inconnue"),
+                type: "DANGER"
+            });
+        }
     };
 
     const openEventAttendeesModal = async (event: AppEvent) => {
@@ -956,7 +1430,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
         e.preventDefault();
         if (!newPriest.name || !newPriest.phone) return;
         try {
-            const { data, error } = await supabase.from('priest_contacts').insert([{
+            const { data, error } = await supabaseAdmin.from('priest_contacts').insert([{
                 name: newPriest.name,
                 parish: newPriest.parish,
                 phone: newPriest.phone
@@ -966,17 +1440,37 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             setPriests([...priests, { id: record.id, name: record.name, parish: record.parish, phone: record.phone }]);
             setNewPriest({ name: '', parish: '', phone: '' });
             setIsPriestModalOpen(false);
-        } catch (e) { alert("Erreur lors de l'ajout du contact."); }
+            triggerAlert({
+                title: "✅ Accompagnateur Ajouté",
+                message: `Le contact de ${record.name} a été enregistré.`,
+                type: "SUCCESS"
+            });
+        } catch (e: any) { 
+            triggerAlert({
+                title: "❌ Erreur",
+                message: "Erreur lors de l'ajout du contact : " + (e.message || "Erreur inconnue"),
+                type: "DANGER"
+            });
+        }
     };
 
     const confirmDeletePriest = async () => {
         if (!priestToDelete) return;
         try {
-            await supabase.from('priest_contacts').delete().eq('id', priestToDelete);
+            await supabaseAdmin.from('priest_contacts').delete().eq('id', priestToDelete);
             setPriests(prev => prev.filter(p => p.id !== priestToDelete));
             setPriestToDelete(null);
-        } catch (e) {
-            alert("Erreur suppression contact.");
+            triggerAlert({
+                title: "✅ Contact Supprimé",
+                message: "L'accompagnateur a été supprimé du répertoire.",
+                type: "SUCCESS"
+            });
+        } catch (e: any) {
+            triggerAlert({
+                title: "❌ Erreur",
+                message: "Erreur suppression contact : " + (e.message || "Erreur inconnue"),
+                type: "DANGER"
+            });
         }
     };
 
@@ -1253,7 +1747,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                 </div>
 
                 {/* TABLEAU DES TRANSACTIONS FINANCIÈRES */}
-                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
                     <div className="px-6 py-4 border-b border-slate-100 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                         <div>
                             <h3 className="font-bold text-slate-800 text-lg">Historique des Transactions</h3>
@@ -1365,37 +1859,37 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
         );
         return (
             <div className="space-y-6 animate-in fade-in">
-                <div className="flex justify-between items-center text-left">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 text-left">
                     <div>
                         <h2 className="text-xl font-bold text-slate-800">Gestion des Membres & Liste Noire de Sécurité</h2>
                         <p className="text-xs text-slate-500">Gérez les comptes, appliquez des abonnements ou bloquez définitivement des brouteurs par IP, Empreinte & Numéro.</p>
                     </div>
-                    <div className="flex gap-2">
-                        <button onClick={loadAllData} className="p-2 bg-white border rounded-xl hover:bg-slate-50 transition" title="Rafraîchir">
-                            <RefreshCw size={18} />
+                    <div className="flex items-center gap-2 shrink-0">
+                        <button onClick={loadAllData} className="p-2.5 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition shadow-xs cursor-pointer" title="Rafraîchir">
+                            <RefreshCw size={16} />
                         </button>
                         <div className="relative">
                             <input 
                                 type="text" 
-                                placeholder="Rechercher par nom, email ou 07796..." 
+                                placeholder="Rechercher nom, email, tél..." 
                                 value={searchUserQuery} 
                                 onChange={(e) => setSearchUserQuery(e.target.value)} 
-                                className="pl-9 pr-4 py-2 border rounded-xl text-sm w-64 shadow-xs" 
+                                className="pl-9 pr-4 py-2 border border-slate-300 rounded-xl text-sm w-56 sm:w-64 shadow-xs focus:ring-2 focus:ring-emerald-500 outline-none" 
                             />
                             <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                         </div>
                     </div>
                 </div>
 
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-x-auto">
                     <table className="min-w-full divide-y divide-slate-200">
                         <thead className="bg-slate-50/60">
                             <tr>
-                                <th className="px-6 py-3.5 text-left text-xs font-medium text-slate-500 uppercase">Membre</th>
-                                <th className="px-6 py-3.5 text-left text-xs font-medium text-slate-500 uppercase">Statut Sécurité</th>
-                                <th className="px-6 py-3.5 text-left text-xs font-medium text-slate-500 uppercase">Vérification</th>
-                                <th className="px-6 py-3.5 text-left text-xs font-medium text-slate-500 uppercase">Abonnement</th>
-                                <th className="px-6 py-3.5 text-right text-xs font-medium text-slate-500 uppercase">Actions Cybersécurité</th>
+                                <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Membre</th>
+                                <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Statut Sécurité</th>
+                                <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Vérification</th>
+                                <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Abonnement</th>
+                                <th className="px-6 py-3.5 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Actions Cybersécurité</th>
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-slate-200">
@@ -1413,7 +1907,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                                     <td className="px-6 py-4 whitespace-nowrap text-left">
                                         <button
                                             onClick={() => toggleUserBan(user.id, user.status, user)}
-                                            className={`px-3 py-1 inline-flex text-xs font-bold rounded-full border shadow-xs transition ${
+                                            className={`px-3 py-1 inline-flex text-xs font-bold rounded-full border shadow-xs transition cursor-pointer ${
                                                 user.status === UserStatus.ACTIVE 
                                                     ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-red-50 hover:text-red-700 hover:border-red-200' 
                                                     : 'bg-red-100 text-red-800 border-red-300 hover:bg-emerald-50 hover:text-emerald-700'
@@ -1424,15 +1918,38 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                                         </button>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-left">
-                                        {user.verificationStatus === VerificationStatus.VERIFIED ? (
-                                            <span className="flex items-center text-emerald-600 text-xs font-bold bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 w-fit">
-                                                <Shield className="h-3.5 w-3.5 mr-1" /> Niveau 2 Vérifié
-                                            </span>
-                                        ) : user.verificationStatus === VerificationStatus.REJECTED ? (
-                                            <span className="text-red-600 text-xs font-bold bg-red-50 px-2.5 py-1 rounded-full border border-red-200 w-fit">Rejeté</span>
-                                        ) : (
-                                            <span className="text-slate-400 text-xs bg-slate-100 px-2.5 py-1 rounded-full w-fit">Non vérifié</span>
-                                        )}
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            {user.verificationStatus === VerificationStatus.VERIFIED ? (
+                                                <span className="flex items-center text-emerald-700 text-xs font-extrabold bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 shadow-xs">
+                                                    <ShieldCheck className="h-3.5 w-3.5 mr-1 text-emerald-600" /> Niveau 2 Vérifié
+                                                </span>
+                                            ) : user.verificationStatus === VerificationStatus.REJECTED ? (
+                                                <span className="text-red-700 text-xs font-bold bg-red-50 px-2.5 py-1 rounded-full border border-red-200">Rejeté</span>
+                                            ) : user.verificationStatus === VerificationStatus.PENDING ? (
+                                                <span className="text-amber-700 text-xs font-bold bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200">En attente</span>
+                                            ) : (
+                                                <span className="text-slate-400 text-xs bg-slate-100 px-2.5 py-1 rounded-full">Non vérifié</span>
+                                            )}
+
+                                            <button
+                                                type="button"
+                                                onClick={() => handleBypassUserVerification(user.id, user.verificationStatus, user)}
+                                                disabled={isBypassingUserId === user.id}
+                                                className={`px-2.5 py-1 rounded-lg text-xs font-extrabold border transition flex items-center gap-1 shadow-xs transform active:scale-95 cursor-pointer ${
+                                                    user.verificationStatus === VerificationStatus.VERIFIED
+                                                        ? 'bg-slate-50 hover:bg-red-50 text-slate-500 hover:text-red-600 border-slate-200 hover:border-red-200'
+                                                        : 'bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white border-emerald-600 shadow-sm'
+                                                }`}
+                                                title={user.verificationStatus === VerificationStatus.VERIFIED ? "Révoquer la validation du profil" : "Bypass Admin : Valider et certifier immédiatement ce profil (Niveau 2)"}
+                                            >
+                                                {isBypassingUserId === user.id ? (
+                                                    <Loader className="animate-spin h-3.5 w-3.5" />
+                                                ) : (
+                                                    <Zap size={12} className={user.verificationStatus === VerificationStatus.VERIFIED ? 'text-slate-400' : 'fill-white'} />
+                                                )}
+                                                <span>{user.verificationStatus === VerificationStatus.VERIFIED ? 'Révoquer' : 'Bypass'}</span>
+                                            </button>
+                                        </div>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-left">
                                         <button 
@@ -1446,10 +1963,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                                         </button>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-right text-xs font-bold">
-                                        <div className="flex justify-end gap-2">
+                                        <div className="flex justify-end items-center gap-2">
                                             <button 
                                                 onClick={() => toggleUserBan(user.id, user.status, user)} 
-                                                className={`px-3 py-1.5 rounded-xl border font-bold transition flex items-center gap-1 ${
+                                                className={`px-3 py-1.5 rounded-xl border font-bold transition flex items-center gap-1 cursor-pointer ${
                                                     user.status === UserStatus.ACTIVE 
                                                         ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100' 
                                                         : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
@@ -1460,11 +1977,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                                             </button>
                                             <button 
                                                 onClick={() => deleteUser(user.id, user)} 
-                                                className="text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-xl border border-red-200 transition flex items-center gap-1"
+                                                className="text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-xl border border-red-200 transition flex items-center gap-1 cursor-pointer"
                                                 title="Supprimer & Blacklister l'IP + Appareil + Numéro"
                                             >
                                                 <Trash2 size={14} />
-                                                <span>Supprimer & Blacklister</span>
+                                                <span>Supprimer</span>
                                             </button>
                                         </div>
                                     </td>
@@ -1490,31 +2007,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             <div className="space-y-6 animate-in fade-in">
                 <div className="flex justify-between items-center text-left">
                     <div>
-                        <h2 className="text-xl font-bold text-slate-800">Demandes de Vérification d'Identité (Niveau 2)</h2>
-                        <p className="text-xs text-slate-500">Examinez le score de certitude biométrique IA (DeepFace), les pièces d'identité, certificats et la vidéo liveness de 5 secondes.</p>
+                        <h2 className="text-xl font-bold text-slate-800">Demandes de Vérification des Membres (Niveau 2)</h2>
+                        <p className="text-xs text-slate-500">Validation biométrique par IA (CNI + Vidéo 5s requises) et examen du Sceau Spirituel (Certificat de baptême facultatif 🕊️).</p>
                     </div>
-                    <button onClick={loadAllData} className="p-2 bg-white border rounded-xl hover:bg-slate-50 transition" title="Rafraîchir">
+                    <button onClick={loadAllData} className="p-2 bg-white border rounded-xl hover:bg-slate-50 transition cursor-pointer" title="Rafraîchir">
                         <RefreshCw size={18} />
                     </button>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     {/* TABLEAU DES DEMANDES EN ATTENTE */}
-                    <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-x-auto">
                         <table className="min-w-full divide-y divide-slate-200">
                             <thead className="bg-slate-50/50">
                                 <tr>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Utilisateur</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Paroisse</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Score Biométrie IA</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Date</th>
-                                    <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase">Action</th>
+                                    <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 uppercase">Membre</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Paroisse</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Preuves Fournies</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Score IA</th>
+                                    <th className="px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase">Action</th>
                                 </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-slate-200">
                                 {pendingRequests.map(req => (
                                     <tr key={req.id} className={`transition ${selectedRequest?.id === req.id ? 'bg-emerald-50/40 font-medium' : 'hover:bg-slate-50'}`}>
-                                        <td className="px-6 py-4 whitespace-nowrap">
+                                        <td className="px-5 py-4 whitespace-nowrap">
                                             <div className="flex items-center">
                                                 <img className="h-10 w-10 rounded-full object-cover border border-slate-200 mr-3" src={req.userAvatar} alt="" />
                                                 <div className="text-left">
@@ -1523,23 +2040,41 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 text-xs font-medium text-slate-700 text-left">{req.parish || '—'}</td>
-                                        <td className="px-6 py-4 text-left">
+                                        <td className="px-4 py-4 text-xs font-medium text-slate-700 text-left">{req.parish || '—'}</td>
+                                        <td className="px-4 py-4 text-left">
+                                            <div className="flex flex-wrap gap-1 items-center">
+                                                <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                                                    CNI ✓
+                                                </span>
+                                                <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                                                    Vidéo 5s ✓
+                                                </span>
+                                                {req.hasBaptismDoc ? (
+                                                    <span className="bg-gradient-to-r from-amber-100 to-yellow-100 text-amber-900 border border-amber-300 text-[10px] font-extrabold px-2 py-0.5 rounded-md shadow-2xs">
+                                                        🕊️ Baptême Joint
+                                                    </span>
+                                                ) : (
+                                                    <span className="bg-slate-100 text-slate-500 text-[10px] font-medium px-2 py-0.5 rounded-md">
+                                                        Sans Baptême
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-4 text-left">
                                             <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-extrabold border ${
                                                 req.aiMatchScore >= 80 
                                                     ? 'bg-emerald-100 text-emerald-800 border-emerald-300' 
                                                     : 'bg-amber-100 text-amber-800 border-amber-300'
                                             }`}>
-                                                🤖 DeepFace: {req.aiMatchScore}%
+                                                🤖 {req.aiMatchScore}%
                                             </span>
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-500 text-left">{req.submittedDate}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-right text-xs font-bold">
+                                        <td className="px-4 py-4 whitespace-nowrap text-right text-xs font-bold">
                                             <button
                                                 onClick={() => setSelectedRequest(req)}
-                                                className="text-emerald-700 hover:text-emerald-900 bg-emerald-100/70 hover:bg-emerald-200/80 px-3.5 py-1.5 rounded-xl transition shadow-xs"
+                                                className="text-emerald-700 hover:text-emerald-900 bg-emerald-100/70 hover:bg-emerald-200/80 px-3 py-1.5 rounded-xl transition shadow-xs cursor-pointer"
                                             >
-                                                Examiner les Preuves
+                                                Examiner
                                             </button>
                                         </td>
                                     </tr>
@@ -1568,16 +2103,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
                                     {/* Score IA DeepFace Highlight Badge */}
                                     <div className="mt-3 inline-flex items-center gap-1.5 bg-gradient-to-r from-emerald-600 to-teal-700 text-white text-xs font-extrabold px-3 py-1.5 rounded-full shadow-md">
-                                        <span>🤖 Score IA DeepFace : {selectedRequest.aiMatchScore}%</span>
+                                        <span>🤖 Score DeepFace : {selectedRequest.aiMatchScore}%</span>
                                         <span>(Match Confirmé 🟢)</span>
                                     </div>
+
+                                    {/* Statut Spirituel Badge */}
+                                    {selectedRequest.hasBaptismDoc ? (
+                                        <div className="mt-2.5 p-2.5 bg-gradient-to-r from-amber-50 to-yellow-50 rounded-xl border border-amber-300 text-xs text-amber-950 font-bold flex items-center justify-center gap-1.5">
+                                            <span>🕊️ Certificat de Baptême joint : Badge Or validé</span>
+                                        </div>
+                                    ) : (
+                                        <div className="mt-2.5 p-2 bg-slate-50 rounded-xl border border-slate-200 text-[11px] text-slate-600 flex items-center justify-center gap-1.5">
+                                            <span>ℹ️ Sans certificat de baptême (Facultatif)</span>
+                                        </div>
+                                    )}
                                 </div>
 
-                                {/* PREUVE 1 : VIDÉO LIVENESS DE 5 SECONDES */}
+                                {/* PREUVE 1 : VIDÉO LIVENESS DE 5 SECONDES (OBLIGATOIRE) */}
                                 <div>
-                                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-2 flex items-center justify-between">
+                                    <label className="text-xs font-extrabold text-slate-800 uppercase tracking-wider block mb-2 flex items-center justify-between">
                                         <span>📹 Preuve Vidéo Liveness (5s)</span>
-                                        <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full">Vidéo HD Direct</span>
+                                        <span className="text-[10px] text-emerald-800 font-bold bg-emerald-100 px-2 py-0.5 rounded-full">Obligatoire</span>
                                     </label>
                                     {selectedRequest.videoProofUrl ? (
                                         <video
@@ -1594,52 +2140,101 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                                     )}
                                 </div>
 
-                                {/* PREUVES D'IDENTITÉ ET BAPTÊME */}
-                                <div className="space-y-3">
-                                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
-                                        📑 Documents Justificatifs
-                                    </label>
-
-                                    {selectedRequest.documents.map((doc: any, i: number) => (
-                                        <div key={i} className="bg-slate-50 rounded-2xl p-3 border border-slate-200 space-y-2">
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-xs font-bold text-slate-800">{doc.name}</span>
-                                                {doc.url && (
-                                                    <a
-                                                        href={doc.url}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="text-xs text-emerald-700 font-bold hover:underline flex items-center gap-1"
-                                                    >
-                                                        <span>Voir l'original ↗</span>
-                                                    </a>
-                                                )}
-                                            </div>
-                                            {doc.url ? (
-                                                <div className="rounded-xl overflow-hidden border border-slate-200 bg-white max-h-36 flex items-center justify-center">
-                                                    <img src={doc.url} alt={doc.name} className="w-full h-auto max-h-36 object-contain" />
-                                                </div>
-                                            ) : (
-                                                <p className="text-[11px] text-slate-400 italic">Document non disponible</p>
+                                {/* PREUVE 2 : PIÈCE D'IDENTITÉ (OBLIGATOIRE) */}
+                                <div className="space-y-2">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">🪪 Pièce d'Identité (CNI / Passeport)</span>
+                                        <span className="text-[10px] text-emerald-800 font-bold bg-emerald-100 px-2 py-0.5 rounded-full">Obligatoire</span>
+                                    </div>
+                                    <div className="bg-slate-50 rounded-2xl p-3 border border-slate-200 space-y-2">
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-xs font-bold text-slate-700">Scan / Photo CNI</span>
+                                            {selectedRequest.idProofUrl && (
+                                                <a
+                                                    href={selectedRequest.idProofUrl}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-xs text-emerald-700 font-bold hover:underline flex items-center gap-1"
+                                                >
+                                                    <span>Voir original ↗</span>
+                                                </a>
                                             )}
                                         </div>
-                                    ))}
+                                        {selectedRequest.idProofUrl ? (
+                                            <div className="rounded-xl overflow-hidden border border-slate-200 bg-white max-h-36 flex items-center justify-center">
+                                                <img src={selectedRequest.idProofUrl} alt="Pièce d'identité" className="w-full h-auto max-h-36 object-contain" />
+                                            </div>
+                                        ) : (
+                                            <p className="text-[11px] text-red-500 italic">Pièce d'identité non disponible</p>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* PREUVE 3 : CERTIFICAT DE BAPTÊME (OPTIONNEL / SCEAU SPIRITUEL) */}
+                                <div className="space-y-2">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-xs font-extrabold text-amber-950 uppercase tracking-wider">🕊️ Certificat de Baptême</span>
+                                        <span className="text-[10px] text-amber-900 font-bold bg-amber-200 px-2 py-0.5 rounded-full uppercase">Optionnel</span>
+                                    </div>
+                                    <div className="bg-gradient-to-r from-amber-50/50 to-yellow-50/50 rounded-2xl p-3 border border-amber-200 space-y-2">
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-xs font-bold text-amber-950">Attestation Paroissiale</span>
+                                            {selectedRequest.baptismProofUrl && (
+                                                <a
+                                                    href={selectedRequest.baptismProofUrl}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-xs text-amber-800 font-bold hover:underline flex items-center gap-1"
+                                                >
+                                                    <span>Voir original ↗</span>
+                                                </a>
+                                            )}
+                                        </div>
+                                        {selectedRequest.baptismProofUrl ? (
+                                            <div className="rounded-xl overflow-hidden border border-amber-300 bg-white max-h-36 flex items-center justify-center">
+                                                <img src={selectedRequest.baptismProofUrl} alt="Certificat de baptême" className="w-full h-auto max-h-36 object-contain" />
+                                            </div>
+                                        ) : (
+                                            <div className="p-3 bg-white/70 border border-dashed border-amber-300 rounded-xl text-center">
+                                                <p className="text-[11px] text-amber-800 font-medium">Non fourni à l'inscription (Facultatif).</p>
+                                                <p className="text-[10px] text-slate-400 mt-0.5">Le membre pourra l'ajouter ultérieurement depuis son profil.</p>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
 
                                 {/* BOUTONS D'ACTION ADMIN */}
-                                <div className="flex gap-3 pt-3 border-t border-slate-100">
+                                <div className="space-y-2 pt-3 border-t border-slate-100">
+                                    <div className="flex gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => handleRejectVerification(selectedRequest.userId)}
+                                            className="flex-1 bg-red-50 text-red-600 hover:bg-red-100 font-bold py-2.5 rounded-xl transition text-xs border border-red-200 cursor-pointer"
+                                        >
+                                            ❌ Rejeter
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleApproveVerification(selectedRequest.userId)}
+                                            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl transition text-xs shadow-md shadow-emerald-600/20 flex items-center justify-center gap-1.5 cursor-pointer"
+                                        >
+                                            <CheckCircle size={15} />
+                                            <span>✅ Approuver</span>
+                                        </button>
+                                    </div>
                                     <button
-                                        onClick={() => handleRejectVerification(selectedRequest.userId)}
-                                        className="flex-1 bg-red-50 text-red-600 hover:bg-red-100 font-bold py-3 rounded-2xl transition text-xs border border-red-200"
+                                        type="button"
+                                        onClick={() => handleBypassUserVerification(selectedRequest.userId, VerificationStatus.PENDING, users.find(u => u.id === selectedRequest.userId))}
+                                        disabled={isBypassingUserId === selectedRequest.userId}
+                                        className="w-full bg-slate-900 hover:bg-black text-amber-300 font-extrabold py-2.5 px-3 rounded-xl transition text-xs shadow-md flex items-center justify-center gap-1.5 border border-amber-400/30 active:scale-98 cursor-pointer"
+                                        title="Bypass Cybersécurité : Forcer la validation immédiate sans exiger DeepFace ou documents"
                                     >
-                                        ❌ Rejeter
-                                    </button>
-                                    <button
-                                        onClick={() => handleApproveVerification(selectedRequest.userId)}
-                                        className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-2xl transition text-xs shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-1.5"
-                                    >
-                                        <CheckCircle size={16} />
-                                        <span>✅ Approuver Niveau 2</span>
+                                        {isBypassingUserId === selectedRequest.userId ? (
+                                            <Loader className="animate-spin h-3.5 w-3.5 text-amber-300" />
+                                        ) : (
+                                            <Zap size={14} className="fill-amber-300 text-amber-300" />
+                                        )}
+                                        <span>⚡ Bypass Admin (Validation Directe Forcée)</span>
                                     </button>
                                 </div>
                             </div>
@@ -1659,14 +2254,330 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     };
 
     const renderModeration = () => {
-        const openReports = reports.filter(r => r.status === 'OPEN');
+        const filteredReports = reports.filter(r => {
+            const matchesFilter = reportStatusFilter === 'ALL' || r.status === reportStatusFilter;
+            const matchesQuery = !reportSearchQuery ||
+                r.reporterName.toLowerCase().includes(reportSearchQuery.toLowerCase()) ||
+                r.reportedUserName.toLowerCase().includes(reportSearchQuery.toLowerCase()) ||
+                r.reason.toLowerCase().includes(reportSearchQuery.toLowerCase());
+            return matchesFilter && matchesQuery;
+        });
+
+        const openCount = reports.filter(r => r.status === 'OPEN').length;
+        const resolvedCount = reports.filter(r => r.status === 'RESOLVED').length;
+        const dismissedCount = reports.filter(r => r.status === 'DISMISSED').length;
+
         return (
-            <div className="space-y-6 animate-in fade-in">
-                <h2 className="text-xl font-bold text-slate-800">Modération</h2>
-                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div className="space-y-6 animate-in fade-in text-left">
+                {/* EN-TÊTE ET ACTIONS */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                        <div className="flex items-center gap-2">
+                            <h2 className="text-xl font-extrabold text-slate-900">Modération & Sécurité Anti-Brouteurs</h2>
+                            <span className="bg-red-100 text-red-700 text-xs font-black px-2.5 py-0.5 rounded-full border border-red-200">
+                                {openCount} En Attente
+                            </span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                            Surveillance de la communauté, traitement des signalements d'escroqueries, faux profils ou comportements contraires à l'éthique chrétienne.
+                        </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                        <button
+                            onClick={handleCreateTestReport}
+                            className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+                            title="Générer un signalement de démonstration pour tester la modération"
+                        >
+                            <Sparkles size={14} className="text-amber-600" />
+                            <span>Signalement Test</span>
+                        </button>
+
+                        <button
+                            onClick={loadAllData}
+                            className="p-2.5 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition shadow-xs cursor-pointer"
+                            title="Rafraîchir les signalements"
+                        >
+                            <RefreshCw size={16} />
+                        </button>
+                    </div>
+                </div>
+
+                {/* 3 CARTES STATISTIQUES */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div
+                        onClick={() => setReportStatusFilter('OPEN')}
+                        className={`p-4 rounded-2xl border transition cursor-pointer ${
+                            reportStatusFilter === 'OPEN'
+                                ? 'bg-red-50/80 border-red-300 ring-2 ring-red-400/30'
+                                : 'bg-white border-slate-200 hover:border-slate-300 shadow-xs'
+                        }`}
+                    >
+                        <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">🚨 À Traiter</span>
+                            <span className="p-2 rounded-xl bg-red-100 text-red-600 font-bold"><AlertTriangle size={16} /></span>
+                        </div>
+                        <p className="text-2xl font-black text-slate-900 mt-2">{openCount}</p>
+                        <p className="text-[11px] text-red-600 font-semibold mt-0.5">Signalements urgents en attente</p>
+                    </div>
+
+                    <div
+                        onClick={() => setReportStatusFilter('RESOLVED')}
+                        className={`p-4 rounded-2xl border transition cursor-pointer ${
+                            reportStatusFilter === 'RESOLVED'
+                                ? 'bg-emerald-50/80 border-emerald-300 ring-2 ring-emerald-400/30'
+                                : 'bg-white border-slate-200 hover:border-slate-300 shadow-xs'
+                        }`}
+                    >
+                        <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">✅ Résolus / Traités</span>
+                            <span className="p-2 rounded-xl bg-emerald-100 text-emerald-600 font-bold"><CheckCircle size={16} /></span>
+                        </div>
+                        <p className="text-2xl font-black text-slate-900 mt-2">{resolvedCount}</p>
+                        <p className="text-[11px] text-emerald-600 font-semibold mt-0.5">Membres protégés / Sanctionnés</p>
+                    </div>
+
+                    <div
+                        onClick={() => setReportStatusFilter('DISMISSED')}
+                        className={`p-4 rounded-2xl border transition cursor-pointer ${
+                            reportStatusFilter === 'DISMISSED'
+                                ? 'bg-slate-100 border-slate-300 ring-2 ring-slate-400/30'
+                                : 'bg-white border-slate-200 hover:border-slate-300 shadow-xs'
+                        }`}
+                    >
+                        <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">📁 Classés Sans Suite</span>
+                            <span className="p-2 rounded-xl bg-slate-100 text-slate-600 font-bold"><Shield size={16} /></span>
+                        </div>
+                        <p className="text-2xl font-black text-slate-900 mt-2">{dismissedCount}</p>
+                        <p className="text-[11px] text-slate-500 font-semibold mt-0.5">Faux signalements archivés</p>
+                    </div>
+                </div>
+
+                {/* FILTRES ET RECHERCHE */}
+                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                        <button
+                            onClick={() => setReportStatusFilter('ALL')}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                                reportStatusFilter === 'ALL'
+                                    ? 'bg-slate-900 text-white'
+                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                            }`}
+                        >
+                            Tous ({reports.length})
+                        </button>
+                        <button
+                            onClick={() => setReportStatusFilter('OPEN')}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                                reportStatusFilter === 'OPEN'
+                                    ? 'bg-red-600 text-white'
+                                    : 'bg-red-50 text-red-700 hover:bg-red-100'
+                            }`}
+                        >
+                            🚨 En Attente ({openCount})
+                        </button>
+                        <button
+                            onClick={() => setReportStatusFilter('RESOLVED')}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                                reportStatusFilter === 'RESOLVED'
+                                    ? 'bg-emerald-600 text-white'
+                                    : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                            }`}
+                        >
+                            ✅ Résolus ({resolvedCount})
+                        </button>
+                        <button
+                            onClick={() => setReportStatusFilter('DISMISSED')}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                                reportStatusFilter === 'DISMISSED'
+                                    ? 'bg-slate-700 text-white'
+                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                            }`}
+                        >
+                            📁 Sans Suite ({dismissedCount})
+                        </button>
+                    </div>
+
+                    <div className="relative">
+                        <input
+                            type="text"
+                            placeholder="Rechercher par membre, motif..."
+                            value={reportSearchQuery}
+                            onChange={(e) => setReportSearchQuery(e.target.value)}
+                            className="pl-9 pr-4 py-2 border border-slate-300 rounded-xl text-sm w-full md:w-64 shadow-xs focus:ring-2 focus:ring-red-500 outline-none"
+                        />
+                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                    </div>
+                </div>
+
+                {/* TABLEAU DES SIGNALEMENTS */}
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-x-auto">
                     <table className="min-w-full divide-y divide-slate-200">
+                        <thead className="bg-slate-50/70">
+                            <tr>
+                                <th className="px-5 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Date</th>
+                                <th className="px-5 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Signalé par</th>
+                                <th className="px-5 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Profil Mis en Cause</th>
+                                <th className="px-5 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Motif du Signalement</th>
+                                <th className="px-5 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Statut</th>
+                                <th className="px-5 py-3.5 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Actions Cybersécurité</th>
+                            </tr>
+                        </thead>
                         <tbody className="bg-white divide-y divide-slate-200">
-                            {openReports.map(report => (<tr key={report.id}><td className="px-6 py-4">{report.reason}</td><td className="px-6 py-4 text-right space-x-2"><button onClick={() => dismissReport(report.id)} className="text-slate-400">Ignorer</button><button onClick={() => resolveReport(report.id)} className="text-emerald-600 font-bold">Résoudre</button></td></tr>))}
+                            {filteredReports.map(report => {
+                                const reportedUser = users.find(u => u.id === report.reportedUserId);
+                                const isBanned = reportedUser?.status === UserStatus.BANNED;
+
+                                return (
+                                    <tr key={report.id} className="hover:bg-slate-50/80 transition">
+                                        <td className="px-5 py-4 whitespace-nowrap text-xs text-slate-500 font-medium">
+                                            {report.date}
+                                        </td>
+
+                                        <td className="px-5 py-4 whitespace-nowrap">
+                                            <div className="flex items-center">
+                                                {report.reporterAvatar ? (
+                                                    <img className="h-8 w-8 rounded-full object-cover border border-slate-200 mr-2.5" src={report.reporterAvatar} alt="" />
+                                                ) : (
+                                                    <div className="h-8 w-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center font-bold text-xs mr-2.5 border border-slate-200">
+                                                        👤
+                                                    </div>
+                                                )}
+                                                <div>
+                                                    <div className="text-xs font-bold text-slate-900">{report.reporterName}</div>
+                                                    <div className="text-[10px] text-slate-400">Témoin</div>
+                                                </div>
+                                            </div>
+                                        </td>
+
+                                        <td className="px-5 py-4 whitespace-nowrap">
+                                            <div className="flex items-center">
+                                                <img
+                                                    className={`h-9 w-9 rounded-full object-cover mr-2.5 border-2 ${isBanned ? 'border-red-500 opacity-60' : 'border-amber-400'}`}
+                                                    src={report.reportedUserAvatar || reportedUser?.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80'}
+                                                    alt=""
+                                                />
+                                                <div>
+                                                    <div className="text-xs font-extrabold text-slate-900 flex items-center gap-1.5">
+                                                        <span>{report.reportedUserName}</span>
+                                                        {isBanned && (
+                                                            <span className="bg-red-100 text-red-800 text-[10px] font-black px-1.5 py-0.2 rounded">
+                                                                BANNI
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="text-[10px] text-slate-500">
+                                                        {reportedUser?.phone || reportedUser?.email || 'ID: ' + report.reportedUserId?.slice(0, 8)}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </td>
+
+                                        <td className="px-5 py-4 max-w-xs">
+                                            <div className="bg-amber-50/80 border border-amber-200 rounded-xl p-2.5">
+                                                <p className="text-xs font-bold text-amber-950 leading-snug">
+                                                    {report.reason}
+                                                </p>
+                                                {report.contentSnippet && (
+                                                    <p className="text-[11px] text-slate-600 italic mt-1 bg-white/70 p-1.5 rounded border border-amber-100">
+                                                        « {report.contentSnippet} »
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </td>
+
+                                        <td className="px-5 py-4 whitespace-nowrap">
+                                            {report.status === 'OPEN' ? (
+                                                <span className="inline-flex items-center gap-1 bg-red-100 text-red-800 text-xs font-black px-2.5 py-1 rounded-full border border-red-200 shadow-xs">
+                                                    <span className="h-2 w-2 rounded-full bg-red-600 animate-pulse" />
+                                                    🚨 En Attente
+                                                </span>
+                                            ) : report.status === 'RESOLVED' ? (
+                                                <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 text-xs font-bold px-2.5 py-1 rounded-full border border-emerald-200">
+                                                    <CheckCircle size={12} />
+                                                    ✅ Résolu
+                                                </span>
+                                            ) : (
+                                                <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-600 text-xs font-bold px-2.5 py-1 rounded-full border border-slate-200">
+                                                    📁 Sans Suite
+                                                </span>
+                                            )}
+                                        </td>
+
+                                        <td className="px-5 py-4 whitespace-nowrap text-right text-xs font-bold">
+                                            <div className="flex justify-end items-center gap-1.5">
+                                                {report.status === 'OPEN' && (
+                                                    <>
+                                                        <button
+                                                            onClick={() => handleBanReportedUser(report)}
+                                                            className="px-2.5 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-extrabold transition flex items-center gap-1 shadow-xs cursor-pointer"
+                                                            title="Bannir immédiatement le membre accusé et résoudre le signalement"
+                                                        >
+                                                            <Ban size={13} />
+                                                            <span>Bannir Accusé</span>
+                                                        </button>
+
+                                                        <button
+                                                            onClick={() => resolveReport(report.id)}
+                                                            className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl transition flex items-center gap-1 cursor-pointer"
+                                                            title="Marquer comme traité et résolu"
+                                                        >
+                                                            <CheckCircle size={13} />
+                                                            <span>Résoudre</span>
+                                                        </button>
+
+                                                        <button
+                                                            onClick={() => dismissReport(report.id)}
+                                                            className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200 rounded-xl transition cursor-pointer"
+                                                            title="Classer sans suite / Faux signalement"
+                                                        >
+                                                            Ignorer
+                                                        </button>
+                                                    </>
+                                                )}
+
+                                                {report.status !== 'OPEN' && (
+                                                    <button
+                                                        onClick={() => resolveReport(report.id)}
+                                                        className="text-slate-400 hover:text-slate-600 text-xs font-medium underline cursor-pointer"
+                                                        title="Ré-ouvrir le statut"
+                                                    >
+                                                        Modifier statut
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+
+                            {filteredReports.length === 0 && (
+                                <tr>
+                                    <td colSpan={6} className="px-6 py-14 text-center">
+                                        <div className="max-w-md mx-auto space-y-3">
+                                            <div className="h-16 w-16 bg-emerald-50 border-2 border-emerald-200 rounded-full flex items-center justify-center mx-auto text-emerald-600 shadow-xs">
+                                                <ShieldCheck size={32} />
+                                            </div>
+                                            <h3 className="text-base font-extrabold text-slate-800">
+                                                Aucun signalement en attente
+                                            </h3>
+                                            <p className="text-xs text-slate-500 leading-relaxed">
+                                                Votre communauté chrétienne est actuellement sereine et protégée. Tous les signalements ont été traités ou aucun abus n'a été constaté.
+                                            </p>
+                                            <div className="pt-2">
+                                                <button
+                                                    onClick={handleCreateTestReport}
+                                                    className="px-4 py-2 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white rounded-xl text-xs font-extrabold shadow-sm transition flex items-center gap-1.5 mx-auto cursor-pointer"
+                                                >
+                                                    <Sparkles size={14} />
+                                                    <span>Simuler un signalement pour tester le flux</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            )}
                         </tbody>
                     </table>
                 </div>
@@ -2456,14 +3367,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     );
 
     const SidebarItem = ({ id, label, icon: Icon, active, onClick }: any) => (
-        <button onClick={onClick} className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors mb-1 ${active ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
-            <Icon size={20} /><span className="font-medium">{label}</span>
+        <button 
+            onClick={onClick} 
+            className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl transition-all mb-1 text-left whitespace-nowrap cursor-pointer ${
+                active 
+                    ? 'bg-emerald-600 text-white shadow-md font-bold' 
+                    : 'text-slate-400 hover:bg-slate-800 hover:text-white font-medium'
+            }`}
+        >
+            <Icon size={19} className="shrink-0" />
+            <span className="text-sm whitespace-nowrap leading-none">{label}</span>
         </button>
     );
 
     return (
         <div className="min-h-screen bg-slate-100 flex">
-            <aside className="w-64 bg-slate-900 text-white hidden md:flex flex-col fixed h-full z-50">
+            <aside className="w-72 bg-slate-900 text-white hidden md:flex flex-col fixed h-full z-50">
                 <div className="p-6 flex items-center space-x-3 border-b border-slate-800"><div className="bg-emerald-500 p-2 rounded-lg"><Shield className="text-white h-6 w-6" /></div><div><h1 className="font-bold text-lg tracking-tight">225 Admin</h1></div></div>
                 <nav className="flex-1 p-4 overflow-y-auto">
                     <p className="px-4 text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 mt-2">Menu Principal</p>
@@ -2473,8 +3392,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                     <SidebarItem id="PRIESTS" label="Accompagnateurs" icon={Phone} active={activeTab === DashboardTab.PRIESTS} onClick={() => setActiveTab(DashboardTab.PRIESTS)} />
                     <SidebarItem id="PAYMENTS" label="Paiements & Finance" icon={DollarSign} active={activeTab === DashboardTab.PAYMENTS} onClick={() => setActiveTab(DashboardTab.PAYMENTS)} />
                     <SidebarItem id="EVENTS" label="Événements" icon={Calendar} active={activeTab === DashboardTab.EVENTS} onClick={() => setActiveTab(DashboardTab.EVENTS)} />
-                    <SidebarItem id="VERIFICATION" label="Vérifications" icon={UserCheck} active={activeTab === DashboardTab.VERIFICATION} onClick={() => setActiveTab(DashboardTab.VERIFICATION)} />
-                    <SidebarItem id="AMBASSADEURS" label="Ambassadeurs & Badges" icon={Shield} active={activeTab === 'AMBASSADEURS'} onClick={() => setActiveTab('AMBASSADEURS')} />
+                    <SidebarItem id="VERIFICATION" label="Vérifications Identité" icon={UserCheck} active={activeTab === DashboardTab.VERIFICATION} onClick={() => setActiveTab(DashboardTab.VERIFICATION)} />
+                    <SidebarItem id="AMBASSADEURS" label="Sceau Spirituel & Paroisse" icon={Shield} active={activeTab === 'AMBASSADEURS'} onClick={() => setActiveTab('AMBASSADEURS')} />
                     <SidebarItem id="MODERATION" label="Modération" icon={Flag} active={activeTab === DashboardTab.MODERATION} onClick={() => setActiveTab(DashboardTab.MODERATION)} />
                     <SidebarItem id="PARISHES" label="Églises & Paroisses" icon={MapPin} active={activeTab === DashboardTab.PARISHES} onClick={() => setActiveTab(DashboardTab.PARISHES)} />
                     <SidebarItem id={DashboardTab.INTERESTS} label="Centres d'intérêt" icon={Sparkles} active={activeTab === DashboardTab.INTERESTS} onClick={() => setActiveTab(DashboardTab.INTERESTS)} />
@@ -2484,7 +3403,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                 <div className="p-4 border-t border-slate-800"><button onClick={onLogout} className="flex items-center text-slate-400 hover:text-white text-sm font-medium w-full px-4 py-2 hover:bg-slate-800 rounded-lg transition"><LogOut size={18} className="mr-3" /> Déconnexion</button></div>
             </aside>
 
-            <main className="flex-1 md:ml-64 p-8">
+            <main className="flex-1 md:ml-72 p-4 sm:p-6 lg:p-8 min-w-0 max-w-full overflow-x-hidden">
                 {activeTab === DashboardTab.STATS && renderStats()}
                 {activeTab === DashboardTab.GLOBAL_CONFIG && renderGlobalConfig()}
                 {activeTab === DashboardTab.USERS && renderUsers()}
@@ -2725,6 +3644,70 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                                 className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition cursor-pointer"
                             >
                                 Fermer
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* 🛡️ MODALE DE CONFIRMATION / ALERTE PERSONNALISÉE ADMIN (CYBERSÉCURITÉ & UX PRO) */}
+            {customDialog.isOpen && (
+                <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
+                    <div 
+                        className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-200" 
+                        onClick={() => {
+                            if (customDialog.type !== 'DANGER') {
+                                setCustomDialog(prev => ({ ...prev, isOpen: false }));
+                                if (customDialog.onCancel) customDialog.onCancel();
+                            }
+                        }} 
+                    />
+
+                    <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-md relative z-10 overflow-hidden animate-in zoom-in-95 duration-200 text-left p-6 space-y-5">
+                        <div className="flex items-start gap-4">
+                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shrink-0 shadow-xs ${
+                                customDialog.type === 'DANGER' 
+                                    ? 'bg-rose-100 text-rose-700 border border-rose-200' 
+                                    : customDialog.type === 'SUCCESS'
+                                    ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                                    : customDialog.type === 'ALERT'
+                                    ? 'bg-amber-100 text-amber-700 border border-amber-200'
+                                    : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                            }`}>
+                                {customDialog.type === 'DANGER' ? '🚨' : customDialog.type === 'SUCCESS' ? '✅' : customDialog.type === 'ALERT' ? '⚠️' : '⚡'}
+                            </div>
+
+                            <div className="space-y-1.5 min-w-0 flex-1">
+                                <h3 className="text-base sm:text-lg font-black text-slate-900 leading-snug font-display">
+                                    {customDialog.title}
+                                </h3>
+                                <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-line font-medium">
+                                    {customDialog.message}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+                            {customDialog.onCancel && customDialog.cancelText && (
+                                <button
+                                    onClick={customDialog.onCancel}
+                                    className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-bold transition cursor-pointer"
+                                >
+                                    {customDialog.cancelText}
+                                </button>
+                            )}
+
+                            <button
+                                onClick={customDialog.onConfirm}
+                                className={`px-5 py-2.5 rounded-xl text-xs font-extrabold transition shadow-md cursor-pointer transform active:scale-95 text-white ${
+                                    customDialog.confirmStyle === 'rose'
+                                        ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-900/20'
+                                        : customDialog.confirmStyle === 'amber'
+                                        ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-900/20'
+                                        : 'bg-emerald-700 hover:bg-emerald-800 shadow-emerald-900/20'
+                                }`}
+                            >
+                                {customDialog.confirmText || 'Confirmer'}
                             </button>
                         </div>
                     </div>
