@@ -260,14 +260,64 @@ export const AuthForms: React.FC<AuthFormsProps> = ({ view, onSwitch, onLogin })
         setIsResending(false);
     };
 
-    // États pour l'inscription express & algorithme de matching
-    const [registerStep, setRegisterStep] = useState<0 | 1>(0);
+    // États pour le tunnel d'inscription en 4 étapes
+    const [registerStep, setRegisterStep] = useState<number>(0); // 0: Foi, 1: Profil, 2: Communauté, 3: Accès
+    const [firstName, setFirstName] = useState<string>('');
+    const [lastName, setLastName] = useState<string>('');
+    const [password, setPassword] = useState<string>('');
     const [selectedGender, setSelectedGender] = useState<'M' | 'F'>('M');
     const [selectedDenomination, setSelectedDenomination] = useState<string>('Catholique');
     const [selectedParish, setSelectedParish] = useState<string>('');
     const [selectedInterests, setSelectedInterests] = useState<string[]>(['📖 Bible & Prière', '🎵 Musique / Chorale']);
     const [birthDate, setBirthDate] = useState<string>('2000-01-15');
     const [parishSuggestions, setParishSuggestions] = useState<string[]>([]);
+
+    // Calcul de l'âge dynamique
+    const calculateAge = (dateStr: string) => {
+        if (!dateStr) return null;
+        const birth = new Date(dateStr);
+        const today = new Date();
+        let age = today.getFullYear() - birth.getFullYear();
+        const m = today.getMonth() - birth.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+            age--;
+        }
+        return isNaN(age) ? null : age;
+    };
+
+    // Validation des étapes intermédiaires
+    const handleNextFromStep1 = (e?: React.FormEvent) => {
+        if (e) e.preventDefault();
+        if (!firstName.trim()) {
+            setError("Veuillez saisir votre prénom.");
+            return;
+        }
+        if (!lastName.trim()) {
+            setError("Veuillez saisir votre nom.");
+            return;
+        }
+        if (!birthDate) {
+            setError("Veuillez sélectionner votre date de naissance.");
+            return;
+        }
+        const age = calculateAge(birthDate);
+        if (age !== null && age < 18) {
+            setError("225 Chrétien est réservé aux personnes majeures (18 ans et plus).");
+            return;
+        }
+        setError(null);
+        setRegisterStep(2);
+    };
+
+    const handleNextFromStep2 = (e?: React.FormEvent) => {
+        if (e) e.preventDefault();
+        if (!selectedParish.trim()) {
+            setError("Veuillez indiquer ou choisir votre paroisse / église.");
+            return;
+        }
+        setError(null);
+        setRegisterStep(3);
+    };
 
     const activeBubble = DENOMINATION_BUBBLES.find(b => b.id === selectedDenomination) || DENOMINATION_BUBBLES[0];
 
@@ -384,9 +434,9 @@ export const AuthForms: React.FC<AuthFormsProps> = ({ view, onSwitch, onLogin })
         setError(null);
 
         const formData = new FormData(e.currentTarget);
-        let rawEmail = (formData.get('email') as string || '').trim();
-        const password = formData.get('password') as string;
-        const phone = (formData.get('phone') as string || '').trim();
+        let rawEmail = (formData.get('email') as string || emailInput || '').trim();
+        const password = (formData.get('password') as string || '').trim();
+        const phone = (formData.get('phone') as string || phoneInput || '').trim();
         const channelChoice = (formData.get('otpChannel') as 'WHATSAPP' | 'EMAIL') || otpChannel || 'WHATSAPP';
 
         // Autogénération d'email technique si inscription par WhatsApp sans email
@@ -516,14 +566,15 @@ export const AuthForms: React.FC<AuthFormsProps> = ({ view, onSwitch, onLogin })
             // ---------------------------------------------------------
             else {
                 await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
-                const firstName = (formData.get('firstName') as string || '').trim();
-                const lastName = (formData.get('lastName') as string || '').trim();
-                const passwordConfirm = (formData.get('passwordConfirm') as string) || password;
-                const parishInput = (formData.get('parish') as string) || selectedParish;
-                const denominationInput = (formData.get('denomination') as string) || selectedDenomination;
+                const fName = ((formData.get('firstName') as string) || firstName || '').trim();
+                const lName = ((formData.get('lastName') as string) || lastName || '').trim();
+                const rawPwd = (formData.get('password') as string) || password || '';
+                const passwordConfirm = (formData.get('passwordConfirm') as string) || rawPwd;
+                const parishInput = ((formData.get('parish') as string) || selectedParish || '').trim();
+                const denominationInput = ((formData.get('denomination') as string) || selectedDenomination || 'Catholique').trim();
                 const baptismYear = formData.get('baptismYear') as string;
                 const gender = selectedGender || (formData.get('gender') as 'M' | 'F') || 'M';
-                const fullName = `${firstName} ${lastName}`.trim() || 'Membre Chrétien';
+                const fullName = `${fName} ${lName}`.trim() || 'Membre Chrétien';
                 const combinedParish = `${denominationInput} - ${parishInput}`;
                 const lookingFor = gender === 'M' ? 'F' : 'M';
 
@@ -573,8 +624,8 @@ export const AuthForms: React.FC<AuthFormsProps> = ({ view, onSwitch, onLogin })
                         options: {
                             data: {
                                 full_name: fullName,
-                                first_name: firstName,
-                                last_name: lastName,
+                                first_name: fName,
+                                last_name: lName,
                                 name: fullName
                             }
                         }
@@ -1426,35 +1477,56 @@ export const AuthForms: React.FC<AuthFormsProps> = ({ view, onSwitch, onLogin })
                         </div>
                     )}
 
-                    {/* ÉTAPE 0 : SAS SPIRITUEL & SPHÈRES TACTILES GLASSMORPHISM (OPTION 1 UX PRO) */}
-                    {!isLogin && registerStep === 0 && (
-                        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-400 text-left">
-                            {/* Indicateur de Progression Émotionnelle */}
-                            <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-slate-50 border border-emerald-200/80 p-3 rounded-2xl flex items-center justify-between shadow-2xs">
-                                <div className="flex items-center space-x-2.5 text-xs font-black text-emerald-950">
-                                    <div className="h-6 w-6 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs font-black shadow-xs">
-                                        1
-                                    </div>
-                                    <span className="tracking-tight">Sas Spirituel : Votre Sensibilité Chrétienne</span>
-                                </div>
-                                <span className="text-[10px] font-extrabold uppercase tracking-wider bg-emerald-600 text-white px-2.5 py-1 rounded-full shadow-2xs flex items-center gap-1">
-                                    <span>🕊️</span>
-                                    <span>Étape 1/2</span>
+                    {/* BARRE DE PROGRESSION ÉPURÉE DU TUNNEL D'INSCRIPTION (4 ÉTAPES) */}
+                    {!isLogin && (
+                        <div className="space-y-2 pb-1">
+                            <div className="flex items-center justify-between text-xs">
+                                {registerStep > 0 ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setError(null);
+                                            setRegisterStep(prev => Math.max(0, prev - 1));
+                                        }}
+                                        className="text-slate-600 hover:text-slate-900 font-bold flex items-center gap-1 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-lg transition cursor-pointer active:scale-95 text-xs"
+                                    >
+                                        <ArrowLeft size={13} />
+                                        <span>Retour</span>
+                                    </button>
+                                ) : (
+                                    <span className="text-emerald-700 font-bold text-xs flex items-center gap-1">
+                                        ✨ Inscription facile
+                                    </span>
+                                )}
+                                <span className="font-bold text-slate-500 text-xs">
+                                    Étape {registerStep + 1} / 4
                                 </span>
                             </div>
 
-                            {/* Titre & Guide Visuel */}
-                            <div className="space-y-1">
-                                <h3 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-                                    <span>Quelle est votre foi chrétienne ?</span>
+                            {/* Barre animée épurée */}
+                            <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                                <div
+                                    className="h-full bg-emerald-600 rounded-full transition-all duration-300 ease-out"
+                                    style={{ width: `${((registerStep + 1) / 4) * 100}%` }}
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ÉTAPE 0 (1/4) : FOI & SENSIBILITÉ */}
+                    {!isLogin && registerStep === 0 && (
+                        <div className="space-y-3.5 animate-in fade-in duration-300 text-left">
+                            <div className="space-y-0.5">
+                                <h3 className="text-lg font-black text-slate-900 tracking-tight">
+                                    Quelle est votre foi chrétienne ?
                                 </h3>
-                                <p className="text-xs text-slate-600 leading-relaxed font-medium">
-                                    Touchez votre sensibilité pour être mis en relation avec des célibataires qui partagent votre cœur et vos valeurs.
+                                <p className="text-xs text-slate-500 font-medium">
+                                    Touchez votre sensibilité pour continuer.
                                 </p>
                             </div>
 
-                            {/* Grille des 6 Sphères Tactiles Glassmorphism */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                            {/* Grille compacte 2 colonnes ultra-intuitive */}
+                            <div className="grid grid-cols-2 gap-2.5 pt-0.5">
                                 {DENOMINATION_BUBBLES.map((bubble) => {
                                     const isSelected = selectedDenomination === bubble.id;
                                     return (
@@ -1465,519 +1537,509 @@ export const AuthForms: React.FC<AuthFormsProps> = ({ view, onSwitch, onLogin })
                                                 setSelectedDenomination(bubble.id);
                                                 setTimeout(() => {
                                                     setRegisterStep(1);
-                                                }, 180);
+                                                }, 140);
                                             }}
-                                            className={`relative p-4 rounded-3xl border text-left transition-all duration-200 cursor-pointer group flex flex-col justify-between overflow-hidden shadow-xs active:scale-95 ${
+                                            className={`p-3 rounded-2xl border text-left transition-all duration-150 cursor-pointer flex flex-col justify-between active:scale-95 ${
                                                 isSelected
-                                                    ? bubble.borderActive
-                                                    : 'bg-white/95 hover:bg-white border-slate-200/80 hover:border-emerald-300 hover:shadow-md hover:-translate-y-0.5'
+                                                    ? 'bg-emerald-50/90 border-emerald-600 ring-2 ring-emerald-500/30 shadow-xs'
+                                                    : 'bg-white hover:bg-slate-50/80 border-slate-200 hover:border-emerald-300'
                                             }`}
                                         >
-                                            {/* En-tête de la sphère : Icône 3D Frosted + Badge Validation/Tag */}
-                                            <div className="flex items-center justify-between w-full mb-3">
-                                                <div className={`h-12 w-12 rounded-2xl flex items-center justify-center text-2xl shadow-2xs border shrink-0 group-hover:scale-110 group-hover:rotate-3 transition-transform ${bubble.iconBg}`}>
-                                                    {bubble.icon}
+                                            <div className="flex items-center justify-between mb-2">
+                                                <span className="text-2xl">{bubble.icon}</span>
+                                                <div className={`h-4 w-4 rounded-full flex items-center justify-center transition-colors ${
+                                                    isSelected ? 'bg-emerald-600 text-white' : 'border border-slate-300 bg-white'
+                                                }`}>
+                                                    {isSelected && <Check size={10} strokeWidth={3} />}
                                                 </div>
-
-                                                {isSelected ? (
-                                                    <div className="h-6 w-6 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-md animate-in zoom-in ring-2 ring-white">
-                                                        <Check size={14} strokeWidth={3} />
-                                                    </div>
-                                                ) : (
-                                                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 bg-slate-100/90 group-hover:bg-emerald-50 group-hover:text-emerald-800 px-2.5 py-1 rounded-full border border-slate-200/50 transition-colors">
-                                                        {bubble.tag}
-                                                    </span>
-                                                )}
                                             </div>
 
-                                            {/* Corps Textuel */}
-                                            <div className="space-y-1 my-1">
-                                                <div className="font-black text-slate-900 text-base tracking-tight group-hover:text-emerald-800 transition-colors">
+                                            <div>
+                                                <div className="font-black text-slate-900 text-xs sm:text-sm leading-tight">
                                                     {bubble.label}
                                                 </div>
-                                                <div className="text-[11px] font-extrabold text-emerald-700">
+                                                <div className="text-[10px] text-emerald-700 font-semibold mt-0.5 truncate">
                                                     {bubble.spiritualFocus}
                                                 </div>
-                                                <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed font-normal">
-                                                    {bubble.subtitle}
-                                                </p>
-                                            </div>
-
-                                            {/* Pied de Sphère : Preuve Sociale (Social Proof) & Clic */}
-                                            <div className="mt-3 pt-2.5 border-t border-slate-100/80 flex items-center justify-between">
-                                                <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-600 bg-slate-50 group-hover:bg-white px-2 py-0.5 rounded-lg border border-slate-100 shadow-2xs">
-                                                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-                                                    <span>{bubble.membersCount}</span>
-                                                </div>
-
-                                                <span className="text-[11px] font-black text-emerald-700 group-hover:translate-x-1 transition-transform flex items-center gap-0.5">
-                                                    <span>Choisir</span>
-                                                    <span>→</span>
-                                                </span>
                                             </div>
                                         </button>
                                     );
                                 })}
                             </div>
 
-                            {/* Bouton de Validation Fluide */}
-                            <div className="pt-2">
-                                <button
-                                    type="button"
-                                    onClick={() => setRegisterStep(1)}
-                                    className="w-full py-3.5 px-5 bg-gradient-to-r from-emerald-600 via-emerald-700 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-black rounded-2xl shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 text-sm cursor-pointer active:scale-98 transform hover:-translate-y-0.5"
-                                >
-                                    <span>Continuer avec ma sensibilité ({selectedDenomination})</span>
-                                    <ArrowRight size={18} />
-                                </button>
-                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setRegisterStep(1)}
+                                className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-md shadow-emerald-600/15 transition flex items-center justify-center gap-1.5 text-sm cursor-pointer active:scale-98 mt-1"
+                            >
+                                <span>Continuer avec ({selectedDenomination})</span>
+                                <ArrowRight size={15} />
+                            </button>
                         </div>
                     )}
 
-                    {/* FORMULAIRE PRINCIPAL (LOGIN OU ETAPE 1 D'INSCRIPTION) */}
-                    {(isLogin || registerStep === 1) && (
-                        <form className="space-y-4" onSubmit={handleSubmit}>
-                            {!isLogin && (
-                                <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-500 text-left">
-                                    {/* Indicator Express */}
-                                    <div className="bg-emerald-50/80 border border-emerald-200/60 p-2.5 rounded-2xl flex items-center justify-between">
-                                        <div className="flex items-center space-x-2 text-xs font-semibold text-emerald-900">
-                                            <Sparkles size={15} className="text-emerald-600" />
-                                            <span>Inscription Express (30s)</span>
-                                        </div>
-                                        <span className="text-[11px] font-bold bg-emerald-600 text-white px-2.5 py-0.5 rounded-full shadow-xs">
-                                            Étape 2 / 2
-                                        </span>
-                                    </div>
-
-                                    {/* Badge Rappel Confession avec bouton de retour immédiat vers les bulles */}
-                                    <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-slate-50 border border-emerald-200/90 p-3 rounded-2xl flex items-center justify-between shadow-2xs">
-                                        <div className="flex items-center space-x-3 text-xs text-slate-800">
-                                            <div className="text-xl p-2 rounded-xl bg-white shadow-2xs border border-emerald-100 shrink-0">
-                                                {activeBubble.icon}
-                                            </div>
-                                            <div>
-                                                <div className="flex items-center gap-1.5">
-                                                    <span className="text-[10px] uppercase tracking-wider font-extrabold text-emerald-800">Confession :</span>
-                                                    <span className="font-black text-slate-900 text-xs sm:text-sm">{activeBubble.label}</span>
-                                                </div>
-                                                <div className="flex items-center gap-2 text-[10px] text-slate-500 font-medium">
-                                                    <span className="text-emerald-700 font-bold">{activeBubble.spiritualFocus}</span>
-                                                    <span>•</span>
-                                                    <span className="text-slate-500">{activeBubble.membersCount}</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={() => setRegisterStep(0)}
-                                            className="text-[11px] font-black text-emerald-700 hover:text-emerald-900 bg-white hover:bg-emerald-100/60 px-3 py-1.5 rounded-xl border border-emerald-200 shadow-2xs transition cursor-pointer active:scale-95 flex items-center gap-1 shrink-0 ml-2"
-                                        >
-                                            <span>Changer</span>
-                                            <span>✎</span>
-                                        </button>
-                                    </div>
-
-                                {/* Choix du Sexe (Homme / Femme) */}
-                                <div>
-                                    <label className="text-xs font-semibold text-slate-600 block mb-1.5 ml-1">Je suis :</label>
-                                    <div className="grid grid-cols-2 gap-2.5">
-                                        <button
-                                            type="button"
-                                            onClick={() => setSelectedGender('M')}
-                                            className={`flex items-center justify-center py-2.5 px-3 rounded-xl font-semibold text-xs sm:text-sm border transition-all active:scale-95 min-h-[46px] ${selectedGender === 'M'
-                                                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                                                    : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                                                }`}
-                                        >
-                                            <span className="mr-1.5 text-base">👨</span> Un Homme
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setSelectedGender('F')}
-                                            className={`flex items-center justify-center py-2.5 px-3 rounded-xl font-semibold text-xs sm:text-sm border transition-all active:scale-95 min-h-[46px] ${selectedGender === 'F'
-                                                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                                                    : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                                                }`}
-                                        >
-                                            <span className="mr-1.5 text-base">👩</span> Une Femme
-                                        </button>
-                                    </div>
-                                    <input type="hidden" name="gender" value={selectedGender} />
-                                </div>
-
-                                {/* Prénom & Nom */}
-                                <div className="grid grid-cols-2 gap-2.5">
-                                    <div className="relative group">
-                                        <User className="absolute left-3 top-3 h-4 w-4 text-slate-400 group-focus-within:text-emerald-500 transition-colors" />
-                                        <input name="firstName" type="text" required placeholder="Prénom" className="pl-9 block w-full py-2.5 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-shadow min-h-[46px]" />
-                                    </div>
-                                    <div className="relative group">
-                                        <User className="absolute left-3 top-3 h-4 w-4 text-slate-400 group-focus-within:text-emerald-500 transition-colors" />
-                                        <input name="lastName" type="text" required placeholder="Nom" className="pl-9 block w-full py-2.5 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-shadow min-h-[46px]" />
-                                    </div>
-                                </div>
-
-                                {/* Date de Naissance (Calcul d'âge auto) */}
-                                <div>
-                                    <label className="text-xs font-semibold text-slate-600 block mb-1 ml-1">Date de Naissance (Calcul d'âge automatique) :</label>
-                                    <div className="relative group">
-                                        <Calendar className="absolute left-3 top-3 h-4 w-4 text-slate-400 group-focus-within:text-emerald-500 transition-colors" />
-                                        <input
-                                            type="date"
-                                            required
-                                            value={birthDate}
-                                            onChange={(e) => setBirthDate(e.target.value)}
-                                            className="pl-9 block w-full py-2.5 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-shadow min-h-[46px] bg-white text-slate-700 font-medium"
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* Géolocalisation GPS & Commune Précise */}
-                                <div className="space-y-1.5 text-left">
-                                    <div className="flex justify-between items-center ml-1">
-                                        <label className="text-xs font-semibold text-slate-600 flex items-center gap-1">
-                                            <MapPin size={13} className="text-emerald-600" />
-                                            <span>Emplacement & Commune :</span>
-                                        </label>
-                                        <button
-                                            type="button"
-                                            onClick={() => setIsLocationModalOpen(true)}
-                                            className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 hover:underline cursor-pointer"
-                                        >
-                                            Changer de ville ↗
-                                        </button>
-                                    </div>
-
-                                    {/* Barre Principale de Position */}
-                                    <div
-                                        onClick={() => setIsLocationModalOpen(true)}
-                                        className="bg-white hover:bg-slate-50 border border-slate-300 rounded-xl p-2.5 flex items-center justify-between shadow-xs transition cursor-pointer group"
-                                    >
-                                        <div className="flex items-center space-x-2 text-xs font-bold text-slate-800 truncate pr-2">
-                                            <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${geoLoading ? 'bg-amber-400 animate-ping' : geoSuccess ? 'bg-emerald-500' : 'bg-teal-500'}`} />
-                                            <span className="truncate">
-                                                {geoLoading ? "🛰️ Localisation satellite en cours..." : geoLocation.city}
-                                            </span>
-                                        </div>
-
-                                        <div className="flex items-center space-x-1.5 shrink-0">
-                                            {geoLocation.isGps && (
-                                                <span className="text-[10px] bg-emerald-100 text-emerald-800 font-extrabold px-2 py-0.5 rounded-md border border-emerald-200">
-                                                    GPS ✓
-                                                </span>
-                                            )}
-                                            <span className="text-[11px] font-bold text-slate-500 group-hover:text-emerald-700 bg-slate-100 group-hover:bg-emerald-50 px-2 py-1 rounded-lg transition">
-                                                Modifier
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    {/* Chips d'accès rapide aux communes populaires */}
-                                    <div className="flex items-center gap-1 overflow-x-auto pb-1 no-scrollbar pt-0.5">
-                                        <span className="text-[10px] text-slate-400 font-medium shrink-0 ml-1">Rapide :</span>
-                                        {[
-                                            { name: 'Abidjan, Cocody', short: 'Cocody', lat: 5.3484, lon: -4.0305 },
-                                            { name: 'Abidjan, Cocody (Angré)', short: 'Angré', lat: 5.3980, lon: -3.9850 },
-                                            { name: 'Abidjan, Cocody (Riviera)', short: 'Riviera', lat: 5.3650, lon: -3.9600 },
-                                            { name: 'Abidjan, Yopougon', short: 'Yopougon', lat: 5.3400, lon: -4.0800 },
-                                            { name: 'Abidjan, Marcory', short: 'Marcory', lat: 5.3050, lon: -3.9850 },
-                                            { name: 'Yamoussoukro', short: 'Yamoussoukro', lat: 6.8276, lon: -5.2893 },
-                                            { name: 'Bouaké', short: 'Bouaké', lat: 7.6900, lon: -5.0300 },
-                                            { name: 'France, Paris & Île-de-France', short: 'Paris (Diaspora)', lat: 48.8566, lon: 2.3522 }
-                                        ].map(quickLoc => (
-                                            <button
-                                                key={quickLoc.name}
-                                                type="button"
-                                                onClick={() => {
-                                                    setGeoLocation({
-                                                        latitude: quickLoc.lat,
-                                                        longitude: quickLoc.lon,
-                                                        city: quickLoc.name,
-                                                        isGps: false
-                                                    });
-                                                    setGeoSuccess(false);
-                                                }}
-                                                className={`text-[10px] px-2.5 py-1 rounded-lg font-bold border shrink-0 transition-all cursor-pointer active:scale-95 ${
-                                                    geoLocation.city === quickLoc.name
-                                                        ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
-                                                        : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200'
-                                                }`}
-                                            >
-                                                {quickLoc.short}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                {/* Champ invisible de transmission de la confession choisie au sas */}
-                                <input type="hidden" name="denomination" value={selectedDenomination} />
-
-                                {/* Paroisse / Église (Adapté au choix de confession) */}
-                                <div>
-                                    <div className="flex justify-between items-center mb-1 ml-1">
-                                        <label className="text-xs font-semibold text-slate-600">
-                                            Votre Paroisse / Église ({activeBubble.label}) :
-                                        </label>
-                                        <span className="text-[10px] text-emerald-600 font-bold">✨ Saisissez ou choisissez</span>
-                                    </div>
-                                    <div className="relative group">
-                                        <MapPin className="absolute left-3 top-3 h-4 w-4 text-slate-400 group-focus-within:text-emerald-500 transition-colors" />
-                                        <input
-                                            name="parish"
-                                            type="text"
-                                            list="parish-suggestions-list"
-                                            value={selectedParish}
-                                            onChange={(e) => setSelectedParish(e.target.value)}
-                                            required
-                                            placeholder={activeBubble.parishPlaceholder}
-                                            className="pl-9 block w-full py-2.5 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-shadow min-h-[46px]"
-                                        />
-                                        <datalist id="parish-suggestions-list">
-                                            {parishSuggestions.map((pName, idx) => (
-                                                <option key={idx} value={pName} />
-                                            ))}
-                                        </datalist>
-                                    </div>
-                                </div>
-
-                                {/* Centres d'Intérêt Dynamiques (Scroll Horizontal Fluid) */}
-                                <div>
-                                    <div className="flex justify-between items-center mb-1 ml-1">
-                                        <label className="text-xs font-semibold text-slate-600">Centres d'intérêt :</label>
-                                        <span className="text-[10px] text-slate-400 font-medium">Défiler →</span>
-                                    </div>
-                                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 pt-0.5 no-scrollbar scroll-smooth">
-                                        {allAvailableInterests.map((interest) => {
-                                            const isSelected = selectedInterests.includes(interest);
-                                            return (
-                                                <button
-                                                    key={interest}
-                                                    type="button"
-                                                    onClick={() => {
-                                                        if (isSelected) {
-                                                            setSelectedInterests(selectedInterests.filter(i => i !== interest));
-                                                        } else {
-                                                            setSelectedInterests([...selectedInterests, interest]);
-                                                        }
-                                                    }}
-                                                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold border shrink-0 transition-all active:scale-95 min-h-[36px] ${isSelected
-                                                            ? 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold'
-                                                            : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                                                        }`}
-                                                >
-                                                    {interest} {isSelected ? '✓' : ''}
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
+                    {/* ÉTAPE 1 (2/4) : MON PROFIL & IDENTITÉ */}
+                    {!isLogin && registerStep === 1 && (
+                        <form onSubmit={handleNextFromStep1} className="space-y-3.5 animate-in fade-in slide-in-from-right-4 duration-300 text-left">
+                            <div className="space-y-0.5">
+                                <h3 className="text-lg font-black text-slate-900 tracking-tight">
+                                    Votre Profil & Identité
+                                </h3>
+                                <p className="text-xs text-slate-500 font-medium">
+                                    Présentez-vous en quelques secondes.
+                                </p>
                             </div>
-                        )}
 
-                        {/* SECTION IDENTIFIANTS (CHOIX CANAL WHATSAPP OU EMAIL) */}
-                        <div className="space-y-3 pt-1 text-left">
-                            {!isLogin && (
-                                <>
-                                    {/* Choix du canal de vérification (WhatsApp vs Email) */}
-                                    <div>
-                                        <label className="text-xs font-semibold text-slate-600 block mb-1.5 ml-1">
-                                            Vérification du code via :
-                                        </label>
-                                        <div className="grid grid-cols-2 gap-2.5">
-                                            <button
-                                                type="button"
-                                                onClick={() => setOtpChannel('WHATSAPP')}
-                                                className={`flex items-center justify-center py-2.5 px-3 rounded-xl font-bold text-xs sm:text-sm border transition-all active:scale-95 min-h-[44px] ${otpChannel === 'WHATSAPP'
-                                                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                                                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                                                    }`}
-                                            >
-                                                <MessageCircle size={16} className="mr-1.5 shrink-0" /> WhatsApp
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => setOtpChannel('EMAIL')}
-                                                className={`flex items-center justify-center py-2.5 px-3 rounded-xl font-bold text-xs sm:text-sm border transition-all active:scale-95 min-h-[44px] ${otpChannel === 'EMAIL'
-                                                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                                                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                                                    }`}
-                                            >
-                                                <Mail size={16} className="mr-1.5 shrink-0" /> Email
-                                            </button>
-                                        </div>
-                                        <input type="hidden" name="otpChannel" value={otpChannel} />
-                                    </div>
-
-                                    {/* Si WhatsApp est sélectionné : afficher uniquement le champ numéro de téléphone */}
-                                    {otpChannel === 'WHATSAPP' && (
-                                        <div>
-                                            <label className="text-xs font-semibold text-slate-600 block mb-1 ml-1">Numéro WhatsApp :</label>
-                                            <div className="relative group">
-                                                <div className="absolute left-3 top-3 flex items-center gap-1 text-emerald-600 font-bold text-xs pointer-events-none">
-                                                    <MessageCircle size={16} />
-                                                    <span>🇨🇮 +225</span>
-                                                </div>
-                                                <input
-                                                    name="phone"
-                                                    type="tel"
-                                                    required
-                                                    value={phoneInput}
-                                                    onChange={(e) => checkPhoneDuplicate(e.target.value)}
-                                                    placeholder="07 00 00 00 00 (WhatsApp)"
-                                                    className={`pl-28 block w-full py-2.5 text-sm border-2 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-600 transition-shadow bg-emerald-50/20 text-slate-900 font-semibold min-h-[46px] ${phoneDuplicateError ? 'border-red-500 bg-red-50/30' : 'border-emerald-500/50'
-                                                        }`}
-                                                />
-                                            </div>
-                                            {phoneDuplicateError && (
-                                                <div className="mt-1.5 p-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 flex items-center justify-between animate-in fade-in">
-                                                    <span>{phoneDuplicateError}</span>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => onSwitch(AppView.AUTH_LOGIN)}
-                                                        className="text-xs font-bold text-emerald-700 underline hover:text-emerald-900 ml-2"
-                                                    >
-                                                        Se connecter →
-                                                    </button>
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-
-                                    {/* Si Email est sélectionné : afficher uniquement le champ Email */}
-                                    {otpChannel === 'EMAIL' && (
-                                        <div>
-                                            <label className="text-xs font-semibold text-slate-600 block mb-1 ml-1">Adresse Email :</label>
-                                            <div className="relative group">
-                                                <Mail className="absolute left-3 top-3 h-4 w-4 text-slate-400 group-focus-within:text-emerald-500 transition-colors" />
-                                                <input
-                                                    name="email"
-                                                    type="email"
-                                                    required
-                                                    value={emailInput}
-                                                    onChange={(e) => checkEmailDuplicate(e.target.value)}
-                                                    placeholder="Ex: votreemail@gmail.com"
-                                                    className={`pl-9 block w-full py-2.5 text-sm border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-shadow bg-slate-50 focus:bg-white min-h-[46px] ${emailDuplicateError ? 'border-red-500 bg-red-50/30' : 'border-slate-300'
-                                                        }`}
-                                                />
-                                            </div>
-                                            {emailDuplicateError && (
-                                                <div className="mt-1.5 p-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 flex items-center justify-between animate-in fade-in">
-                                                    <span>{emailDuplicateError}</span>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => onSwitch(AppView.AUTH_LOGIN)}
-                                                        className="text-xs font-bold text-emerald-700 underline hover:text-emerald-900 ml-2"
-                                                    >
-                                                        Se connecter →
-                                                    </button>
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-                                </>
-                            )}
-
-                            {isLogin && (
-                                <div className="space-y-3">
-                                    {/* Choix du canal de connexion : WhatsApp vs Email */}
-                                    <div>
-                                        <label className="text-xs font-semibold text-slate-600 block mb-1.5 ml-1">
-                                            Se connecter via :
-                                        </label>
-                                        <div className="grid grid-cols-2 gap-2.5">
-                                            <button
-                                                type="button"
-                                                onClick={() => setLoginChannel('WHATSAPP')}
-                                                className={`flex items-center justify-center py-2.5 px-3 rounded-xl font-bold text-xs sm:text-sm border transition-all active:scale-95 min-h-[44px] ${loginChannel === 'WHATSAPP'
-                                                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                                                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                                                    }`}
-                                            >
-                                                <MessageCircle size={16} className="mr-1.5 shrink-0" /> WhatsApp
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => setLoginChannel('EMAIL')}
-                                                className={`flex items-center justify-center py-2.5 px-3 rounded-xl font-bold text-xs sm:text-sm border transition-all active:scale-95 min-h-[44px] ${loginChannel === 'EMAIL'
-                                                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                                                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                                                    }`}
-                                            >
-                                                <Mail size={16} className="mr-1.5 shrink-0" /> Email
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    {/* Champ WhatsApp avec indicatif 🇨🇮 +225 */}
-                                    {loginChannel === 'WHATSAPP' ? (
-                                        <div>
-                                            <label className="text-xs font-semibold text-slate-600 block mb-1 ml-1">Numéro WhatsApp :</label>
-                                            <div className="relative group">
-                                                <div className="absolute left-3 top-3 flex items-center gap-1 text-emerald-600 font-bold text-xs pointer-events-none">
-                                                    <MessageCircle size={16} />
-                                                    <span>🇨🇮 +225</span>
-                                                </div>
-                                                <input
-                                                    name="phone"
-                                                    type="tel"
-                                                    required
-                                                    value={phoneInput}
-                                                    onChange={(e) => setPhoneInput(e.target.value)}
-                                                    placeholder="07 00 00 00 00 (WhatsApp)"
-                                                    className="pl-28 block w-full py-2.5 text-sm border-2 border-emerald-500/50 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-600 transition-shadow bg-emerald-50/20 text-slate-900 font-semibold min-h-[46px]"
-                                                />
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <div>
-                                            <label className="text-xs font-semibold text-slate-600 block mb-1 ml-1">Adresse Email :</label>
-                                            <div className="relative group">
-                                                <Mail className="absolute left-3 top-3 h-4 w-4 text-slate-400 group-focus-within:text-emerald-500 transition-colors" />
-                                                <input
-                                                    name="email"
-                                                    type="email"
-                                                    required
-                                                    value={emailInput}
-                                                    onChange={(e) => setEmailInput(e.target.value)}
-                                                    placeholder="Ex: votreemail@gmail.com"
-                                                    className="pl-9 block w-full py-2.5 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-shadow bg-slate-50 focus:bg-white min-h-[46px]"
-                                                />
-                                            </div>
-                                        </div>
-                                    )}
+                            {/* Rappel Confession épuré */}
+                            <div className="bg-emerald-50/80 border border-emerald-200/70 p-2.5 rounded-xl flex items-center justify-between">
+                                <div className="flex items-center space-x-2 text-xs text-slate-800">
+                                    <span className="text-base">{activeBubble.icon}</span>
+                                    <span className="font-bold text-slate-900">{activeBubble.label}</span>
+                                    <span className="text-[10px] text-emerald-700 font-semibold">• {activeBubble.spiritualFocus}</span>
                                 </div>
-                            )}
-
-                            <div className="relative group">
-                                <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-400 group-focus-within:text-emerald-500 transition-colors" />
-                                <input id="password" name="password" type={showPassword ? "text" : "password"} required minLength={8} placeholder="Mot de passe (8+ caractères)" className="pl-9 pr-9 block w-full py-2.5 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-shadow bg-slate-50 focus:bg-white min-h-[46px]" />
-                                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 transition-colors">
-                                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                <button
+                                    type="button"
+                                    onClick={() => setRegisterStep(0)}
+                                    className="text-[11px] font-bold text-emerald-700 hover:underline cursor-pointer"
+                                >
+                                    Modifier
                                 </button>
                             </div>
 
-                            {isLogin && (
-                                <div className="flex justify-end pt-1">
+                            {/* Choix du Sexe (Homme / Femme) */}
+                            <div>
+                                <label className="text-xs font-semibold text-slate-600 block mb-1.5 ml-1">Je suis :</label>
+                                <div className="grid grid-cols-2 gap-2">
                                     <button
                                         type="button"
-                                        onClick={() => { setError(null); setSuccessMessage(null); setIsForgotPasswordMode(true); setForgotStep(1); }}
-                                        className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 hover:underline transition-colors"
+                                        onClick={() => setSelectedGender('M')}
+                                        className={`flex items-center justify-center py-2.5 px-3 rounded-xl font-bold text-xs sm:text-sm border transition-all active:scale-95 min-h-[42px] cursor-pointer ${
+                                            selectedGender === 'M'
+                                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                                                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                                        }`}
                                     >
-                                        Mot de passe oublié ?
+                                        <span className="mr-1.5 text-base">👨</span> Un Homme
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedGender('F')}
+                                        className={`flex items-center justify-center py-2.5 px-3 rounded-xl font-bold text-xs sm:text-sm border transition-all active:scale-95 min-h-[42px] cursor-pointer ${
+                                            selectedGender === 'F'
+                                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                                                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                                        }`}
+                                    >
+                                        <span className="mr-1.5 text-base">👩</span> Une Femme
                                     </button>
                                 </div>
-                            )}
-                        </div>
+                            </div>
 
-                        <button
-                            type="submit"
-                            disabled={isLoading || (!isLogin && ((otpChannel === 'WHATSAPP' && !!phoneDuplicateError) || (otpChannel === 'EMAIL' && !!emailDuplicateError)))}
-                            className="w-full flex justify-center items-center py-3.5 px-4 border border-transparent rounded-xl shadow-md shadow-emerald-600/15 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 hover:shadow-emerald-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-all transform hover:scale-[1.01] active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed mt-4 min-h-[46px]"
-                        >
-                            {isLoading ? <Loader className="animate-spin h-5 w-5" /> : (isLogin ? 'Se connecter' : (otpChannel === 'WHATSAPP' ? 'Valider & recevoir mon code WhatsApp' : 'Valider & recevoir mon code Email'))}
-                        </button>
-                    </form>
+                            {/* Prénom & Nom */}
+                            <div className="grid grid-cols-2 gap-2">
+                                <div className="space-y-1">
+                                    <label className="text-xs font-semibold text-slate-600 ml-1">Prénom :</label>
+                                    <div className="relative group">
+                                        <User className="absolute left-3 top-3 h-4 w-4 text-slate-400 group-focus-within:text-emerald-500 transition-colors" />
+                                        <input
+                                            name="firstName"
+                                            type="text"
+                                            required
+                                            value={firstName}
+                                            onChange={(e) => setFirstName(e.target.value)}
+                                            placeholder="Ex: David"
+                                            className="pl-9 block w-full py-2.5 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-shadow min-h-[42px] bg-white font-medium text-slate-800"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-xs font-semibold text-slate-600 ml-1">Nom :</label>
+                                    <div className="relative group">
+                                        <User className="absolute left-3 top-3 h-4 w-4 text-slate-400 group-focus-within:text-emerald-500 transition-colors" />
+                                        <input
+                                            name="lastName"
+                                            type="text"
+                                            required
+                                            value={lastName}
+                                            onChange={(e) => setLastName(e.target.value)}
+                                            placeholder="Ex: Kouamé"
+                                            className="pl-9 block w-full py-2.5 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-shadow min-h-[42px] bg-white font-medium text-slate-800"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Date de Naissance & Âge calculé */}
+                            <div className="space-y-1">
+                                <div className="flex justify-between items-center ml-1">
+                                    <label className="text-xs font-semibold text-slate-600">Date de Naissance :</label>
+                                    {calculateAge(birthDate) !== null && (
+                                        <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-md">
+                                            🎂 {calculateAge(birthDate)} ans
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="relative group">
+                                    <Calendar className="absolute left-3 top-3 h-4 w-4 text-slate-400 group-focus-within:text-emerald-500 transition-colors" />
+                                    <input
+                                        type="date"
+                                        required
+                                        value={birthDate}
+                                        onChange={(e) => setBirthDate(e.target.value)}
+                                        className="pl-9 block w-full py-2.5 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-shadow min-h-[42px] bg-white text-slate-800 font-medium"
+                                    />
+                                </div>
+                            </div>
+
+                            <button
+                                type="submit"
+                                className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-md shadow-emerald-600/15 transition flex items-center justify-center gap-1.5 text-sm cursor-pointer active:scale-98 mt-1"
+                            >
+                                <span>Continuer</span>
+                                <ArrowRight size={15} />
+                            </button>
+                        </form>
+                    )}
+
+                    {/* ÉTAPE 2 (3/4) : MA COMMUNAUTÉ & MA VILLE */}
+                    {!isLogin && registerStep === 2 && (
+                        <form onSubmit={handleNextFromStep2} className="space-y-3.5 animate-in fade-in slide-in-from-right-4 duration-300 text-left">
+                            <div className="space-y-0.5">
+                                <h3 className="text-lg font-black text-slate-900 tracking-tight">
+                                    Votre Église & Ville
+                                </h3>
+                                <p className="text-xs text-slate-500 font-medium">
+                                    Pour trouver des membres proches de chez vous.
+                                </p>
+                            </div>
+
+                            {/* Localisation & Commune */}
+                            <div className="space-y-1.5">
+                                <div className="flex justify-between items-center ml-1">
+                                    <label className="text-xs font-semibold text-slate-600 flex items-center gap-1">
+                                        <MapPin size={13} className="text-emerald-600" />
+                                        <span>Ville / Commune :</span>
+                                    </label>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsLocationModalOpen(true)}
+                                        className="text-[11px] font-bold text-emerald-700 hover:underline cursor-pointer"
+                                    >
+                                        Changer ↗
+                                    </button>
+                                </div>
+
+                                <div
+                                    onClick={() => setIsLocationModalOpen(true)}
+                                    className="bg-white hover:bg-slate-50 border border-slate-300 rounded-xl p-2.5 flex items-center justify-between shadow-2xs transition cursor-pointer"
+                                >
+                                    <div className="flex items-center space-x-2 text-xs font-bold text-slate-800 truncate pr-2">
+                                        <span className={`h-2 w-2 rounded-full shrink-0 ${geoLoading ? 'bg-amber-400 animate-ping' : geoSuccess ? 'bg-emerald-500' : 'bg-teal-500'}`} />
+                                        <span className="truncate">
+                                            {geoLoading ? "🛰️ Localisation..." : geoLocation.city}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center space-x-1.5 shrink-0">
+                                        {geoLocation.isGps && (
+                                            <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded">
+                                                GPS ✓
+                                            </span>
+                                        )}
+                                        <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-lg">
+                                            Modifier
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* Puces d'accès rapide */}
+                                <div className="flex items-center gap-1 overflow-x-auto pb-1 no-scrollbar pt-0.5">
+                                    {[
+                                        { name: 'Abidjan, Cocody', short: 'Cocody', lat: 5.3484, lon: -4.0305 },
+                                        { name: 'Abidjan, Cocody (Angré)', short: 'Angré', lat: 5.3980, lon: -3.9850 },
+                                        { name: 'Abidjan, Cocody (Riviera)', short: 'Riviera', lat: 5.3650, lon: -3.9600 },
+                                        { name: 'Abidjan, Yopougon', short: 'Yopougon', lat: 5.3400, lon: -4.0800 },
+                                        { name: 'Abidjan, Marcory', short: 'Marcory', lat: 5.3050, lon: -3.9850 },
+                                        { name: 'Yamoussoukro', short: 'Yamoussoukro', lat: 6.8276, lon: -5.2893 },
+                                        { name: 'Bouaké', short: 'Bouaké', lat: 7.6900, lon: -5.0300 },
+                                        { name: 'France, Paris & Île-de-France', short: 'Paris', lat: 48.8566, lon: 2.3522 }
+                                    ].map(quickLoc => (
+                                        <button
+                                            key={quickLoc.name}
+                                            type="button"
+                                            onClick={() => {
+                                                setGeoLocation({
+                                                    latitude: quickLoc.lat,
+                                                    longitude: quickLoc.lon,
+                                                    city: quickLoc.name,
+                                                    isGps: false
+                                                });
+                                                setGeoSuccess(false);
+                                            }}
+                                            className={`text-[10px] px-2.5 py-1 rounded-lg font-bold border shrink-0 transition-all cursor-pointer active:scale-95 ${
+                                                geoLocation.city === quickLoc.name
+                                                    ? 'bg-slate-900 text-white border-slate-900 shadow-2xs'
+                                                    : 'bg-white hover:bg-slate-50 text-slate-600 border-slate-200'
+                                            }`}
+                                        >
+                                            {quickLoc.short}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Paroisse / Église */}
+                            <div className="space-y-1">
+                                <label className="text-xs font-semibold text-slate-600 block ml-1">
+                                    Paroisse / Église ({activeBubble.label}) :
+                                </label>
+                                <div className="relative group">
+                                    <MapPin className="absolute left-3 top-3 h-4 w-4 text-slate-400 group-focus-within:text-emerald-500 transition-colors" />
+                                    <input
+                                        name="parish"
+                                        type="text"
+                                        list="parish-suggestions-list"
+                                        value={selectedParish}
+                                        onChange={(e) => setSelectedParish(e.target.value)}
+                                        required
+                                        placeholder={activeBubble.parishPlaceholder}
+                                        className="pl-9 block w-full py-2.5 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-shadow min-h-[42px] bg-white font-medium text-slate-800"
+                                    />
+                                    <datalist id="parish-suggestions-list">
+                                        {parishSuggestions.map((pName, idx) => (
+                                            <option key={idx} value={pName} />
+                                        ))}
+                                    </datalist>
+                                </div>
+                            </div>
+
+                            {/* Centres d'Intérêt */}
+                            <div className="space-y-1">
+                                <label className="text-xs font-semibold text-slate-600 block ml-1">Centres d'intérêt :</label>
+                                <div className="flex flex-wrap gap-1.5 pt-0.5">
+                                    {allAvailableInterests.slice(0, 6).map((interest) => {
+                                        const isSelected = selectedInterests.includes(interest);
+                                        return (
+                                            <button
+                                                key={interest}
+                                                type="button"
+                                                onClick={() => {
+                                                    if (isSelected) {
+                                                        setSelectedInterests(selectedInterests.filter(i => i !== interest));
+                                                    } else {
+                                                        setSelectedInterests([...selectedInterests, interest]);
+                                                    }
+                                                }}
+                                                className={`px-2.5 py-1.5 rounded-xl text-xs font-semibold border transition-all active:scale-95 cursor-pointer ${
+                                                    isSelected
+                                                        ? 'bg-emerald-100 text-emerald-900 border-emerald-400 font-bold'
+                                                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                                                }`}
+                                            >
+                                                {interest} {isSelected ? '✓' : ''}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            <button
+                                type="submit"
+                                className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-md shadow-emerald-600/15 transition flex items-center justify-center gap-1.5 text-sm cursor-pointer active:scale-98 mt-1"
+                            >
+                                <span>Continuer</span>
+                                <ArrowRight size={15} />
+                            </button>
+                        </form>
+                    )}
+
+                    {/* ÉTAPE 3 (4/4) : MON COMPTE & SÉCURITÉ (ET FORMULAIRE LOGIN) */}
+                    {(isLogin || registerStep === 3) && (
+                        <form className="space-y-3.5" onSubmit={handleSubmit}>
+                            {/* Champs masqués pour assurer la persistance absolue lors de la soumission */}
+                            {!isLogin && (
+                                <>
+                                    <input type="hidden" name="firstName" value={firstName} />
+                                    <input type="hidden" name="lastName" value={lastName} />
+                                    <input type="hidden" name="gender" value={selectedGender} />
+                                    <input type="hidden" name="denomination" value={selectedDenomination} />
+                                    <input type="hidden" name="parish" value={selectedParish} />
+                                    <input type="hidden" name="birthDate" value={birthDate} />
+                                    <input type="hidden" name="otpChannel" value={otpChannel} />
+                                    
+                                    <div className="space-y-0.5 text-left">
+                                        <h3 className="text-lg font-black text-slate-900 tracking-tight">
+                                            Finaliser mon Inscription
+                                        </h3>
+                                        <p className="text-xs text-slate-500 font-medium">
+                                            {firstName ? `Presque terminé ${firstName} ! ` : ''}Choisissez votre mode de réception du code.
+                                        </p>
+                                    </div>
+                                </>
+                            )}
+
+                            {/* Choix du canal (WhatsApp / Email) */}
+                            <div className="text-left space-y-1">
+                                <label className="text-xs font-semibold text-slate-600 block ml-1">
+                                    {isLogin ? 'Se connecter via :' : 'Vérification via :'}
+                                </label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            if (isLogin) setLoginChannel('WHATSAPP');
+                                            else setOtpChannel('WHATSAPP');
+                                        }}
+                                        className={`flex items-center justify-center py-2.5 px-3 rounded-xl font-bold text-xs sm:text-sm border transition-all active:scale-95 min-h-[42px] cursor-pointer ${
+                                            (isLogin ? loginChannel === 'WHATSAPP' : otpChannel === 'WHATSAPP')
+                                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                                                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                                        }`}
+                                    >
+                                        <MessageCircle size={16} className="mr-1.5 shrink-0" /> WhatsApp
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            if (isLogin) setLoginChannel('EMAIL');
+                                            else setOtpChannel('EMAIL');
+                                        }}
+                                        className={`flex items-center justify-center py-2.5 px-3 rounded-xl font-bold text-xs sm:text-sm border transition-all active:scale-95 min-h-[42px] cursor-pointer ${
+                                            (isLogin ? loginChannel === 'EMAIL' : otpChannel === 'EMAIL')
+                                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                                                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                                        }`}
+                                    >
+                                        <Mail size={16} className="mr-1.5 shrink-0" /> Email
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Champ WhatsApp ou Email */}
+                            {((isLogin && loginChannel === 'WHATSAPP') || (!isLogin && otpChannel === 'WHATSAPP')) ? (
+                                <div className="text-left space-y-1">
+                                    <label className="text-xs font-semibold text-slate-600 block ml-1">Numéro WhatsApp :</label>
+                                    <div className="relative group">
+                                        <div className="absolute left-3 top-3 flex items-center gap-1 text-emerald-600 font-bold text-xs pointer-events-none">
+                                            <MessageCircle size={16} />
+                                            <span>🇨🇮 +225</span>
+                                        </div>
+                                        <input
+                                            name="phone"
+                                            type="tel"
+                                            required
+                                            value={phoneInput}
+                                            onChange={(e) => {
+                                                if (isLogin) setPhoneInput(e.target.value);
+                                                else checkPhoneDuplicate(e.target.value);
+                                            }}
+                                            placeholder="07 00 00 00 00"
+                                            className={`pl-28 block w-full py-2.5 text-sm border-2 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-600 transition-shadow bg-emerald-50/20 text-slate-900 font-semibold min-h-[44px] ${
+                                                phoneDuplicateError && !isLogin ? 'border-red-500 bg-red-50/30' : 'border-emerald-500/50'
+                                            }`}
+                                        />
+                                    </div>
+                                    {phoneDuplicateError && !isLogin && (
+                                        <div className="mt-1.5 p-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 flex items-center justify-between animate-in fade-in">
+                                            <span>{phoneDuplicateError}</span>
+                                            <button
+                                                type="button"
+                                                onClick={() => onSwitch(AppView.AUTH_LOGIN)}
+                                                className="text-xs font-bold text-emerald-700 underline hover:text-emerald-900 ml-2"
+                                            >
+                                                Se connecter →
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            ) : (
+                                <div className="text-left space-y-1">
+                                    <label className="text-xs font-semibold text-slate-600 block ml-1">Adresse Email :</label>
+                                    <div className="relative group">
+                                        <Mail className="absolute left-3 top-3 h-4 w-4 text-slate-400 group-focus-within:text-emerald-500 transition-colors" />
+                                        <input
+                                            name="email"
+                                            type="email"
+                                            required
+                                            value={emailInput}
+                                            onChange={(e) => {
+                                                if (isLogin) setEmailInput(e.target.value);
+                                                else checkEmailDuplicate(e.target.value);
+                                            }}
+                                            placeholder="Ex: votreemail@gmail.com"
+                                            className={`pl-9 block w-full py-2.5 text-sm border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-shadow bg-white min-h-[44px] text-slate-800 font-medium ${
+                                                emailDuplicateError && !isLogin ? 'border-red-500 bg-red-50/30' : 'border-slate-300'
+                                            }`}
+                                        />
+                                    </div>
+                                    {emailDuplicateError && !isLogin && (
+                                        <div className="mt-1.5 p-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 flex items-center justify-between animate-in fade-in">
+                                            <span>{emailDuplicateError}</span>
+                                            <button
+                                                type="button"
+                                                onClick={() => onSwitch(AppView.AUTH_LOGIN)}
+                                                className="text-xs font-bold text-emerald-700 underline hover:text-emerald-900 ml-2"
+                                            >
+                                                Se connecter →
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Mot de passe */}
+                            <div className="text-left space-y-1">
+                                <label className="text-xs font-semibold text-slate-600 block ml-1">Mot de passe :</label>
+                                <div className="relative group">
+                                    <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-400 group-focus-within:text-emerald-500 transition-colors" />
+                                    <input
+                                        id="password"
+                                        name="password"
+                                        type={showPassword ? "text" : "password"}
+                                        required
+                                        minLength={8}
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        placeholder="Mot de passe (8+ caractères)"
+                                        className="pl-9 pr-9 block w-full py-2.5 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-shadow bg-white min-h-[44px] text-slate-800"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPassword(!showPassword)}
+                                        className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                                    >
+                                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                    </button>
+                                </div>
+                                {isLogin && (
+                                    <div className="flex justify-end pt-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => { setError(null); setSuccessMessage(null); setIsForgotPasswordMode(true); setForgotStep(1); }}
+                                            className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 hover:underline transition-colors cursor-pointer"
+                                        >
+                                            Mot de passe oublié ?
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Bouton d'action principal */}
+                            <button
+                                type="submit"
+                                disabled={isLoading || (!isLogin && ((otpChannel === 'WHATSAPP' && !!phoneDuplicateError) || (otpChannel === 'EMAIL' && !!emailDuplicateError)))}
+                                className="w-full flex justify-center items-center py-3.5 px-4 border border-transparent rounded-xl shadow-md shadow-emerald-600/15 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 hover:shadow-emerald-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-all transform hover:scale-[1.01] active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed mt-2 min-h-[44px] cursor-pointer"
+                            >
+                                {isLoading ? (
+                                    <Loader className="animate-spin h-5 w-5" />
+                                ) : isLogin ? (
+                                    'Se connecter'
+                                ) : otpChannel === 'WHATSAPP' ? (
+                                    '✨ Valider & recevoir mon code'
+                                ) : (
+                                    '✨ Valider & recevoir mon code'
+                                )}
+                            </button>
+                        </form>
                     )}
 
                     {isLogin && (
