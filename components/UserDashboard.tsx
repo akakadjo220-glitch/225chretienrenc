@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { DashboardTab, AppView } from '../types';
-import { Heart, MessageCircle, Users, BookOpen, User, Home, X, Calendar, Lock, Shield, WifiOff, Star, Zap, HeartHandshake, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Heart, MessageCircle, Users, BookOpen, User, Home, X, Calendar, Lock, Shield, WifiOff, Star, Zap, HeartHandshake, ArrowRight, ShieldCheck, UserCheck } from 'lucide-react';
 import { Matches } from './Matches';
 import { Forum } from './Forum';
 import { Vocation } from './Vocation';
