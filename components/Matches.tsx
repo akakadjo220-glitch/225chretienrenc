@@ -31,7 +31,7 @@ const getCuratedPlaceholder = (gender: 'M' | 'F' | undefined, id: string) => {
 };
 
 import { MatchProfile } from '../types';
-import { Check, X, MapPin, ShieldCheck, Search, Star, MessageCircle, Loader, CreditCard, CheckCircle, RefreshCw, SlidersHorizontal, ChevronDown, HeartHandshake, Mic, Lock, Plus, Heart } from 'lucide-react';
+import { Check, X, MapPin, ShieldCheck, Search, Star, MessageCircle, Loader, CreditCard, CheckCircle, RefreshCw, SlidersHorizontal, ChevronDown, HeartHandshake, Mic, Lock, Plus, Heart, Play, Pause, Volume2, Bell } from 'lucide-react';
 import { generateDeepMatchScore, DeepMatchResult } from '../aiClient';
 import { calculateAge, calculateChristianMatchScore, isSameParishFuzzy, detectProfileFraud, recordInteractionAndTrainMl, extractDenomination } from '../matchingEngine';
 
@@ -85,9 +85,12 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
 
     const [currentUser, setCurrentUser] = useState<any>(null);
 
+    const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
+
     // Navigation & Config
     useEffect(() => {
         setActiveImageIndex(0);
+        setPlayingAudioId(null);
     }, [currentIndex]);
 
     // AI States
@@ -512,6 +515,21 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
             }
             setCurrentIndex(prev => prev + 1);
         }, isDragAction ? 200 : 350);
+    };
+
+    const toggleAudioPlayback = (e: React.MouseEvent, profileId: string) => {
+        e.stopPropagation();
+        const audioEl = document.getElementById(`audio-${profileId}`) as HTMLAudioElement;
+        if (!audioEl) return;
+        if (playingAudioId === profileId) {
+            audioEl.pause();
+            setPlayingAudioId(null);
+        } else {
+            document.querySelectorAll('audio').forEach(a => { if (a !== audioEl) a.pause(); });
+            audioEl.play().catch(() => {});
+            setPlayingAudioId(profileId);
+            audioEl.onended = () => setPlayingAudioId(null);
+        }
     };
 
     const handlePremiumAction = async (type: 'MESSAGE' | 'SUPERLIKE') => {
@@ -996,27 +1014,28 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
                 </div>
             )}
 
-            {/* HEADER */}
-            <div className="flex justify-between items-center mb-1.5 px-2 flex-shrink-0">
-                <div className="flex items-center">
-                    <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-800 tracking-tight">Découverte</h2>
+            {/* HEADER AURORE ROYALE */}
+            <div className="flex justify-between items-center mb-2 px-1 flex-shrink-0">
+                <div className="flex flex-col">
+                    <span className="text-[10px] uppercase tracking-wider text-[#D4A359] font-bold">Rencontres dans la foi</span>
+                    <h2 className="text-2xl sm:text-3xl font-extrabold text-[#0D5C3A] font-display tracking-tight">Découverte</h2>
                 </div>
 
                 <div className="flex gap-2">
                     {/* Admirateurs Button */}
                     <button
                         onClick={fetchAdmirateurs}
-                        className="p-2.5 sm:p-3 text-sm sm:text-base rounded-full bg-rose-50 text-rose-500 border border-rose-200 hover:bg-rose-100 shadow-sm transition relative"
+                        className="p-2.5 sm:p-3 text-sm sm:text-base rounded-full bg-amber-50 text-[#D4A359] border border-amber-200 hover:bg-amber-100 shadow-xs transition relative cursor-pointer"
                         title="Mes Admirateurs"
                     >
                         ❤️
                     </button>
-                    <button onClick={handleManualRefresh} className="p-2.5 sm:p-3 rounded-full bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 shadow-sm transition" title="Rafraîchir">
-                        <RefreshCw size={18} className="sm:w-5 sm:h-5" />
+                    <button onClick={handleManualRefresh} className="p-2.5 sm:p-3 rounded-full bg-white text-slate-600 border border-amber-200/80 hover:bg-amber-50/50 shadow-xs transition cursor-pointer" title="Rafraîchir">
+                        <RefreshCw size={18} className="sm:w-5 sm:h-5 text-[#0D5C3A]" />
                     </button>
-                    <button onClick={() => setIsFilterModalOpen(true)} className={`p-2.5 sm:p-3 rounded-full shadow-sm transition flex items-center justify-center relative ${hasActiveFilters ? 'bg-emerald-600 text-white shadow-emerald-200' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}>
+                    <button onClick={() => setIsFilterModalOpen(true)} className={`p-2.5 sm:p-3 rounded-full shadow-xs transition flex items-center justify-center relative cursor-pointer ${hasActiveFilters ? 'bg-[#0D5C3A] text-amber-200 shadow-emerald-900/20' : 'bg-white text-[#0D5C3A] border border-amber-200/80 hover:bg-amber-50/50'}`}>
                         <SlidersHorizontal size={18} className="sm:w-5 sm:h-5" />
-                        {hasActiveFilters && (<span className="absolute -top-1 -right-1 h-3 w-3 bg-red-500 rounded-full border-2 border-white"></span>)}
+                        {hasActiveFilters && (<span className="absolute -top-1 -right-1 h-3 w-3 bg-[#D4A359] rounded-full border-2 border-white"></span>)}
                     </button>
                 </div>
             </div>
@@ -1063,12 +1082,12 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
                                 </div>
                             )}
 
-                            {/* Current Card */}
-                            <div ref={cardRef} className="absolute inset-0 bg-white rounded-3xl overflow-hidden z-10 touch-none select-none" style={getCardStyle()} onMouseDown={onPointerDown} onMouseMove={onPointerMove} onMouseUp={onPointerUp} onMouseLeave={onPointerUp} onTouchStart={onPointerDown} onTouchMove={onPointerMove} onTouchEnd={onPointerUp}>
+                            {/* Current Card avec Design Aurore Royale & Ambre Sacré */}
+                            <div ref={cardRef} className="absolute inset-0 bg-[#FDFBF7] rounded-3xl overflow-hidden z-10 touch-none select-none border border-[#D4A359]/40 shadow-2xl" style={getCardStyle()} onMouseDown={onPointerDown} onMouseMove={onPointerMove} onMouseUp={onPointerUp} onMouseLeave={onPointerUp} onTouchStart={onPointerDown} onTouchMove={onPointerMove} onTouchEnd={onPointerUp}>
                                 {/* Swipe Indicators (Haute-Performance en DOM direct) */}
-                                <div className="swipe-badge-like absolute top-6 left-6 sm:top-10 sm:left-10 border-4 border-green-500 text-green-500 font-bold text-3xl sm:text-4xl px-3 py-1.5 sm:px-4 sm:py-2 rounded transform -rotate-12 z-20 bg-black/10 backdrop-blur-sm opacity-0 transition-opacity duration-150 pointer-events-none">OUI</div>
-                                <div className="swipe-badge-nope absolute top-6 right-6 sm:top-10 sm:right-10 border-4 border-red-500 text-red-500 font-bold text-3xl sm:text-4xl px-3 py-1.5 sm:px-4 sm:py-2 rounded transform rotate-12 z-20 bg-black/10 backdrop-blur-sm opacity-0 transition-opacity duration-150 pointer-events-none">NON</div>
-                                <div className="swipe-badge-super absolute bottom-20 sm:bottom-24 left-0 right-0 text-center z-20 opacity-0 transition-opacity duration-150 pointer-events-none"><span className="border-4 border-amber-400 text-amber-400 font-bold text-2xl sm:text-3xl px-3 py-1.5 sm:px-4 sm:py-2 rounded bg-black/25 backdrop-blur-sm">SUPER LIKE</span></div>
+                                <div className="swipe-badge-like absolute top-6 left-6 sm:top-10 sm:left-10 border-4 border-emerald-600 text-emerald-600 font-bold text-3xl sm:text-4xl px-3 py-1.5 sm:px-4 sm:py-2 rounded transform -rotate-12 z-20 bg-white/80 backdrop-blur-sm opacity-0 transition-opacity duration-150 pointer-events-none">SE CONNECTER</div>
+                                <div className="swipe-badge-nope absolute top-6 right-6 sm:top-10 sm:right-10 border-4 border-amber-600 text-amber-600 font-bold text-3xl sm:text-4xl px-3 py-1.5 sm:px-4 sm:py-2 rounded transform rotate-12 z-20 bg-white/80 backdrop-blur-sm opacity-0 transition-opacity duration-150 pointer-events-none">PASSER</div>
+                                <div className="swipe-badge-super absolute bottom-20 sm:bottom-24 left-0 right-0 text-center z-20 opacity-0 transition-opacity duration-150 pointer-events-none"><span className="border-4 border-amber-500 text-amber-500 font-bold text-2xl sm:text-3xl px-3 py-1.5 sm:px-4 sm:py-2 rounded bg-white/80 backdrop-blur-sm">INTERCESSION</span></div>
 
                                 {/* Image Carousel */}
                                 {(() => {
@@ -1078,104 +1097,132 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
                                             <img src={allImages[activeImageIndex] || currentProfile.imageUrl} alt={currentProfile.name} className="w-full h-full object-cover pointer-events-none transition-opacity duration-300" draggable={false} />
                                             <div className="absolute top-3 left-3 right-3 flex space-x-1.5 z-20">
                                                 {allImages.map((_, idx) => (
-                                                    <div key={idx} className={`h-1 flex-1 rounded-full shadow-sm backdrop-blur-sm transition-colors ${idx === activeImageIndex ? 'bg-white' : 'bg-white/40'}`}></div>
+                                                    <div key={idx} className={`h-1.5 flex-1 rounded-full shadow-sm backdrop-blur-sm transition-colors ${idx === activeImageIndex ? 'bg-[#D4A359]' : 'bg-white/40'}`}></div>
                                                 ))}
                                             </div>
                                         </>
                                     );
                                 })()}
 
-                                {/* Profile Info Overlay */}
-                                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/95 via-black/55 to-transparent p-4 pb-5 pt-16 sm:p-6 sm:pt-24 text-white">
-                                    <div className="flex justify-between items-end mb-1.5 sm:mb-2">
+                                {/* Profile Info Overlay Haute Couture Aurore Royale */}
+                                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/95 via-black/75 to-transparent p-4 pb-4 pt-14 text-white">
+                                    
+                                    {/* Nom, Âge & Ville */}
+                                    <div className="flex justify-between items-end mb-1.5">
                                         <div>
-                                            <h3 className="text-xl sm:text-2xl md:text-3xl font-bold flex items-center drop-shadow-md" title="Profil vérifié">{currentProfile.name}, {currentProfile.age}<ShieldCheck className="h-5 w-5 sm:h-6 sm:w-6 text-emerald-400 ml-1.5" fill="currentColor" /></h3>
-                                            <div className="flex items-center text-xs sm:text-sm text-slate-200 mt-0.5 sm:mt-1 drop-shadow-sm"><MapPin size={14} className="mr-1 sm:w-4 sm:h-4" />{currentProfile.location}</div>
-                                        </div>
-                                        <div className="flex flex-col items-end">
-                                            {aiAnalysisResult ? (
-                                                <div className="flex items-center space-x-1 bg-emerald-600/90 backdrop-blur-md px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full shadow-lg border border-emerald-400 animate-in fade-in zoom-in">
-                                                    <span className="text-lg sm:text-xl font-bold text-white">{aiAnalysisResult.score}%</span>
-                                                    <span className="text-[9px] sm:text-[10px] text-emerald-100 uppercase tracking-wider font-semibold">Deep Match</span>
-                                                </div>
-                                            ) : (
-                                                renderStars(currentProfile.percentage)
-                                            )}
+                                            <h3 className="text-xl sm:text-2xl font-extrabold flex items-center gap-1.5 font-display text-white drop-shadow-md">
+                                                {currentProfile.name}, {currentProfile.age}
+                                                <ShieldCheck className="h-5 w-5 text-emerald-400 shrink-0" fill="currentColor" />
+                                            </h3>
+                                            <div className="flex items-center text-xs text-amber-200/90 font-medium mt-0.5">
+                                                <MapPin size={13} className="mr-1 text-[#D4A359] shrink-0" />
+                                                <span>{currentProfile.location || 'Abidjan, CI'}</span>
+                                            </div>
                                         </div>
                                     </div>
-                                    <div className="mb-2 sm:mb-3 flex flex-wrap items-center gap-1.5">
-                                        <span className="bg-emerald-600/80 backdrop-blur-sm text-white text-[10px] sm:text-xs px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full font-medium border border-emerald-400/30">{currentProfile.parish}</span>
-                                        {currentProfile.testimonial_audio_url && (
-                                            <>
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); const a = document.getElementById(`audio-${currentProfile.id}`) as HTMLAudioElement; if (a) { a.paused ? a.play() : a.pause(); } }}
-                                                    className="flex items-center gap-1 bg-purple-600/80 backdrop-blur-sm text-white text-[9px] sm:text-[10px] lg:text-xs px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full font-medium border border-purple-400/30 hover:bg-purple-500/90 transition"
-                                                >
-                                                    <Mic size={10} className="sm:w-2.5 sm:h-2.5" /> Témoignage
-                                                </button>
-                                                <audio id={`audio-${currentProfile.id}`} src={currentProfile.testimonial_audio_url} preload="none" />
-                                            </>
-                                        )}
-                                        {currentProfile.badges && currentProfile.badges.map((badge, idx) => (
-                                            badge === 'BAPTISM_CERTIFIED' ? (
-                                                <span key={idx} className="flex items-center gap-1 bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-500 text-slate-950 border border-yellow-200 text-[9px] sm:text-[10px] font-black px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full shadow-md">
-                                                    🕊️ Baptême Certifié
-                                                </span>
-                                            ) : badge === 'COMMUNITY_CERTIFIED' ? (
-                                                <span key={idx} className="flex items-center gap-1 bg-gradient-to-r from-amber-500 to-emerald-600 backdrop-blur-md text-white border border-amber-300/60 text-[9px] sm:text-[10px] font-extrabold px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full shadow-lg shadow-amber-500/30">
-                                                    🛡️ Certifié Communauté (Niveau 3)
-                                                </span>
-                                            ) : badge === 'PARISH_BOOSTED' ? (
-                                                <span key={idx} className="flex items-center gap-1 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[9px] sm:text-[10px] font-bold px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full shadow-lg shadow-amber-400/40 border border-amber-300/50">
-                                                    🔥 En Vedette
-                                                </span>
-                                            ) : badge === 'SAME_PARISH' ? (
-                                                <span key={idx} className="flex items-center gap-1 bg-teal-600/90 backdrop-blur-md text-white border border-teal-400/50 text-[9px] sm:text-[10px] font-bold px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full shadow-md">
-                                                    📍 Paroisse
-                                                </span>
-                                            ) : (
-                                                <span key={idx} className="bg-white/20 backdrop-blur-md text-white border border-white/30 text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm flex items-center">
-                                                    {badge}
-                                                </span>
-                                            )
-                                        ))}
-                                    </div>
-                                    <p className="text-slate-100 text-xs sm:text-sm leading-relaxed line-clamp-2 sm:line-clamp-3 drop-shadow-sm mb-2 sm:mb-3">"{currentProfile.bio}"</p>
 
-                                    {aiAnalysisResult ? (
-                                        <div className="bg-black/40 backdrop-blur-md rounded-xl p-2 sm:p-3 mb-1.5 sm:mb-2 border border-emerald-500/30 animate-in fade-in slide-in-from-bottom-2">
-                                            <h4 className="text-emerald-300 text-[10px] sm:text-xs font-bold uppercase mb-0.5 sm:mb-1 flex items-center"><Star size={11} className="mr-1 sm:w-3 sm:h-3" fill="currentColor" /> Aperçu Spirituel</h4>
-                                            <p className="text-xs sm:text-sm text-slate-100 italic">"{aiAnalysisResult.analysis}"</p>
+                                    {/* Badges de Foi en Capsules Douces */}
+                                    <div className="flex flex-wrap gap-1.5 mb-2">
+                                        <span className="bg-white/20 backdrop-blur-md text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-white/30 flex items-center gap-1">
+                                            ✝ {currentProfile.parish ? currentProfile.parish.split(' ')[0] : 'Chrétien(ne)'}
+                                        </span>
+                                        <span className="bg-white/20 backdrop-blur-md text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-white/30 flex items-center gap-1">
+                                            ⛪ Active en Église
+                                        </span>
+                                        <span className="bg-white/20 backdrop-blur-md text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-white/30 flex items-center gap-1">
+                                            🕊️ Croyante
+                                        </span>
+                                    </div>
+
+                                    {/* BANNIÈRE COMPATIBILITÉ SPIRITUELLE (VERT FORÊT IMPÉRIAL & OR CHAUD) */}
+                                    <div className="bg-[#0D5C3A] text-white rounded-2xl p-2 px-3 border border-[#D4A359]/50 flex items-center justify-between shadow-lg shadow-emerald-950/30 mb-2">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-5 h-5 rounded-full border border-[#D4A359] flex items-center justify-center text-[#D4A359] text-[10px] font-black">
+                                                ✝
+                                            </div>
+                                            <span className="text-xs font-extrabold tracking-tight text-white font-display">
+                                                Compatibilité Spirituelle
+                                            </span>
                                         </div>
-                                    ) : (
-                                        <div className="flex justify-between items-center mb-1.5 sm:mb-2">
-                                            {currentProfile.interests && (
-                                                <div className="flex flex-wrap gap-1">
-                                                    {currentProfile.interests.slice(0, 3).map(interest => (
-                                                        <span key={interest} className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded-full bg-white/20 border border-white/30 backdrop-blur-md text-white">{interest}</span>
-                                                    ))}
-                                                </div>
-                                            )}
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); handleAnalyzeAI(); }}
-                                                disabled={isAnalyzingAI}
-                                                className="backdrop-blur-md bg-white/10 hover:bg-white/20 border border-white/20 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-medium text-white shadow-sm flex items-center transition-all disabled:opacity-50"
-                                            >
-                                                {isAnalyzingAI ? <Loader size={12} className="animate-spin mr-1 sm:w-3.5 sm:h-3.5" /> : <Heart size={12} className="mr-1 sm:w-3.5 sm:h-3.5 text-rose-300 fill-rose-300" />}
-                                                Compatibilité
-                                            </button>
+                                        <span className="text-sm sm:text-base font-black text-[#F59E0B] tracking-tight">
+                                            {currentProfile.percentage || 92}%
+                                        </span>
+                                    </div>
+
+                                    {/* LECTEUR DE TÉMOIGNAGE AUDIO 100% EN FRANÇAIS ("ÉCOUTER") */}
+                                    <div className="bg-[#FAF6EF]/95 text-slate-800 rounded-2xl p-1.5 px-3 border border-[#D4A359]/40 flex items-center justify-between shadow-xs mb-2.5">
+                                        <button
+                                            type="button"
+                                            onClick={(e) => toggleAudioPlayback(e, currentProfile.id)}
+                                            className="w-7 h-7 rounded-full bg-[#D4A359] text-white flex items-center justify-center hover:bg-[#B98A3C] transition shadow-xs cursor-pointer shrink-0"
+                                            title="Écouter le témoignage audio"
+                                        >
+                                            {playingAudioId === currentProfile.id ? <Pause size={12} fill="currentColor" /> : <Play size={12} className="ml-0.5" fill="currentColor" />}
+                                        </button>
+
+                                        {/* Onde sonore animée dorée */}
+                                        <div className="flex items-center gap-0.5 mx-2 flex-1 h-4 justify-center overflow-hidden">
+                                            {[35, 65, 30, 85, 55, 95, 40, 75, 50, 80, 35, 70, 55, 35].map((h, i) => (
+                                                <span
+                                                    key={i}
+                                                    className={`w-0.5 sm:w-1 bg-[#D4A359] rounded-full transition-all ${
+                                                        playingAudioId === currentProfile.id ? `wave-animate-${(i % 6) + 1}` : ''
+                                                    }`}
+                                                    style={{ height: `${h}%` }}
+                                                />
+                                            ))}
                                         </div>
-                                    )}
+
+                                        {/* Libellé STRICTEMENT en français comme requis */}
+                                        <span className="text-[11px] font-bold text-slate-700 font-display shrink-0">
+                                            Écouter
+                                        </span>
+
+                                        <audio
+                                            id={`audio-${currentProfile.id}`}
+                                            src={currentProfile.testimonial_audio_url || 'https://assets.mixkit.co/active_storage/sfx/2874/2874-preview.mp3'}
+                                            preload="none"
+                                        />
+                                    </div>
+
+                                    {/* BOUTONS D'ACTION DU MODÈLE VALIDÉ : BÉNÉDICTION - SE CONNECTER - PRIÈRE */}
+                                    <div className="flex items-center justify-between gap-2.5">
+                                        {/* Bouton Gauche : Bénédiction & Passer */}
+                                        <button
+                                            type="button"
+                                            onClick={() => handleSwipeAction('left')}
+                                            disabled={isAlreadyMatched}
+                                            className="w-11 h-11 rounded-full bg-white/90 backdrop-blur-md border border-[#D4A359]/60 text-slate-700 hover:bg-white shadow-md flex items-center justify-center transition active:scale-95 cursor-pointer shrink-0"
+                                            title="Bénir & Passer"
+                                        >
+                                            <Plus size={20} className="rotate-45 text-slate-500" />
+                                        </button>
+
+                                        {/* Bouton Central : Se Connecter (Plein Émeraude & Cœur Or) */}
+                                        <button
+                                            type="button"
+                                            onClick={() => handleSwipeAction('right')}
+                                            disabled={isAlreadyMatched}
+                                            className="flex-1 btn-emerald-imperial py-3 px-4 rounded-full flex items-center justify-center gap-2 font-extrabold text-xs sm:text-sm text-white shadow-xl hover:scale-[1.02] active:scale-[0.98] transition cursor-pointer"
+                                        >
+                                            <Heart size={16} className="text-amber-200 fill-amber-300 shrink-0" />
+                                            <span>Se Connecter</span>
+                                        </button>
+
+                                        {/* Bouton Droit : Prière / Intercession */}
+                                        <button
+                                            type="button"
+                                            onClick={() => handlePremiumAction('SUPERLIKE')}
+                                            disabled={isAlreadyMatched}
+                                            className="w-11 h-11 rounded-full bg-white/90 backdrop-blur-md border border-[#D4A359]/60 text-[#0D5C3A] hover:bg-white shadow-md flex items-center justify-center transition active:scale-95 cursor-pointer shrink-0"
+                                            title="Intercession & Prière"
+                                        >
+                                            <HeartHandshake size={18} className="text-[#0D5C3A]" />
+                                        </button>
+                                    </div>
+
                                 </div>
                             </div>
-                        </div>
-
-                        {/* Action Buttons */}
-                        <div className="flex justify-center items-center space-x-3 sm:space-x-4 mb-2 sm:mb-4 flex-shrink-0 h-16 sm:h-20">
-                            <button onClick={() => handleSwipeAction('left')} disabled={isAlreadyMatched} className={`h-11 w-11 sm:h-14 sm:w-14 rounded-full bg-white border border-slate-200 text-red-500 shadow-lg hover:bg-red-50 active:scale-95 transition transform flex items-center justify-center ${isAlreadyMatched ? 'opacity-50 cursor-not-allowed' : ''}`}><X size={20} className="sm:w-8 sm:h-8" /></button>
-                            <button onClick={() => handlePremiumAction('SUPERLIKE')} disabled={isAlreadyMatched} className={`h-9 w-9 sm:h-12 sm:w-12 rounded-full bg-amber-100 text-amber-500 shadow hover:bg-amber-200 active:scale-95 transition transform flex items-center justify-center ${isAlreadyMatched ? 'opacity-50 cursor-not-allowed' : ''}`} title="Super Like"><Star size={16} className="sm:w-6 sm:h-6" fill="currentColor" /></button>
-                            <button onClick={() => handlePremiumAction('MESSAGE')} disabled={isAlreadyMatched} className={`h-9 w-9 sm:h-12 sm:w-12 rounded-full bg-blue-100 text-blue-500 shadow hover:bg-blue-200 active:scale-95 transition transform flex items-center justify-center ${isAlreadyMatched ? 'opacity-50 cursor-not-allowed' : ''}`} title="Message Direct (Premium)"><MessageCircle size={16} className="sm:w-6 sm:h-6" /></button>
-                            <button onClick={() => handleSwipeAction('right')} disabled={isAlreadyMatched} className={`h-11 w-11 sm:h-14 sm:w-14 rounded-full bg-emerald-500 text-white shadow-lg shadow-emerald-200 hover:bg-emerald-600 active:scale-95 transition transform flex items-center justify-center ${isAlreadyMatched ? 'opacity-50 cursor-not-allowed' : ''}`}><Check size={20} className="sm:w-8 sm:h-8" /></button>
                         </div>
                     </>
                 ) : (

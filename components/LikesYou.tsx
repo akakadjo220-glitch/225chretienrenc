@@ -236,27 +236,27 @@ export const LikesYou: React.FC<LikesYouProps> = ({ onLikeProcessed, onGoToMessa
             {/* Header */}
             <div className="mb-6 flex justify-between items-center px-2">
                 <div>
-                    <h2 className="text-2xl font-extrabold text-slate-800 flex items-center">
-                        Ils vous aiment <span className="bg-emerald-100 text-emerald-700 text-sm px-3 py-1 rounded-full ml-3 font-bold">{likers.length}</span>
+                    <h2 className="text-2xl font-extrabold text-[#0D5C3A] font-display flex items-center">
+                        Coups de cœur <span className="bg-[#FAF6EF] text-[#D4A359] border border-[#D4A359]/40 text-sm px-3 py-0.5 rounded-full ml-3 font-extrabold">{likers.length}</span>
                     </h2>
-                    <p className="text-slate-500 text-xs sm:text-sm mt-1">Découvrez instantanément qui souhaite vous rencontrer.</p>
+                    <p className="text-slate-600 text-xs sm:text-sm mt-1">Découvrez qui souhaite faire votre connaissance dans la foi.</p>
                 </div>
                 {!isPremium && (
-                    <div className="bg-amber-100 text-amber-800 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center shadow-xs">
-                        <Lock size={14} className="mr-1.5 text-amber-600" /> Premium
+                    <div className="bg-[#FAF6EF] text-[#D4A359] border border-[#D4A359]/50 px-3 py-1.5 rounded-xl text-xs font-extrabold flex items-center shadow-xs">
+                        <Lock size={14} className="mr-1.5 text-[#D4A359]" /> Privilège
                     </div>
                 )}
             </div>
 
             {/* Liste des Likers */}
             {likers.length === 0 ? (
-                <div className="bg-white rounded-3xl p-10 text-center border border-slate-200/80 shadow-xs my-auto max-w-md mx-auto">
-                    <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-inner">
-                        <Heart size={32} />
+                <div className="bg-[#FAF6EF]/90 rounded-3xl p-10 text-center border border-[#D4A359]/30 shadow-xs my-auto max-w-md mx-auto">
+                    <div className="w-16 h-16 bg-white text-[#D4A359] rounded-full flex items-center justify-center mx-auto mb-4 border border-[#D4A359]/40 shadow-sm">
+                        <Heart size={32} fill="#D4A359" className="text-[#D4A359]" />
                     </div>
-                    <h3 className="font-extrabold text-lg text-slate-800 mb-1">Aucun nouveau coup de cœur</h3>
-                    <p className="text-slate-500 text-xs sm:text-sm leading-relaxed">
-                        Soyez patient(e) et gardez la foi ! Votre profil est visible par des célibataires chrétiens engagés.
+                    <h3 className="font-extrabold text-lg text-[#0D5C3A] font-display mb-1">Aucun nouveau coup de cœur</h3>
+                    <p className="text-slate-600 text-xs sm:text-sm leading-relaxed">
+                        Gardez confiance et priez ! Votre profil est présenté à des célibataires chrétiens engagés.
                     </p>
                 </div>
             ) : (

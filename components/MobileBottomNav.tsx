@@ -1,85 +1,109 @@
 import React from 'react';
-import { Heart, Star, MessageCircle, MessageSquareText, User } from 'lucide-react';
+import { Heart, Star, MessageCircle, Users, User } from 'lucide-react';
 import { AppView } from '../types';
 
 interface MobileBottomNavProps {
   currentView: AppView;
   onChangeView: (view: AppView) => void;
   unreadCount?: number;
+  likesCount?: number;
 }
 
 export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   currentView,
   onChangeView,
-  unreadCount = 0
+  unreadCount = 0,
+  likesCount = 0
 }) => {
-  const navItems = [
-    {
-      id: AppView.USER_DASHBOARD,
-      label: 'Rencontres',
-      icon: Heart,
-    },
-    {
-      id: AppView.LIKES_YOU,
-      label: 'Ils vous aiment',
-      icon: Star,
-    },
-    {
-      id: AppView.MESSAGES,
-      label: 'Messages',
-      icon: MessageCircle,
-      badge: unreadCount > 0 ? unreadCount : undefined
-    },
-    {
-      id: AppView.FORUM,
-      label: 'Forum',
-      icon: MessageSquareText,
-    },
-    {
-      id: AppView.PROFILE,
-      label: 'Profil',
-      icon: User,
-    },
-  ];
-
   return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-lg border-t border-slate-200/80 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] px-2 pt-1.5 pb-[calc(0.5rem+env(safe-area-inset-bottom))] transition-all duration-300">
-      <div className="flex items-center justify-around max-w-md mx-auto">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = currentView === item.id;
-
-          return (
-            <button
-              key={item.id || item.label}
-              onClick={() => onChangeView(item.id)}
-              className={`relative flex flex-col items-center justify-center py-1 px-3 rounded-2xl transition-all duration-200 active:scale-95 min-h-[48px] min-w-[56px] ${
-                isActive
-                  ? 'text-emerald-700 font-bold'
-                  : 'text-slate-400 hover:text-slate-600 font-medium'
-              }`}
-            >
-              {/* Indicateur point vert haut si actif */}
-              {isActive && (
-                <span className="absolute -top-1 w-1.5 h-1.5 bg-emerald-600 rounded-full shadow-sm animate-pulse" />
-              )}
-
-              <div className={`relative p-1 rounded-xl transition-all duration-200 ${isActive ? 'bg-emerald-50 text-emerald-700 scale-110' : ''}`}>
-                <Icon size={20} className={isActive ? 'stroke-[2.5]' : 'stroke-[1.8]'} />
-                {item.badge !== undefined && (
-                  <span className="absolute -top-1 -right-1.5 bg-emerald-700 text-white text-[10px] font-extrabold w-4 h-4 rounded-full flex items-center justify-center border-2 border-white shadow-xs">
-                    {item.badge > 9 ? '9+' : item.badge}
-                  </span>
-                )}
-              </div>
-
-              <span className="text-[10px] tracking-tight mt-0.5 font-sans leading-none">
-                {item.label}
+    <div className="md:hidden fixed bottom-3 left-3 right-3 max-w-md mx-auto z-50 pointer-events-none">
+      <nav className="island-bottom-nav pointer-events-auto px-2 py-1.5 flex items-center justify-between relative shadow-2xl">
+        
+        {/* 1. MESSAGES */}
+        <button
+          onClick={() => onChangeView(AppView.MESSAGES)}
+          className={`flex-1 flex flex-col items-center justify-center py-1 rounded-2xl transition-all duration-200 active:scale-95 cursor-pointer ${
+            currentView === AppView.MESSAGES
+              ? 'text-[#0D5C3A] font-bold'
+              : 'text-slate-500 hover:text-slate-800 font-medium'
+          }`}
+        >
+          <div className="relative">
+            <MessageCircle size={20} className={currentView === AppView.MESSAGES ? 'stroke-[2.5] text-[#0D5C3A]' : 'stroke-[1.8]'} />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1.5 -right-2 bg-[#D4A359] text-white text-[9px] font-black px-1.5 py-0.2 rounded-full border border-white shadow-xs">
+                {unreadCount > 9 ? '9+' : unreadCount}
               </span>
-            </button>
-          );
-        })}
-      </div>
+            )}
+          </div>
+          <span className="text-[10px] tracking-tight mt-0.5">Messages</span>
+        </button>
+
+        {/* 2. COUPS DE CŒUR */}
+        <button
+          onClick={() => onChangeView(AppView.LIKES_YOU)}
+          className={`flex-1 flex flex-col items-center justify-center py-1 rounded-2xl transition-all duration-200 active:scale-95 cursor-pointer ${
+            currentView === AppView.LIKES_YOU
+              ? 'text-[#0D5C3A] font-bold'
+              : 'text-slate-500 hover:text-slate-800 font-medium'
+          }`}
+        >
+          <div className="relative">
+            <Star size={20} className={currentView === AppView.LIKES_YOU ? 'stroke-[2.5] text-[#D4A359] fill-[#D4A359]' : 'stroke-[1.8]'} />
+            {likesCount > 0 && (
+              <span className="absolute -top-1.5 -right-2 bg-[#D4A359] text-white text-[9px] font-black px-1.5 py-0.2 rounded-full border border-white shadow-xs">
+                {likesCount}
+              </span>
+            )}
+          </div>
+          <span className="text-[10px] tracking-tight mt-0.5">Coups de cœur</span>
+        </button>
+
+        {/* 3. RENCONTRES (BOUTON CENTRAL SURÉLEVÉ GOUTTE ÉMERAUDE & OR) */}
+        <div className="flex-1 flex flex-col items-center justify-center -mt-6">
+          <button
+            onClick={() => onChangeView(AppView.USER_DASHBOARD)}
+            className="w-13 h-13 rounded-full bg-gradient-to-tr from-[#0D5C3A] via-[#0f6b43] to-[#128050] border-2 border-[#D4A359] shadow-lg shadow-emerald-950/25 flex items-center justify-center text-amber-200 hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer group"
+            title="Rencontres chrétiennes"
+          >
+            <Heart size={22} className="text-amber-200 fill-amber-300 drop-shadow-xs transition-transform group-hover:scale-110" />
+          </button>
+          <span className={`text-[10px] tracking-tight mt-1 ${
+            currentView === AppView.USER_DASHBOARD
+              ? 'text-[#0D5C3A] font-extrabold'
+              : 'text-slate-600 font-bold'
+          }`}>
+            Rencontres
+          </span>
+        </div>
+
+        {/* 4. COMMUNAUTÉ (FORUM / PARVIS) */}
+        <button
+          onClick={() => onChangeView(AppView.FORUM)}
+          className={`flex-1 flex flex-col items-center justify-center py-1 rounded-2xl transition-all duration-200 active:scale-95 cursor-pointer ${
+            currentView === AppView.FORUM
+              ? 'text-[#0D5C3A] font-bold'
+              : 'text-slate-500 hover:text-slate-800 font-medium'
+          }`}
+        >
+          <Users size={20} className={currentView === AppView.FORUM ? 'stroke-[2.5] text-[#0D5C3A]' : 'stroke-[1.8]'} />
+          <span className="text-[10px] tracking-tight mt-0.5">Communauté</span>
+        </button>
+
+        {/* 5. PROFIL */}
+        <button
+          onClick={() => onChangeView(AppView.PROFILE)}
+          className={`flex-1 flex flex-col items-center justify-center py-1 rounded-2xl transition-all duration-200 active:scale-95 cursor-pointer ${
+            currentView === AppView.PROFILE
+              ? 'text-[#0D5C3A] font-bold'
+              : 'text-slate-500 hover:text-slate-800 font-medium'
+          }`}
+        >
+          <User size={20} className={currentView === AppView.PROFILE ? 'stroke-[2.5] text-[#0D5C3A]' : 'stroke-[1.8]'} />
+          <span className="text-[10px] tracking-tight mt-0.5">Profil</span>
+        </button>
+
+      </nav>
     </div>
   );
 };

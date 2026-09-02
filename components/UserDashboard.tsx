@@ -39,7 +39,7 @@ const TAB_HEADERS: Partial<Record<DashboardTab, { title: string; subtitle: strin
   },
   [DashboardTab.MATCHES]: {
     title: 'Portail des Rencontres',
-    subtitle: 'Découvrez des profils de célibataires chrétiens engagés partageant votre foi.'
+    subtitle: 'Trouvez votre âme sœur chrétienne dans la prière et la foi.'
   },
   [DashboardTab.SPEED_DATE]: {
     title: 'Speed Date Chrétien ⚡',
@@ -337,15 +337,15 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
         // --- CLEAN PRO GREEN & WHITE LOCKED SCREEN FOR UNVERIFIED USERS ---
         if (!isVerified) {
           return (
-            <div className="flex flex-col items-center text-center p-5 sm:p-8 mt-4 sm:mt-6 mb-6 bg-white rounded-3xl border border-emerald-100 shadow-xl shadow-emerald-900/5 max-w-lg mx-auto w-full animate-in fade-in duration-300">
+            <div className="flex flex-col items-center text-center p-5 sm:p-8 mt-4 sm:mt-6 mb-6 bg-[#FAF6EF]/90 backdrop-blur-md rounded-3xl border border-[#D4A359]/40 shadow-xl max-w-lg mx-auto w-full animate-in fade-in duration-300">
               
               {/* Badge Sécurité Sobre */}
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold mb-3">
-                <ShieldCheck size={15} className="text-emerald-600" />
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#0D5C3A]/10 border border-[#0D5C3A]/30 text-[#0D5C3A] text-xs font-semibold mb-3">
+                <ShieldCheck size={15} className="text-[#0D5C3A]" />
                 <span>Espace de Confiance & Vérification</span>
               </div>
 
-              <h3 className="text-xl sm:text-2xl font-bold text-slate-900 font-display tracking-tight mb-1.5">
+              <h3 className="text-xl sm:text-2xl font-extrabold text-[#0D5C3A] font-display tracking-tight mb-1.5">
                 Accéder aux Rencontres Chrétiennes
               </h3>
 
@@ -581,11 +581,11 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
   const currentTabHeader = TAB_HEADERS[activeTab] || { title: 'Tableau de Bord', subtitle: '' };
 
   return (
-    <div className="flex-1 w-full bg-slate-50 md:pl-64 relative flex flex-col min-h-screen">
+    <div className="flex-1 w-full bg-[#FDFBF7] md:pl-64 relative flex flex-col min-h-screen">
 
       {/* TOAST DE RÉCOMPENSE SPIRITUELLE */}
       {meditationToast && (
-        <div className="fixed top-20 right-4 md:right-8 z-50 bg-emerald-800 text-white px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 animate-in slide-in-from-top-3 border border-emerald-600 font-bold text-xs">
+        <div className="fixed top-20 right-4 md:right-8 z-50 bg-[#0D5C3A] text-amber-200 px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 animate-in slide-in-from-top-3 border border-[#D4A359]/60 font-bold text-xs">
           <span>🕊️</span>
           <span>{meditationToast}</span>
         </div>
@@ -593,14 +593,14 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
 
       {/* OFFLINE BANNER */}
       {isOffline && (
-        <div className="bg-emerald-800 text-white text-xs text-center py-2 px-4 z-30 flex-shrink-0 flex items-center justify-center gap-1.5 shadow-xs font-semibold">
-          <WifiOff size={14} className="animate-pulse" />
+        <div className="bg-[#0D5C3A] text-white text-xs text-center py-2 px-4 z-30 flex-shrink-0 flex items-center justify-center gap-1.5 shadow-xs font-semibold">
+          <WifiOff size={14} className="animate-pulse text-amber-300" />
           <span>Mode hors-ligne activé. Certaines données peuvent ne pas être à jour.</span>
         </div>
       )}
 
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex fixed left-0 top-16 bottom-0 w-64 bg-white border-r border-slate-200 flex-col z-20 shadow-2xs">
+      <aside className="hidden md:flex fixed left-0 top-16 bottom-0 w-64 bg-white border-r border-amber-200/50 flex-col z-20 shadow-2xs">
         <SidebarContent />
       </aside>
 
@@ -609,10 +609,10 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
         <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onCloseMobileSidebar} />
       </div>
 
-      <aside className={`fixed top-0 bottom-0 left-0 z-50 w-[280px] max-w-[85vw] bg-white shadow-xl transform transition-transform duration-300 ease-in-out md:hidden flex flex-col rounded-r-2xl overflow-hidden border-r border-slate-200 ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="flex items-center justify-between p-4 px-5 border-b border-slate-100 bg-emerald-800 text-white shrink-0">
+      <aside className={`fixed top-0 bottom-0 left-0 z-50 w-[280px] max-w-[85vw] bg-white shadow-xl transform transition-transform duration-300 ease-in-out md:hidden flex flex-col rounded-r-2xl overflow-hidden border-r border-amber-200/50 ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="flex items-center justify-between p-4 px-5 border-b border-amber-200/50 bg-[#0D5C3A] text-white shrink-0">
           <div className="flex items-center gap-2">
-            <span className="font-extrabold text-sm tracking-tight font-display">Navigation 225 Chrétien</span>
+            <span className="font-extrabold text-sm tracking-tight font-display text-amber-200">Navigation 225 Chrétien</span>
           </div>
           <button onClick={onCloseMobileSidebar} className="p-1.5 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full transition cursor-pointer">
             <X size={18} />
@@ -625,7 +625,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
 
       {/* Main Content Area */}
       <main ref={mainContentRef} className={`flex-1 w-full flex flex-col ${isMatchesTabAndVerified ? 'h-[calc(100dvh-4rem)] overflow-hidden' : ''}`}>
-        <div className={`max-w-4xl mx-auto p-3 pt-2 md:p-8 w-full flex-1 ${isMatchesTabAndVerified ? 'h-full flex flex-col pb-24 md:pb-[90px]' : 'pb-36 sm:pb-40 md:pb-16'}`}>
+        <div className={`max-w-4xl mx-auto p-3 pt-2 md:p-8 w-full flex-1 ${isMatchesTabAndVerified ? 'h-full flex flex-col pb-28 md:pb-[90px]' : 'pb-36 sm:pb-40 md:pb-16'}`}>
           {renderContent()}
         </div>
       </main>
