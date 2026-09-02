@@ -1014,29 +1014,72 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
                 </div>
             )}
 
-            {/* HEADER AURORE ROYALE */}
-            <div className="flex justify-between items-center mb-2 px-1 flex-shrink-0">
-                <div className="flex flex-col">
-                    <span className="text-[10px] uppercase tracking-wider text-[#D4A359] font-bold">Rencontres dans la foi</span>
-                    <h2 className="text-2xl sm:text-3xl font-extrabold text-[#0D5C3A] font-display tracking-tight">Découverte</h2>
+            {/* HEADER AURORE ROYALE COMPLET (À L'IDENTIQUE DE LA MAQUETTE) */}
+            <div className="mb-3 px-1 flex-shrink-0">
+                {/* Ligne 1 : Salutation inspirante & Cloche de notification */}
+                <div className="flex justify-between items-start mb-2">
+                    <div>
+                        <h2 className="text-xl sm:text-2xl font-extrabold text-[#0D5C3A] font-display tracking-tight leading-tight">
+                            Bonjour {currentUser?.name?.split(' ')[0] || 'Awa'},
+                        </h2>
+                        <p className="text-xs text-slate-600 font-medium">
+                            trouvez votre âme sœur chrétienne
+                        </p>
+                    </div>
+
+                    {/* Cloche Notification douce */}
+                    <button
+                        type="button"
+                        onClick={fetchAdmirateurs}
+                        className="w-10 h-10 rounded-full bg-[#FAF6EF] border border-[#E2D6C4] flex items-center justify-center text-[#0D5C3A] hover:bg-white shadow-xs transition cursor-pointer relative"
+                        title="Notifications"
+                    >
+                        <Bell size={18} className="text-[#0D5C3A]" />
+                        {admirateursList.length > 0 && (
+                            <span className="absolute top-2 right-2 w-2 h-2 bg-[#D4A359] rounded-full animate-pulse" />
+                        )}
+                    </button>
                 </div>
 
-                <div className="flex gap-2">
-                    {/* Admirateurs Button */}
+                {/* Ligne 2 : Pastilles "💛 Notification" et "Filtres 🎛️" */}
+                <div className="flex items-center justify-between gap-2">
                     <button
+                        type="button"
                         onClick={fetchAdmirateurs}
-                        className="p-2.5 sm:p-3 text-sm sm:text-base rounded-full bg-amber-50 text-[#D4A359] border border-amber-200 hover:bg-amber-100 shadow-xs transition relative cursor-pointer"
-                        title="Mes Admirateurs"
+                        className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#FAF6EF] border border-[#E2D6C4] text-slate-800 text-xs font-bold hover:bg-white transition cursor-pointer shadow-2xs"
                     >
-                        ❤️
+                        <span>💛</span>
+                        <span className="text-[11px] font-bold text-slate-800">Notification</span>
+                        {admirateursList.length > 0 && (
+                            <span className="bg-[#D4A359] text-white text-[9px] font-black px-1.5 py-0.2 rounded-full ml-1">
+                                {admirateursList.length}
+                            </span>
+                        )}
                     </button>
-                    <button onClick={handleManualRefresh} className="p-2.5 sm:p-3 rounded-full bg-white text-slate-600 border border-amber-200/80 hover:bg-amber-50/50 shadow-xs transition cursor-pointer" title="Rafraîchir">
-                        <RefreshCw size={18} className="sm:w-5 sm:h-5 text-[#0D5C3A]" />
-                    </button>
-                    <button onClick={() => setIsFilterModalOpen(true)} className={`p-2.5 sm:p-3 rounded-full shadow-xs transition flex items-center justify-center relative cursor-pointer ${hasActiveFilters ? 'bg-[#0D5C3A] text-amber-200 shadow-emerald-900/20' : 'bg-white text-[#0D5C3A] border border-amber-200/80 hover:bg-amber-50/50'}`}>
-                        <SlidersHorizontal size={18} className="sm:w-5 sm:h-5" />
-                        {hasActiveFilters && (<span className="absolute -top-1 -right-1 h-3 w-3 bg-[#D4A359] rounded-full border-2 border-white"></span>)}
-                    </button>
+
+                    <div className="flex items-center gap-1.5">
+                        <button
+                            type="button"
+                            onClick={handleManualRefresh}
+                            className="p-1.5 rounded-full bg-[#FAF6EF] border border-[#E2D6C4] text-[#0D5C3A] hover:bg-white transition cursor-pointer"
+                            title="Actualiser"
+                        >
+                            <RefreshCw size={14} />
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => setIsFilterModalOpen(true)}
+                            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border text-xs font-bold transition cursor-pointer shadow-2xs ${
+                                hasActiveFilters
+                                    ? 'bg-[#0D5C3A] text-amber-200 border-[#0D5C3A]'
+                                    : 'bg-[#FAF6EF] text-slate-800 border-[#E2D6C4] hover:bg-white'
+                            }`}
+                        >
+                            <span className="text-[11px] font-bold">Filtres</span>
+                            <SlidersHorizontal size={13} />
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -1121,30 +1164,30 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
                                         </div>
                                     </div>
 
-                                    {/* Badges de Foi en Capsules Douces */}
+                                    {/* Badges de Foi en Capsules Vert Sauge Douces (À l'identique de la maquette) */}
                                     <div className="flex flex-wrap gap-1.5 mb-2">
-                                        <span className="bg-white/20 backdrop-blur-md text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-white/30 flex items-center gap-1">
-                                            ✝ {currentProfile.parish ? currentProfile.parish.split(' ')[0] : 'Chrétien(ne)'}
+                                        <span className="bg-[#E5EDE8] text-[#0D5C3A] text-[10px] font-bold px-3 py-0.5 rounded-full border border-[#0D5C3A]/20 flex items-center gap-1 shadow-2xs">
+                                            ✝ {currentProfile.parish ? currentProfile.parish.split(' ')[0] : 'Protestante'}
                                         </span>
-                                        <span className="bg-white/20 backdrop-blur-md text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-white/30 flex items-center gap-1">
-                                            ⛪ Active en Église
+                                        <span className="bg-[#E5EDE8] text-[#0D5C3A] text-[10px] font-bold px-3 py-0.5 rounded-full border border-[#0D5C3A]/20 flex items-center gap-1 shadow-2xs">
+                                            ⛪ Active en Paroisse
                                         </span>
-                                        <span className="bg-white/20 backdrop-blur-md text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-white/30 flex items-center gap-1">
+                                        <span className="bg-[#E5EDE8] text-[#0D5C3A] text-[10px] font-bold px-3 py-0.5 rounded-full border border-[#0D5C3A]/20 flex items-center gap-1 shadow-2xs">
                                             🕊️ Croyante
                                         </span>
                                     </div>
 
                                     {/* BANNIÈRE COMPATIBILITÉ SPIRITUELLE (VERT FORÊT IMPÉRIAL & OR CHAUD) */}
-                                    <div className="bg-[#0D5C3A] text-white rounded-2xl p-2 px-3 border border-[#D4A359]/50 flex items-center justify-between shadow-lg shadow-emerald-950/30 mb-2">
+                                    <div className="bg-[#0D5C3A] text-white rounded-2xl p-2 px-3.5 border border-[#D4A359]/60 flex items-center justify-between shadow-lg shadow-emerald-950/35 mb-2">
                                         <div className="flex items-center gap-2">
-                                            <div className="w-5 h-5 rounded-full border border-[#D4A359] flex items-center justify-center text-[#D4A359] text-[10px] font-black">
+                                            <div className="w-5 h-5 rounded-full border-2 border-[#D4A359] flex items-center justify-center text-[#D4A359] text-[10px] font-black">
                                                 ✝
                                             </div>
                                             <span className="text-xs font-extrabold tracking-tight text-white font-display">
                                                 Compatibilité Spirituelle
                                             </span>
                                         </div>
-                                        <span className="text-sm sm:text-base font-black text-[#F59E0B] tracking-tight">
+                                        <span className="text-sm sm:text-base font-black text-[#F5CD6D] tracking-tight">
                                             {currentProfile.percentage || 92}%
                                         </span>
                                     </div>
@@ -1185,17 +1228,17 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
                                         />
                                     </div>
 
-                                    {/* BOUTONS D'ACTION DU MODÈLE VALIDÉ : BÉNÉDICTION - SE CONNECTER - PRIÈRE */}
+                                    {/* 3 BOUTONS D'ACTION DU MODÈLE VALIDÉ : BÉNÉDICTION - SE CONNECTER - PRIÈRE (VERT ÉMERAUDE & OR) */}
                                     <div className="flex items-center justify-between gap-2.5">
-                                        {/* Bouton Gauche : Bénédiction & Passer */}
+                                        {/* Bouton Gauche : Sphère Émeraude & Croix Dorée */}
                                         <button
                                             type="button"
                                             onClick={() => handleSwipeAction('left')}
                                             disabled={isAlreadyMatched}
-                                            className="w-11 h-11 rounded-full bg-white/90 backdrop-blur-md border border-[#D4A359]/60 text-slate-700 hover:bg-white shadow-md flex items-center justify-center transition active:scale-95 cursor-pointer shrink-0"
+                                            className="w-12 h-12 rounded-full bg-[#0D5C3A] border-2 border-[#D4A359]/70 text-[#D4A359] shadow-lg shadow-emerald-950/30 flex items-center justify-center transition hover:scale-105 active:scale-95 cursor-pointer shrink-0"
                                             title="Bénir & Passer"
                                         >
-                                            <Plus size={20} className="rotate-45 text-slate-500" />
+                                            <Plus size={22} className="rotate-45 text-amber-200" />
                                         </button>
 
                                         {/* Bouton Central : Se Connecter (Plein Émeraude & Cœur Or) */}
@@ -1203,21 +1246,21 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
                                             type="button"
                                             onClick={() => handleSwipeAction('right')}
                                             disabled={isAlreadyMatched}
-                                            className="flex-1 btn-emerald-imperial py-3 px-4 rounded-full flex items-center justify-center gap-2 font-extrabold text-xs sm:text-sm text-white shadow-xl hover:scale-[1.02] active:scale-[0.98] transition cursor-pointer"
+                                            className="flex-1 py-3.5 px-5 rounded-full bg-[#0D5C3A] border-2 border-[#D4A359]/80 flex items-center justify-center gap-2 font-extrabold text-xs sm:text-sm text-white shadow-xl shadow-emerald-950/35 hover:scale-[1.02] active:scale-[0.98] transition cursor-pointer"
                                         >
-                                            <Heart size={16} className="text-amber-200 fill-amber-300 shrink-0" />
-                                            <span>Se Connecter</span>
+                                            <Heart size={18} className="text-amber-200 fill-amber-300 shrink-0" />
+                                            <span className="tracking-wide">Se Connecter</span>
                                         </button>
 
-                                        {/* Bouton Droit : Prière / Intercession */}
+                                        {/* Bouton Droit : Sphère Émeraude & Prière Dorée */}
                                         <button
                                             type="button"
                                             onClick={() => handlePremiumAction('SUPERLIKE')}
                                             disabled={isAlreadyMatched}
-                                            className="w-11 h-11 rounded-full bg-white/90 backdrop-blur-md border border-[#D4A359]/60 text-[#0D5C3A] hover:bg-white shadow-md flex items-center justify-center transition active:scale-95 cursor-pointer shrink-0"
+                                            className="w-12 h-12 rounded-full bg-[#0D5C3A] border-2 border-[#D4A359]/70 text-amber-200 shadow-lg shadow-emerald-950/30 flex items-center justify-center transition hover:scale-105 active:scale-95 cursor-pointer shrink-0"
                                             title="Intercession & Prière"
                                         >
-                                            <HeartHandshake size={18} className="text-[#0D5C3A]" />
+                                            <HeartHandshake size={20} className="text-amber-200" />
                                         </button>
                                     </div>
 

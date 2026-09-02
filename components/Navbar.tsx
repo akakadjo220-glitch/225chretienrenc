@@ -105,7 +105,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentUserRole, onChangeView, t
   };
 
   return (
-    <nav className="bg-white/90 backdrop-blur-md border-b border-emerald-100/80 sticky top-0 z-50 text-slate-800 shadow-xs">
+    <nav className="bg-[#FAF6EF]/90 backdrop-blur-md border-b border-[#E2D6C4] sticky top-0 z-50 text-slate-800 shadow-xs">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16 items-center">
           {/* Logo */}
@@ -115,8 +115,8 @@ export const Navbar: React.FC<NavbarProps> = ({ currentUserRole, onChangeView, t
           >
             <div className="flex flex-col">
               <span className="font-bold text-xl tracking-tight text-slate-900 font-display flex items-center">
-                225 <span className="text-emerald-700 ml-1.5 font-extrabold">Chrétien</span>
-                <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                225 <span className="text-[#0D5C3A] ml-1.5 font-extrabold">Chrétien</span>
+                <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#E6EFEA] text-[#0D5C3A] border border-[#0D5C3A]/25 shadow-2xs">
                   FOI
                 </span>
               </span>
