@@ -142,17 +142,17 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             </svg>
           </button>
 
-          {/* Libellé "Rencontres" (Dating) sous l'orbe */}
+          {/* Libellé "Dating" sous l'orbe */}
           <span
-            className={`text-[10px] font-extrabold tracking-tight mt-6 leading-none transition-colors ${
-              currentView === AppView.USER_DASHBOARD ? 'text-[#0D5C3A]' : 'text-slate-800'
+            className={`text-[11px] font-bold tracking-tight mt-6 leading-none transition-colors ${
+              currentView === AppView.USER_DASHBOARD ? 'text-[#0A3D24]' : 'text-[#2E4236]'
             }`}
           >
-            Rencontres
+            Dating
           </span>
         </div>
 
-        {/* 3. LES 4 ONGLETS CONFORMES AU MODÈLE (MESSAGES, PROFIL, COMMUNAUTÉ, PARAMÈTRES) */}
+        {/* 3. LES 4 ONGLETS CONFORMES AU MODÈLE (MESSAGES, PROFILE, COMMUNITY, SETTINGS) */}
         <div className="relative z-10 w-full h-full flex items-center justify-between px-2 pt-1">
 
           {/* 1. MESSAGES (Bulle de dialogue + point caractéristique en haut à droite) */}
@@ -161,15 +161,15 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             onClick={() => onChangeView(AppView.MESSAGES)}
             className={`flex-1 flex flex-col items-center justify-center py-1 transition-all duration-200 active:scale-95 cursor-pointer ${
               currentView === AppView.MESSAGES
-                ? 'text-[#0D5C3A] font-extrabold'
-                : 'text-slate-800 hover:text-[#0D5C3A] font-semibold'
+                ? 'text-[#0A3D24] font-extrabold'
+                : 'text-[#2E4236] hover:text-[#0A3D24] font-medium'
             }`}
           >
             <div className="relative mb-1">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
                 <path
                   d="M 4 12.5 C 4 7.2 7.6 4.2 13.5 4.2 C 18 4.2 20 6.8 20 10.8 C 20 15.2 16.5 18 12 18 C 10.3 18 8.9 17.5 7.6 16.7 L 3.5 18 L 4.6 14.9 C 4.2 14.1 4 13.3 4 12.5 Z"
-                  stroke={currentView === AppView.MESSAGES ? '#0D5C3A' : '#164E35'}
+                  stroke={currentView === AppView.MESSAGES ? '#0A3D24' : '#2E4236'}
                   strokeWidth={currentView === AppView.MESSAGES ? '2.1' : '1.8'}
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -179,7 +179,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                   cx="18.5"
                   cy="5.5"
                   r="1.6"
-                  fill={currentView === AppView.MESSAGES ? '#0D5C3A' : '#164E35'}
+                  fill={currentView === AppView.MESSAGES ? '#0A3D24' : '#2E4236'}
                 />
               </svg>
               {unreadCount > 0 && (
@@ -188,17 +188,17 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                 </span>
               )}
             </div>
-            <span className="text-[10px] tracking-tight leading-none">Messages</span>
+            <span className="text-[11px] tracking-tight leading-none">Messages</span>
           </button>
 
-          {/* 2. PROFIL (Cercle tête + arche épaules conforme à la maquette) */}
+          {/* 2. PROFILE (Cercle tête + arche épaules conforme à la maquette) */}
           <button
             type="button"
             onClick={() => onChangeView(AppView.PROFILE)}
             className={`flex-1 flex flex-col items-center justify-center py-1 transition-all duration-200 active:scale-95 cursor-pointer ${
               currentView === AppView.PROFILE
-                ? 'text-[#0D5C3A] font-extrabold'
-                : 'text-slate-800 hover:text-[#0D5C3A] font-semibold'
+                ? 'text-[#0A3D24] font-extrabold'
+                : 'text-[#2E4236] hover:text-[#0A3D24] font-medium'
             }`}
           >
             <div className="relative mb-1">
@@ -207,31 +207,31 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                   cx="12"
                   cy="7.5"
                   r="3.8"
-                  stroke={currentView === AppView.PROFILE ? '#0D5C3A' : '#164E35'}
+                  stroke={currentView === AppView.PROFILE ? '#0A3D24' : '#2E4236'}
                   strokeWidth={currentView === AppView.PROFILE ? '2.1' : '1.8'}
                 />
                 <path
                   d="M 5.5 20.5 C 5.5 16 8.5 14.2 12 14.2 C 15.5 14.2 18.5 16 18.5 20.5"
-                  stroke={currentView === AppView.PROFILE ? '#0D5C3A' : '#164E35'}
+                  stroke={currentView === AppView.PROFILE ? '#0A3D24' : '#2E4236'}
                   strokeWidth={currentView === AppView.PROFILE ? '2.1' : '1.8'}
                   strokeLinecap="round"
                 />
               </svg>
             </div>
-            <span className="text-[10px] tracking-tight leading-none">Profil</span>
+            <span className="text-[11px] tracking-tight leading-none">Profile</span>
           </button>
 
           {/* ESPACE DU BERCEAU CENTRAL (POUR L'ORBE SURÉLEVÉ) */}
           <div className="w-[68px] shrink-0 pointer-events-none" />
 
-          {/* 4. COMMUNAUTÉ (Double silhouette conforme à la maquette) */}
+          {/* 4. COMMUNITY (Double silhouette conforme à la maquette) */}
           <button
             type="button"
             onClick={() => onChangeView(AppView.FORUM)}
             className={`flex-1 flex flex-col items-center justify-center py-1 transition-all duration-200 active:scale-95 cursor-pointer ${
               currentView === AppView.FORUM
-                ? 'text-[#0D5C3A] font-extrabold'
-                : 'text-slate-800 hover:text-[#0D5C3A] font-semibold'
+                ? 'text-[#0A3D24] font-extrabold'
+                : 'text-[#2E4236] hover:text-[#0A3D24] font-medium'
             }`}
           >
             <div className="relative mb-1">
@@ -241,41 +241,41 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                   cx="9"
                   cy="8"
                   r="3.4"
-                  stroke={currentView === AppView.FORUM ? '#0D5C3A' : '#164E35'}
+                  stroke={currentView === AppView.FORUM ? '#0A3D24' : '#2E4236'}
                   strokeWidth={currentView === AppView.FORUM ? '2.1' : '1.8'}
                 />
                 <path
                   d="M 3.5 20.5 C 3.5 16.5 6 14.8 9 14.8 C 12 14.8 14.5 16.5 14.5 20.5"
-                  stroke={currentView === AppView.FORUM ? '#0D5C3A' : '#164E35'}
+                  stroke={currentView === AppView.FORUM ? '#0A3D24' : '#2E4236'}
                   strokeWidth={currentView === AppView.FORUM ? '2.1' : '1.8'}
                   strokeLinecap="round"
                 />
                 {/* Deuxième silhouette arrière droite */}
                 <path
                   d="M 13.5 5.5 C 14.4 5.1 15.4 5.2 16.2 5.8 C 17.1 6.6 17.3 8 16.6 9"
-                  stroke={currentView === AppView.FORUM ? '#0D5C3A' : '#164E35'}
+                  stroke={currentView === AppView.FORUM ? '#0A3D24' : '#2E4236'}
                   strokeWidth={currentView === AppView.FORUM ? '2.1' : '1.8'}
                   strokeLinecap="round"
                 />
                 <path
                   d="M 16.2 14.8 C 18.2 15.4 19.8 17.2 19.8 20.5"
-                  stroke={currentView === AppView.FORUM ? '#0D5C3A' : '#164E35'}
+                  stroke={currentView === AppView.FORUM ? '#0A3D24' : '#2E4236'}
                   strokeWidth={currentView === AppView.FORUM ? '2.1' : '1.8'}
                   strokeLinecap="round"
                 />
               </svg>
             </div>
-            <span className="text-[10px] tracking-tight leading-none">Communauté</span>
+            <span className="text-[11px] tracking-tight leading-none">Community</span>
           </button>
 
-          {/* 5. PARAMÈTRES (Roue dentée à 8 lobes conforme à la maquette) */}
+          {/* 5. SETTINGS (Roue dentée à 8 lobes conforme à la maquette) */}
           <button
             type="button"
             onClick={() => onChangeView(AppView.LIKES_YOU)}
             className={`flex-1 flex flex-col items-center justify-center py-1 transition-all duration-200 active:scale-95 cursor-pointer ${
               currentView === AppView.LIKES_YOU
-                ? 'text-[#0D5C3A] font-extrabold'
-                : 'text-slate-800 hover:text-[#0D5C3A] font-semibold'
+                ? 'text-[#0A3D24] font-extrabold'
+                : 'text-[#2E4236] hover:text-[#0A3D24] font-medium'
             }`}
           >
             <div className="relative mb-1">
@@ -284,7 +284,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                 height="24"
                 viewBox="0 0 24 24"
                 fill="none"
-                stroke={currentView === AppView.LIKES_YOU ? '#0D5C3A' : '#164E35'}
+                stroke={currentView === AppView.LIKES_YOU ? '#0A3D24' : '#2E4236'}
                 strokeWidth={currentView === AppView.LIKES_YOU ? '2.1' : '1.8'}
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -298,7 +298,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                 </span>
               )}
             </div>
-            <span className="text-[10px] tracking-tight leading-none">Paramètres</span>
+            <span className="text-[11px] tracking-tight leading-none">Settings</span>
           </button>
 
         </div>
