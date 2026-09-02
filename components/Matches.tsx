@@ -826,7 +826,7 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
     const totalUserPhotos = (currentUser?.avatar_url || currentUser?.avatarUrl ? 1 : 0) + (Array.isArray(currentUser?.photos_urls) ? currentUser.photos_urls.length : (currentUser?.photos?.length || 0));
 
     const isVerifiedOrBypassed = currentUser?.verification_status === 'VERIFIED' || 
-                                 currentUser?.verificationStatus === VerificationStatus.VERIFIED || 
+                                 currentUser?.verificationStatus === 'VERIFIED' || 
                                  currentUser?.role === 'ADMIN' || 
                                  currentUser?.liveness_verified === true;
 
