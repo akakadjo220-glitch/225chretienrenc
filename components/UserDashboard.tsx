@@ -334,122 +334,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
   const renderContent = () => {
     switch (activeTab) {
       case DashboardTab.MATCHES:
-        // --- CLEAN PRO GREEN & WHITE LOCKED SCREEN FOR UNVERIFIED USERS ---
-        if (!isVerified) {
-          return (
-            <div className="flex flex-col items-center text-center p-5 sm:p-8 mt-4 sm:mt-6 mb-6 bg-[#FAF6EF]/90 backdrop-blur-md rounded-3xl border border-[#D4A359]/40 shadow-xl max-w-lg mx-auto w-full animate-in fade-in duration-300">
-              
-              {/* Badge Sécurité Sobre */}
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#0D5C3A]/10 border border-[#0D5C3A]/30 text-[#0D5C3A] text-xs font-semibold mb-3">
-                <ShieldCheck size={15} className="text-[#0D5C3A]" />
-                <span>Espace de Confiance & Vérification</span>
-              </div>
 
-              <h3 className="text-xl sm:text-2xl font-extrabold text-[#0D5C3A] font-display tracking-tight mb-1.5">
-                Accéder aux Rencontres Chrétiennes
-              </h3>
-
-              {/* Jauge de progression sobre */}
-              <div className="w-full bg-slate-50 border border-slate-200/80 rounded-2xl p-4 my-3 text-left">
-                <div className="flex justify-between items-center text-xs font-semibold mb-2">
-                  <span className="text-slate-800 flex items-center gap-1.5">
-                    <UserCheck size={14} className="text-emerald-700" />
-                    <span>Progression du profil</span>
-                  </span>
-                  <span className="text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md font-bold text-[11px]">
-                    {profileCompletionScore}%
-                  </span>
-                </div>
-
-                {/* Barre de progression épurée */}
-                <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
-                  <div
-                    className="bg-emerald-600 h-full rounded-full transition-all duration-500"
-                    style={{ width: `${profileCompletionScore}%` }}
-                  />
-                </div>
-
-                <p className="text-xs text-slate-500 mt-2.5 leading-relaxed">
-                  {profileCompletionScore >= 70 
-                    ? "Plus qu'une étape pour finaliser votre accès aux célibataires chrétiens." 
-                    : "Complétez ces étapes pour garantir un espace de rencontre 100% authentique."}
-                </p>
-              </div>
-
-              {/* Étapes requises */}
-              <div className="w-full bg-white rounded-2xl p-3 border border-slate-200/80 mb-4 text-left space-y-2">
-                <div className="flex items-center justify-between px-1 mb-1">
-                  <p className="text-xs font-bold text-slate-700 uppercase tracking-wider">Éléments requis</p>
-                  <span className="text-xs text-slate-400">3 étapes</span>
-                </div>
-
-                {/* 1. Informations Profil */}
-                <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
-                  <div className="flex items-center space-x-2.5 min-w-0">
-                    <span className="w-5 h-5 bg-emerald-100 text-emerald-800 font-bold rounded-full flex items-center justify-center text-xs shrink-0">✓</span>
-                    <span className="text-xs font-medium text-slate-800 truncate">1. Profil de base</span>
-                  </div>
-                  <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full font-semibold shrink-0">Validé</span>
-                </div>
-
-                {/* 2. Galerie photos */}
-                {(() => {
-                  const totalPhotos = (currentUser?.avatar_url || currentUser?.avatarUrl ? 1 : 0) + (currentUser?.photos_urls?.length || currentUser?.photos?.length || 0);
-                  const isPhotosValid = totalPhotos >= 3 || isVerified;
-                  return (
-                    <button
-                      type="button"
-                      onClick={() => handleTabChange(DashboardTab.PROFILE)}
-                      className="w-full flex items-center justify-between p-3 bg-slate-50 hover:bg-emerald-50/50 rounded-xl border border-slate-100 transition cursor-pointer text-left"
-                    >
-                      <div className="flex items-center space-x-2.5 min-w-0">
-                        <span className={`w-5 h-5 font-bold rounded-full flex items-center justify-center text-xs shrink-0 ${isPhotosValid ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'}`}>
-                          {isPhotosValid ? '✓' : '2'}
-                        </span>
-                        <span className="text-xs font-medium text-slate-800 truncate">2. Galerie photos (3 photos)</span>
-                      </div>
-                      <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-semibold shrink-0 ${isPhotosValid ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-50 text-amber-800 border border-amber-200'}`}>
-                        {isPhotosValid ? 'Validé' : `${totalPhotos}/3`}
-                      </span>
-                    </button>
-                  );
-                })()}
-
-                {/* 3. Liveness video proof */}
-                <button
-                  type="button"
-                  onClick={() => handleTabChange(DashboardTab.PROFILE)}
-                  className="w-full flex items-center justify-between p-3 bg-slate-50 hover:bg-emerald-50/50 rounded-xl border border-slate-100 transition cursor-pointer text-left"
-                >
-                  <div className="flex items-center space-x-2.5 min-w-0">
-                    <span className={`w-5 h-5 font-bold rounded-full flex items-center justify-center text-xs shrink-0 ${currentUser?.liveness_verified || isVerified ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'}`}>
-                      {currentUser?.liveness_verified || isVerified ? '✓' : '3'}
-                    </span>
-                    <span className="text-xs font-medium text-slate-800 truncate">3. Vérification vidéo (5s)</span>
-                  </div>
-                  <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-semibold shrink-0 ${currentUser?.liveness_verified || isVerified ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'}`}>
-                    {currentUser?.liveness_verified || isVerified ? 'Validé' : 'À fournir'}
-                  </span>
-                </button>
-              </div>
-
-              {/* Bouton sobre et direct */}
-              <button
-                type="button"
-                onClick={() => handleTabChange(DashboardTab.PROFILE)}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white p-3.5 rounded-xl font-semibold transition flex items-center justify-center gap-2 text-sm shadow-sm cursor-pointer"
-              >
-                <span>Compléter mon profil</span>
-                <ArrowRight size={16} />
-              </button>
-
-              {/* Rassurance discrète */}
-              <p className="text-xs text-slate-400 mt-3 text-center">
-                Espace sécurisé et réservé aux membres vérifiés.
-              </p>
-            </div>
-          );
-        }
         return <Matches
           onGoToMessages={(contactId) => {
             if (contactId) setSelectedContactId(contactId);
@@ -577,7 +462,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
   );
 
   const isMatchesTab = activeTab === DashboardTab.MATCHES;
-  const isMatchesTabAndVerified = isMatchesTab && isVerified;
+  const isMatchesTabAndVerified = isMatchesTab;
   const currentTabHeader = TAB_HEADERS[activeTab] || { title: 'Tableau de Bord', subtitle: '' };
 
   return (
