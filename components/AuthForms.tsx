@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { AppView } from '../types';
-import { Lock, Mail, User, ShieldAlert, Sparkles, RefreshCw, Loader, AlertCircle, CheckCircle2, ChevronRight, MapPin, Heart, ShieldCheck, HelpCircle, Eye, EyeOff, Calendar, Phone, ArrowLeft, ArrowRight, MessageCircle, Clock, Check, Cross } from 'lucide-react';
+import { Lock, Mail, User, ShieldAlert, Sparkles, RefreshCw, Loader, AlertCircle, CheckCircle2, ChevronRight, MapPin, Heart, ShieldCheck, HelpCircle, Eye, EyeOff, Calendar, Phone, ArrowLeft, ArrowRight, MessageCircle, Clock, Check } from 'lucide-react';
 import { AVAILABLE_INTERESTS } from '../constants';
 import { supabase, supabaseAdmin } from '../supabaseClient';
 import { sendWhatsAppOtp, formatPhoneNumber } from '../openwaClient';
@@ -1396,11 +1396,8 @@ export const AuthForms: React.FC<AuthFormsProps> = ({ view, onSwitch, onLogin })
                     <div className="absolute inset-0 bg-gradient-to-t from-emerald-950 via-emerald-900/60 to-transparent" />
                 </div>
                 <div className="relative z-10 p-16 flex flex-col justify-between h-full">
-                    <div className="flex items-center space-x-3">
-                        <div className="bg-emerald-600/80 backdrop-blur-md p-2.5 rounded-xl border border-emerald-500/30 shadow-md">
-                            <Cross className="h-6 w-6 text-white stroke-[2.5]" />
-                        </div>
-                        <span className="text-2xl font-bold tracking-tight font-display">225 Chrétien</span>
+                    <div className="flex items-center">
+                        <span className="text-2xl font-bold tracking-tight font-display text-white">225 Chrétien</span>
                     </div>
                     <div className="space-y-6 max-w-lg">
                         <h1 className="text-5xl font-extrabold leading-tight font-display text-white">
@@ -1423,11 +1420,8 @@ export const AuthForms: React.FC<AuthFormsProps> = ({ view, onSwitch, onLogin })
             <div className="w-full lg:w-1/2 flex flex-col justify-center items-center p-4 sm:p-6 lg:p-12 overflow-y-auto relative z-10">
                 <div className="w-full max-w-md space-y-4 animate-in slide-in-from-right-8 duration-700 fade-in bg-white/95 lg:bg-transparent p-5 sm:p-8 lg:p-0 rounded-3xl lg:rounded-none shadow-2xl lg:shadow-none backdrop-blur-md lg:backdrop-blur-none border border-white/20 lg:border-none">
 
-                    {/* Header Mobile Inliné & Compact (225 Chrétien sur la même ligne que la croix) */}
-                    <div className="lg:hidden flex items-center justify-center gap-2.5 mb-2">
-                        <div className="bg-emerald-600 p-2 rounded-xl shadow-md">
-                            <Cross className="h-5 w-5 text-white stroke-[2.5]" />
-                        </div>
+                    {/* Header Mobile Inliné & Compact */}
+                    <div className="lg:hidden flex items-center justify-center mb-2">
                         <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight font-display flex items-center">
                             225 <span className="text-emerald-700 ml-1.5">Chrétien</span>
                         </h2>

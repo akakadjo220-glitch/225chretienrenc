@@ -18,7 +18,7 @@ import { supabase } from './supabaseClient';
 import { getDeviceFingerprint, getClientIp, fetchBannedIdentifiers, checkIsBlacklisted } from './utils/deviceFingerprint';
 import { initPrivacyShield } from './utils/privacyShield';
 import { PinLockModal } from './components/PinLockModal';
-import { Shield, EyeOff } from 'lucide-react';
+import { Shield, EyeOff, Heart } from 'lucide-react';
 
 const App: React.FC = () => {
   const [currentUserRole, setCurrentUserRole] = useState<UserRole>(UserRole.GUEST);
@@ -301,10 +301,8 @@ const App: React.FC = () => {
       <div className="fixed inset-0 bg-slate-50 flex flex-col items-center justify-center z-50 text-slate-900 select-none">
         <div className="relative mb-6">
           <div className="absolute inset-0 bg-emerald-200/40 rounded-full blur-2xl scale-125 animate-pulse" />
-          <div className="relative bg-emerald-600 p-5 rounded-2xl shadow-xl shadow-emerald-600/30 animate-float-gentle">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-12 w-12 text-white">
-              <path d="M11 2a2 2 0 0 0-2 2v5H4a2 2 0 0 0-2 2v2a2 2 0 0 0 2 2h5v5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2v-5h5a2 2 0 0 0 2-2v-2a2 2 0 0 0-2-2h-5V4a2 2 0 0 0-2-2h-2z" />
-            </svg>
+          <div className="relative bg-emerald-600 p-5 rounded-2xl shadow-xl shadow-emerald-600/30 animate-float-gentle flex items-center justify-center">
+            <Heart className="h-10 w-10 text-white fill-white/80" />
           </div>
         </div>
 

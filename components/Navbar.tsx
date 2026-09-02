@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Cross, Menu, User, LogIn, X, LogOut, Sparkles } from 'lucide-react';
+import { Menu, User, LogIn, X, LogOut, Sparkles } from 'lucide-react';
 import { UserRole, AppView } from '../types';
 import { supabase } from '../supabaseClient';
 
@@ -110,12 +110,9 @@ export const Navbar: React.FC<NavbarProps> = ({ currentUserRole, onChangeView, t
         <div className="flex justify-between h-16 items-center">
           {/* Logo */}
           <div
-            className="flex items-center cursor-pointer group space-x-3"
+            className="flex items-center cursor-pointer group"
             onClick={() => handleNav(currentUserRole === UserRole.GUEST ? AppView.LANDING : (currentUserRole === UserRole.ADMIN ? AppView.ADMIN_DASHBOARD : AppView.USER_DASHBOARD))}
           >
-            <div className="bg-gradient-to-tr from-emerald-700 via-emerald-600 to-emerald-500 p-2.5 rounded-2xl shadow-md shadow-emerald-600/20 transition-all duration-300 group-hover:scale-105 group-hover:shadow-emerald-600/30">
-              <Cross className="h-5 w-5 text-white stroke-[2.5]" />
-            </div>
             <div className="flex flex-col">
               <span className="font-bold text-xl tracking-tight text-slate-900 font-display flex items-center">
                 225 <span className="text-emerald-700 ml-1.5 font-extrabold">Chrétien</span>
