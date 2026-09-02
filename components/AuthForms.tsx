@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { AppView } from '../types';
-import { Lock, Mail, User, ShieldAlert, Sparkles, RefreshCw, Loader, AlertCircle, CheckCircle2, ChevronRight, MapPin, Heart, ShieldCheck, HelpCircle, Eye, EyeOff, Calendar, Phone, ArrowLeft, ArrowRight, MessageCircle, Clock, Check } from 'lucide-react';
+import { Lock, Mail, User, ShieldAlert, RefreshCw, Loader, AlertCircle, CheckCircle2, ChevronRight, MapPin, Heart, ShieldCheck, HelpCircle, Eye, EyeOff, Calendar, Phone, ArrowLeft, ArrowRight, MessageCircle, Clock, Check } from 'lucide-react';
 import { AVAILABLE_INTERESTS } from '../constants';
 import { supabase, supabaseAdmin } from '../supabaseClient';
 import { sendWhatsAppOtp, formatPhoneNumber } from '../openwaClient';
@@ -1489,7 +1489,7 @@ export const AuthForms: React.FC<AuthFormsProps> = ({ view, onSwitch, onLogin })
                                     </button>
                                 ) : (
                                     <span className="text-emerald-700 font-bold text-xs flex items-center gap-1">
-                                        ✨ Inscription facile
+                                        Inscription
                                     </span>
                                 )}
                                 <span className="font-bold text-slate-500 text-xs">
@@ -2028,9 +2028,9 @@ export const AuthForms: React.FC<AuthFormsProps> = ({ view, onSwitch, onLogin })
                                 ) : isLogin ? (
                                     'Se connecter'
                                 ) : otpChannel === 'WHATSAPP' ? (
-                                    '✨ Valider & recevoir mon code'
+                                    'Valider & recevoir mon code'
                                 ) : (
-                                    '✨ Valider & recevoir mon code'
+                                    'Valider & recevoir mon code'
                                 )}
                             </button>
                         </form>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  HeartHandshake, Flame, Plus, Sparkles, Search, Send, 
-  MessageSquare, Lock, Loader, RefreshCw, X, ChevronDown, ChevronUp
+  HeartHandshake, Flame, Plus, Search, Send, 
+  MessageSquare, Lock, Loader, RefreshCw, X, ChevronDown, ChevronUp, Heart
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 
@@ -38,7 +38,7 @@ const CATEGORY_LABELS: Record<string, { label: string; icon: string; color: stri
   HEALTH: { label: 'Santé & Guérison', icon: '🌿', color: 'bg-emerald-100 text-emerald-900 border-emerald-300', badgeBg: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
   FAMILY: { label: 'Famille & Foyer', icon: '🏡', color: 'bg-blue-100 text-blue-900 border-blue-300', badgeBg: 'bg-blue-50 text-blue-800 border-blue-200' },
   WORK: { label: 'Projet & Travail', icon: '💼', color: 'bg-purple-100 text-purple-900 border-purple-300', badgeBg: 'bg-purple-50 text-purple-800 border-purple-200' },
-  THANKSGIVING: { label: 'Action de Grâces', icon: '✨', color: 'bg-rose-100 text-rose-900 border-rose-300', badgeBg: 'bg-rose-50 text-rose-800 border-rose-200' }
+  THANKSGIVING: { label: 'Action de Grâces', icon: '🙌', color: 'bg-rose-100 text-rose-900 border-rose-300', badgeBg: 'bg-rose-50 text-rose-800 border-rose-200' }
 };
 
 const getImlrUrl = (path?: string | null) => {
@@ -270,7 +270,7 @@ export const IntercessionCircle: React.FC = () => {
       setContent('');
       setIsAnonymous(false);
       setShowNewPrayerModal(false);
-      setToastMessage("✨ Votre intention a été déposée avec succès !");
+      setToastMessage("🕊️ Votre intention a été déposée avec succès !");
       setTimeout(() => setToastMessage(null), 3500);
       
       loadPrayers();
@@ -387,7 +387,7 @@ export const IntercessionCircle: React.FC = () => {
       {/* TOAST DE CONFIRMATION */}
       {toastMessage && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[150] bg-slate-900/95 backdrop-blur-md text-white px-5 py-3 rounded-2xl shadow-2xl border border-amber-500/40 flex items-center gap-3 animate-in slide-in-from-top-4 duration-300">
-          <Sparkles className="text-amber-300 shrink-0" size={18} />
+          <HeartHandshake className="text-amber-300 shrink-0" size={18} />
           <span className="text-xs sm:text-sm font-extrabold">{toastMessage}</span>
         </div>
       )}
@@ -397,7 +397,7 @@ export const IntercessionCircle: React.FC = () => {
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 relative z-10">
           <div className="space-y-1">
             <div className="inline-flex items-center gap-1.5 bg-white/20 px-3 py-1 rounded-full text-amber-100 font-extrabold text-[11px] uppercase tracking-wider">
-              <Sparkles size={13} className="text-amber-200" />
+              <Flame size={13} className="text-amber-200" />
               <span>Cercle d'Intercession</span>
             </div>
             <h2 className="text-lg sm:text-xl font-extrabold text-white font-display">
@@ -686,7 +686,7 @@ export const IntercessionCircle: React.FC = () => {
                   <option value="HEALTH">🌿 Santé & Guérison</option>
                   <option value="FAMILY">🏡 Famille & Foyer</option>
                   <option value="WORK">💼 Projet & Travail</option>
-                  <option value="THANKSGIVING">✨ Action de Grâces</option>
+                  <option value="THANKSGIVING">🙌 Action de Grâces</option>
                 </select>
               </div>
 

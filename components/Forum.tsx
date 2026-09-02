@@ -6,7 +6,7 @@ import { sanitizeInput, validateImageFile } from '../utils/security';
 import { 
     MessageSquare, Heart, PlusCircle, Search, Filter, Send, X, Share2, 
     Hash, Image as ImageIcon, Trash2, Loader, RefreshCw, AlertTriangle, 
-    CornerDownRight, ThumbsUp, Smile, Sparkles, BookOpen, Quote
+    CornerDownRight, ThumbsUp, Smile, HeartHandshake, BookOpen, Quote
 } from 'lucide-react';
 
 const getImlrUrl = (path: string) => {
@@ -729,7 +729,7 @@ export const Forum: React.FC = () => {
                             onClick={() => openComposerWithCategory('Prière')}
                             className="flex items-center justify-center gap-1.5 hover:bg-amber-50/80 active:bg-amber-100 text-slate-700 hover:text-amber-800 py-2 px-1 rounded-xl transition cursor-pointer"
                         >
-                            <Sparkles size={17} className="text-amber-500 shrink-0" />
+                            <HeartHandshake size={17} className="text-amber-500 shrink-0" />
                             <span className="truncate">Prière</span>
                         </button>
                         <button 

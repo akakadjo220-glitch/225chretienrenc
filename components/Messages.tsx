@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Message, Conversation } from '../types';
-import { Search, Send, ArrowLeft, ShieldCheck, Mail, Image as ImageIcon, Mic, X, Loader, AlertCircle, StopCircle, Trash2, Sparkles, HeartHandshake, Phone, Video as VideoIcon, PhoneOff, ShieldAlert, Award, Star, CheckCircle, BookOpen, Trophy } from 'lucide-react';
+import { Search, Send, ArrowLeft, ShieldCheck, Mail, Image as ImageIcon, Mic, X, Loader, AlertCircle, StopCircle, Trash2, HeartHandshake, Phone, Video as VideoIcon, PhoneOff, ShieldAlert, Award, Star, CheckCircle, BookOpen, Trophy, MessageCircle } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { generateIcebreakers, generateAntiGhostingMessage, moderateMessage, moderateImage, detectFinancialScam } from '../aiClient';
 import { VideoCall } from './VideoCall';
@@ -737,7 +737,7 @@ export const Messages: React.FC<MessagesProps> = ({ initialContactId }) => {
         setIsSubmittingRecommendation(false);
         setShowRecommendationModal(false);
         setRecommendationNote('');
-        alert(`Merci ! Votre recommandation (Niveau 3) pour ${activeUser?.contactName} a été enregistrée avec succès ! 🛡️✨`);
+        alert(`Merci ! Votre recommandation (Niveau 3) pour ${activeUser?.contactName} a été enregistrée avec succès ! 🛡️`);
     };
 
     // --- MODE PRIÈRE ---
@@ -1085,7 +1085,7 @@ export const Messages: React.FC<MessagesProps> = ({ initialContactId }) => {
 
                         <div className="space-y-4">
                             <div className="bg-gradient-to-r from-amber-50 to-emerald-50 border border-amber-200 rounded-2xl p-4 text-xs text-slate-700 leading-relaxed">
-                                <strong className="text-amber-900 font-bold block mb-1">Témoignage de Fraternité Chrétienne 🛡️✨</strong>
+                                <strong className="text-amber-900 font-bold block mb-1">Témoignage de Fraternité Chrétienne 🛡️</strong>
                                 Vos recommandations aident la communauté à identifier les membres sérieux, sincères et engagés dans leur parcours de foi.
                             </div>
 
@@ -1229,8 +1229,8 @@ export const Messages: React.FC<MessagesProps> = ({ initialContactId }) => {
                                     {activeUser.contactName}
                                     <ShieldCheck size={14} className="text-emerald-500" />
                                     {communityCertifiedIds.has(activeContactId!) && (
-                                        <span className="flex items-center gap-1 bg-amber-500/15 text-amber-800 border border-amber-400/50 text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow-sm animate-pulse">
-                                            🛡️✨ Certifié Communauté (Niveau 3)
+                                        <span className="flex items-center gap-1 bg-amber-500/15 text-amber-800 border border-amber-400/50 text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow-sm">
+                                            🛡️ Certifié Communauté (Niveau 3)
                                         </span>
                                     )}
                                 </h3>
@@ -1332,7 +1332,7 @@ export const Messages: React.FC<MessagesProps> = ({ initialContactId }) => {
                                 <div className="px-4">
                                     {icebreakers.length > 0 ? (
                                         <div className="space-y-2">
-                                            <p className="text-xs text-slate-500 font-medium">✨ Suggestions IA pour briser la glace</p>
+                                            <p className="text-xs text-slate-500 font-medium">Idées de sujets pour engager la conversation</p>
                                             {icebreakers.map((ib, i) => (
                                                 <button
                                                     key={i}
@@ -1349,8 +1349,8 @@ export const Messages: React.FC<MessagesProps> = ({ initialContactId }) => {
                                             disabled={isLoadingIcebreakers}
                                             className="flex items-center justify-center w-full px-4 py-2.5 bg-white/80 backdrop-blur-md rounded-xl border border-slate-200 text-sm font-medium text-emerald-700 hover:bg-emerald-50 transition shadow-sm disabled:opacity-60"
                                         >
-                                            {isLoadingIcebreakers ? <Loader size={15} className="animate-spin mr-2" /> : <Sparkles size={15} className="mr-2" />}
-                                            Générer des brise-glaces IA
+                                            {isLoadingIcebreakers ? <Loader size={15} className="animate-spin mr-2" /> : <MessageCircle size={15} className="mr-2 text-emerald-600" />}
+                                            Idées de sujets pour débuter l'échange
                                         </button>
                                     )}
                                 </div>
@@ -1490,7 +1490,7 @@ export const Messages: React.FC<MessagesProps> = ({ initialContactId }) => {
                         {antiGhostingSuggestion && (
                             <div className="px-3 pt-2 animate-in slide-in-from-bottom-2">
                                 <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl p-2.5">
-                                    <Sparkles size={14} className="text-amber-500 flex-shrink-0" />
+                                    <MessageCircle size={14} className="text-emerald-600 flex-shrink-0" />
                                     <p className="text-xs text-amber-800 flex-1 italic">"{antiGhostingSuggestion}"</p>
                                     <button onClick={() => setInputText(antiGhostingSuggestion)} className="text-xs text-amber-700 font-bold hover:underline flex-shrink-0">Utiliser</button>
                                     <button onClick={() => setAntiGhostingSuggestion(null)} className="text-slate-400 hover:text-slate-500"><X size={14} /></button>
@@ -1505,8 +1505,8 @@ export const Messages: React.FC<MessagesProps> = ({ initialContactId }) => {
                                     disabled={isLoadingAntiGhosting}
                                     className="flex items-center text-xs text-slate-400 hover:text-emerald-600 transition disabled:opacity-50"
                                 >
-                                    {isLoadingAntiGhosting ? <Loader size={12} className="animate-spin mr-1" /> : <Sparkles size={12} className="mr-1" />}
-                                    Relancer la conversation avec l'IA
+                                    {isLoadingAntiGhosting ? <Loader size={12} className="animate-spin mr-1" /> : <MessageCircle size={12} className="mr-1 text-emerald-600" />}
+                                    Idée pour relancer l'échange
                                 </button>
                             </div>
                         )}

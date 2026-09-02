@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Lock, Unlock, Shield, X, Delete, Check, AlertCircle, Sparkles } from 'lucide-react';
+import { Lock, Unlock, Shield, X, Delete, Check, AlertCircle } from 'lucide-react';
 import { hashPin } from '../utils/privacyShield';
 
 interface PinLockModalProps {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
-import { Heart, Lock, Loader, Zap, CheckCircle, Sparkles, MessageCircle, ArrowRight, ShieldCheck, X } from 'lucide-react';
+import { Heart, Lock, Loader, Zap, CheckCircle, MessageCircle, ArrowRight, ShieldCheck, X } from 'lucide-react';
 import { MatchProfile } from '../types';
 
 const getImlrUrl = (path: string) => {
@@ -103,7 +103,7 @@ export const LikesYou: React.FC<LikesYouProps> = ({ onLikeProcessed, onGoToMessa
                 if (fromId) {
                     const { data: sender } = await supabase.from('profiles').select('*').eq('id', fromId).maybeSingle();
                     const senderName = sender?.full_name || 'Un membre chrétien';
-                    setNewLikeNotification(`✨ ${senderName} vient d'aimer votre profil !`);
+                    setNewLikeNotification(`❤️ ${senderName} vient d'aimer votre profil !`);
                     fetchLikers();
                     setTimeout(() => setNewLikeNotification(null), 5000);
                 }
@@ -228,7 +228,7 @@ export const LikesYou: React.FC<LikesYouProps> = ({ onLikeProcessed, onGoToMessa
             {/* Notification de Like Temps Réel */}
             {newLikeNotification && (
                 <div className="fixed top-20 right-4 z-50 bg-gradient-to-r from-emerald-600 to-teal-700 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-3 animate-bounce border border-white/20">
-                    <Sparkles className="h-5 w-5 text-amber-300 animate-spin" />
+                    <Heart className="h-5 w-5 text-rose-300 fill-rose-300" />
                     <span className="font-bold text-xs sm:text-sm">{newLikeNotification}</span>
                 </div>
             )}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { DashboardTab, AppView } from '../types';
-import { Heart, MessageCircle, Users, BookOpen, User, Home, X, Calendar, Lock, Shield, WifiOff, Star, Sparkles, Zap, Flame, Trophy, HeartHandshake, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Heart, MessageCircle, Users, BookOpen, User, Home, X, Calendar, Lock, Shield, WifiOff, Star, Zap, HeartHandshake, ArrowRight, ShieldCheck } from 'lucide-react';
 import { Matches } from './Matches';
 import { Forum } from './Forum';
 import { Vocation } from './Vocation';
@@ -12,7 +12,6 @@ import { IntercessionCircle } from './IntercessionCircle';
 import { supabase } from '../supabaseClient';
 import { updateDailyStreak } from '../utils/streakManager';
 import { PointsExplanationModal } from './PointsExplanationModal';
-import { SocialProofTicker } from './SocialProofTicker';
 
 const getImlrUrl = (path: string) => {
   if (!path) return '';
@@ -28,7 +27,7 @@ const getChristianGreeting = (name: string) => {
   } else if (hour >= 12 && hour < 18) {
     return `Bel après-midi dans la paix du Christ, ${name} 🕊️`;
   } else {
-    return `Douce soirée guidée par le Saint-Esprit, ${name} ✨`;
+    return `Douce soirée guidée par le Saint-Esprit, ${name} 🕊️`;
   }
 };
 
@@ -147,7 +146,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
       await supabase.from('profiles').update({ points: newPts }).eq('id', currentUser.id);
     } catch (e) {}
 
-    setMeditationToast('✨ +10 Points de Grâce ! Que cette Parole divine illumine vos rencontres et vos pas.');
+    setMeditationToast('🕊️ Parole méditée avec succès ! Que cette Parole divine illumine vos rencontres et vos pas.');
     setTimeout(() => setMeditationToast(null), 4500);
   };
 
@@ -340,138 +339,113 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
           return (
             <div className="flex flex-col items-center text-center p-5 sm:p-8 mt-4 sm:mt-6 mb-6 bg-white rounded-3xl border border-emerald-100 shadow-xl shadow-emerald-900/5 max-w-lg mx-auto w-full animate-in fade-in duration-300">
               
-              {/* Badge d'Identité Spirituelle & Sceau */}
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-black mb-3">
-                <ShieldCheck size={16} className="text-emerald-600" />
-                <span>Sceau de Confiance & Sanctification</span>
+              {/* Badge Sécurité Sobre */}
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold mb-3">
+                <ShieldCheck size={15} className="text-emerald-600" />
+                <span>Espace de Confiance & Vérification</span>
               </div>
 
-              <h3 className="text-xl sm:text-2xl font-black text-slate-900 font-display tracking-tight mb-1.5">
-                Débloquez vos Rencontres Chrétiennes
+              <h3 className="text-xl sm:text-2xl font-bold text-slate-900 font-display tracking-tight mb-1.5">
+                Accéder aux Rencontres Chrétiennes
               </h3>
 
-              {/* Jauge d'Effet de Progression Dotée (Endowed Progress / Zeigarnik) */}
-              <div className="w-full bg-gradient-to-r from-emerald-50 via-teal-50 to-slate-50 border border-emerald-200/80 rounded-2xl p-3.5 my-3 text-left shadow-2xs">
-                <div className="flex justify-between items-center text-xs font-extrabold mb-1.5">
-                  <span className="text-emerald-950 flex items-center gap-1.5">
-                    <span>✨</span>
-                    <span>Validation de votre Profil :</span>
+              {/* Jauge de progression sobre */}
+              <div className="w-full bg-slate-50 border border-slate-200/80 rounded-2xl p-4 my-3 text-left">
+                <div className="flex justify-between items-center text-xs font-semibold mb-2">
+                  <span className="text-slate-800 flex items-center gap-1.5">
+                    <UserCheck size={14} className="text-emerald-700" />
+                    <span>Progression du profil</span>
                   </span>
-                  <span className="text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md font-black">
-                    {profileCompletionScore}% Complété
+                  <span className="text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md font-bold text-[11px]">
+                    {profileCompletionScore}%
                   </span>
                 </div>
 
-                {/* Barre de progression avec effet fluide */}
-                <div className="w-full bg-slate-200/80 h-2.5 rounded-full overflow-hidden p-0.5">
+                {/* Barre de progression épurée */}
+                <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
                   <div
-                    className="bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 h-full rounded-full transition-all duration-700 shadow-xs"
+                    className="bg-emerald-600 h-full rounded-full transition-all duration-500"
                     style={{ width: `${profileCompletionScore}%` }}
                   />
                 </div>
 
-                <p className="text-[11px] text-slate-600 font-medium mt-2 leading-relaxed">
+                <p className="text-xs text-slate-500 mt-2.5 leading-relaxed">
                   {profileCompletionScore >= 70 
-                    ? "🌟 Plus qu'une micro-étape pour accéder aux célibataires de votre confession et commune !" 
-                    : "🔒 Complétez ces 2 éléments pour garantir un espace 100% vérifié et sans faux profils."}
+                    ? "Plus qu'une étape pour finaliser votre accès aux célibataires chrétiens." 
+                    : "Complétez ces étapes pour garantir un espace de rencontre 100% authentique."}
                 </p>
               </div>
 
-              {/* Checkpoints en Grille 2 colonnes ultra-ergonomique & compacte */}
-              <div className="w-full bg-slate-50/90 rounded-2xl p-3 border border-slate-200/70 mb-4 text-left">
-                <div className="flex items-center justify-between px-1 mb-2">
-                  <p className="text-[10px] sm:text-[11px] font-black text-emerald-800 uppercase tracking-widest">Vos Éléments Requis</p>
-                  <span className="text-[10px] text-emerald-700 font-extrabold">3 étapes simples</span>
+              {/* Étapes requises */}
+              <div className="w-full bg-white rounded-2xl p-3 border border-slate-200/80 mb-4 text-left space-y-2">
+                <div className="flex items-center justify-between px-1 mb-1">
+                  <p className="text-xs font-bold text-slate-700 uppercase tracking-wider">Éléments requis</p>
+                  <span className="text-xs text-slate-400">3 étapes</span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
-                  {/* 1. Informations Profil */}
-                  <div className="flex items-center justify-between p-2.5 bg-white rounded-xl border border-slate-200/60 shadow-2xs">
-                    <div className="flex items-center space-x-1.5 min-w-0">
-                      <span className="w-4 h-4 bg-emerald-100 text-emerald-800 font-bold rounded-full flex items-center justify-center text-[10px] shrink-0">✓</span>
-                      <span className="text-xs font-semibold text-slate-800 truncate">1. Profil de base</span>
-                    </div>
-                    <span className="text-[9px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold uppercase shrink-0">Validé</span>
+                {/* 1. Informations Profil */}
+                <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <div className="flex items-center space-x-2.5 min-w-0">
+                    <span className="w-5 h-5 bg-emerald-100 text-emerald-800 font-bold rounded-full flex items-center justify-center text-xs shrink-0">✓</span>
+                    <span className="text-xs font-medium text-slate-800 truncate">1. Profil de base</span>
                   </div>
-
-                  {/* 2. Galerie photos (3 photos minimum) */}
-                  {(() => {
-                    const totalPhotos = (currentUser?.avatar_url || currentUser?.avatarUrl ? 1 : 0) + (currentUser?.photos_urls?.length || currentUser?.photos?.length || 0);
-                    const isPhotosValid = totalPhotos >= 3 || isVerified;
-                    return (
-                      <button
-                        type="button"
-                        onClick={() => handleTabChange(DashboardTab.PROFILE)}
-                        className="flex items-center justify-between p-2.5 bg-white hover:bg-emerald-50/70 rounded-xl border border-slate-200/60 shadow-2xs transition active:scale-98 cursor-pointer text-left group"
-                      >
-                        <div className="flex items-center space-x-1.5 min-w-0">
-                          <span className={`w-4 h-4 font-bold rounded-full flex items-center justify-center text-[10px] shrink-0 ${isPhotosValid ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500'}`}>
-                            {isPhotosValid ? '✓' : '2'}
-                          </span>
-                          <span className="text-xs font-semibold text-slate-800 group-hover:text-emerald-800 truncate">2. Galerie (3 photos)</span>
-                        </div>
-                        <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase shrink-0 ${isPhotosValid ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800 border border-amber-200'}`}>
-                          {isPhotosValid ? 'Validé' : `${totalPhotos}/3 photos`}
-                        </span>
-                      </button>
-                    );
-                  })()}
-
-                  {/* 3. Liveness video proof */}
-                  <button
-                    type="button"
-                    onClick={() => handleTabChange(DashboardTab.PROFILE)}
-                    className="flex items-center justify-between p-2.5 bg-white hover:bg-emerald-50/70 rounded-xl border border-slate-200/60 shadow-2xs transition active:scale-98 cursor-pointer text-left group sm:col-span-2"
-                  >
-                    <div className="flex items-center space-x-1.5 min-w-0">
-                      <span className={`w-4 h-4 font-bold rounded-full flex items-center justify-center text-[10px] shrink-0 ${currentUser?.liveness_verified || isVerified ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500'}`}>
-                        {currentUser?.liveness_verified || isVerified ? '✓' : '3'}
-                      </span>
-                      <span className="text-xs font-semibold text-slate-800 group-hover:text-emerald-800 truncate">3. Preuve vidéo faciale (5s)</span>
-                    </div>
-                    <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase shrink-0 ${currentUser?.liveness_verified || isVerified ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
-                      {currentUser?.liveness_verified || isVerified ? 'Validé' : 'À fournir'}
-                    </span>
-                  </button>
+                  <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full font-semibold shrink-0">Validé</span>
                 </div>
 
-                {/* Étape Bonus / Optionnelle : Certificat de Baptême */}
+                {/* 2. Galerie photos */}
+                {(() => {
+                  const totalPhotos = (currentUser?.avatar_url || currentUser?.avatarUrl ? 1 : 0) + (currentUser?.photos_urls?.length || currentUser?.photos?.length || 0);
+                  const isPhotosValid = totalPhotos >= 3 || isVerified;
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => handleTabChange(DashboardTab.PROFILE)}
+                      className="w-full flex items-center justify-between p-3 bg-slate-50 hover:bg-emerald-50/50 rounded-xl border border-slate-100 transition cursor-pointer text-left"
+                    >
+                      <div className="flex items-center space-x-2.5 min-w-0">
+                        <span className={`w-5 h-5 font-bold rounded-full flex items-center justify-center text-xs shrink-0 ${isPhotosValid ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'}`}>
+                          {isPhotosValid ? '✓' : '2'}
+                        </span>
+                        <span className="text-xs font-medium text-slate-800 truncate">2. Galerie photos (3 photos)</span>
+                      </div>
+                      <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-semibold shrink-0 ${isPhotosValid ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-50 text-amber-800 border border-amber-200'}`}>
+                        {isPhotosValid ? 'Validé' : `${totalPhotos}/3`}
+                      </span>
+                    </button>
+                  );
+                })()}
+
+                {/* 3. Liveness video proof */}
                 <button
                   type="button"
                   onClick={() => handleTabChange(DashboardTab.PROFILE)}
-                  className="w-full flex items-center justify-between p-2.5 bg-gradient-to-r from-amber-50/90 to-yellow-50/90 hover:from-amber-100 hover:to-yellow-100 rounded-xl border border-amber-200 shadow-2xs transition active:scale-98 cursor-pointer text-left group"
+                  className="w-full flex items-center justify-between p-3 bg-slate-50 hover:bg-emerald-50/50 rounded-xl border border-slate-100 transition cursor-pointer text-left"
                 >
-                  <div className="flex items-center space-x-2 min-w-0">
-                    <span className="text-base">🕊️</span>
-                    <div className="min-w-0">
-                      <div className="text-xs font-extrabold text-amber-950 flex items-center gap-1.5">
-                        <span>Certificat de Baptême</span>
-                        <span className="text-[9px] bg-amber-200 text-amber-900 font-black px-1.5 py-0.2 rounded-md uppercase">Optionnel</span>
-                      </div>
-                      <p className="text-[10px] text-amber-800 truncate">Débloque le Badge Or & Boost de visibilité</p>
-                    </div>
+                  <div className="flex items-center space-x-2.5 min-w-0">
+                    <span className={`w-5 h-5 font-bold rounded-full flex items-center justify-center text-xs shrink-0 ${currentUser?.liveness_verified || isVerified ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'}`}>
+                      {currentUser?.liveness_verified || isVerified ? '✓' : '3'}
+                    </span>
+                    <span className="text-xs font-medium text-slate-800 truncate">3. Vérification vidéo (5s)</span>
                   </div>
-                  <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase shrink-0 ${currentUser?.document_baptism_url ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100/90 text-amber-900 border border-amber-300'}`}>
-                    {currentUser?.document_baptism_url ? 'Fourni' : 'Facultatif'}
+                  <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-semibold shrink-0 ${currentUser?.liveness_verified || isVerified ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'}`}>
+                    {currentUser?.liveness_verified || isVerified ? 'Validé' : 'À fournir'}
                   </span>
                 </button>
               </div>
 
-              {/* BOUTON D'ACTION PRINCIPAL HAUTE VISIBILITÉ */}
+              {/* Bouton sobre et direct */}
               <button
                 type="button"
                 onClick={() => handleTabChange(DashboardTab.PROFILE)}
-                className="w-full bg-gradient-to-r from-emerald-600 via-emerald-700 to-teal-800 hover:from-emerald-700 hover:to-teal-900 text-white p-3.5 sm:p-4 rounded-2xl font-black shadow-lg shadow-emerald-700/25 transition transform active:scale-98 flex items-center justify-center gap-2 text-xs sm:text-sm cursor-pointer"
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white p-3.5 rounded-xl font-semibold transition flex items-center justify-center gap-2 text-sm shadow-sm cursor-pointer"
               >
-                <ShieldCheck size={18} className="text-emerald-200" />
-                <span>Débloquer mes premiers profils chrétiens</span>
-                <ArrowRight size={16} className="text-emerald-200" />
+                <span>Compléter mon profil</span>
+                <ArrowRight size={16} />
               </button>
 
-              {/* Preuve Sociale & Rassurance Anti-Brouteurs */}
-              <p className="text-[10px] text-slate-500 font-semibold flex items-center justify-center gap-1 mt-3">
-                <span>🔒</span>
-                <span>Déjà plus de 3 200 célibataires chrétiens certifiés et protégés.</span>
+              {/* Rassurance discrète */}
+              <p className="text-xs text-slate-400 mt-3 text-center">
+                Espace sécurisé et réservé aux membres vérifiés.
               </p>
             </div>
           );
@@ -536,48 +510,6 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
           </div>
         </div>
 
-        {/* 🌿 SÉRIE DE FOI (DAILY FAITH STREAK) - Sleek Green & White */}
-        <div className="mb-3 p-3 rounded-2xl bg-emerald-50/80 border border-emerald-200/80 text-slate-800 flex items-center justify-between shadow-2xs">
-          <div className="flex items-center space-x-3 min-w-0">
-            <div className="bg-emerald-600 text-white p-2 rounded-xl shrink-0 shadow-2xs">
-              <Flame size={18} className="fill-white" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 truncate">Série de Foi</p>
-              <p className="text-xs font-extrabold text-slate-900 truncate">{streakCount} {streakCount > 1 ? 'Jours consécutifs' : '1er Jour'}</p>
-            </div>
-          </div>
-          <span className="text-xs font-bold bg-white text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-lg shrink-0">
-            🔥
-          </span>
-        </div>
-
-        {/* 💎 SOLDE DE POINTS & CRÉDITS - Clean White & Emerald */}
-        <div
-          onClick={() => setShowPointsModal(true)}
-          className="mb-5 p-3 rounded-2xl bg-white border border-emerald-200/90 text-slate-800 shadow-2xs hover:border-emerald-500 transition-all duration-200 cursor-pointer flex flex-col gap-2 group"
-        >
-          <div className="flex items-center justify-between gap-1">
-            <div className="flex items-center space-x-1.5 min-w-0">
-              <span className="text-xs shrink-0">💎</span>
-              <p className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 truncate">Mon Solde</p>
-            </div>
-            <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200 shrink-0 whitespace-nowrap">
-              {currentUser?.points ?? 150} Pts • {currentUser?.credits ?? 3} ⚡
-            </span>
-          </div>
-
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowPointsModal(true);
-            }}
-            className="w-full text-[11px] font-bold bg-emerald-700 hover:bg-emerald-800 text-white py-1.5 px-2.5 rounded-xl transition shadow-2xs flex items-center justify-center gap-1 cursor-pointer"
-          >
-            <span>Guide & Conversion</span>
-          </button>
-        </div>
-
         {/* Navigation items */}
         <nav className="space-y-1">
           <SidebarItem
@@ -634,51 +566,11 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
         </nav>
       </div>
 
-      {/* Méditation Divine Card - Interactive Hook Model */}
+      {/* Verset du jour sobre & discret */}
       <div className="p-4 pt-3 pb-24 md:pb-6 border-t border-slate-100 shrink-0 bg-slate-50/50">
-        <div className="rounded-2xl bg-white border border-emerald-200/80 p-4 shadow-2xs hover:border-emerald-400 transition-all duration-200">
-          {/* Header Badge */}
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center space-x-1.5 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
-              <Sparkles size={12} className="text-emerald-700 shrink-0" />
-              <span className="text-[10px] text-emerald-800 font-extrabold uppercase tracking-wider">Méditation Divine</span>
-            </div>
-            <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-md border border-emerald-200">
-              📖 {currentVerse.ref}
-            </span>
-          </div>
-
-          {/* Verse Content */}
-          <div className="my-2">
-            <p className="text-xs text-slate-700 italic leading-relaxed font-serif font-medium">
-              « {currentVerse.text} »
-            </p>
-          </div>
-
-          {/* Action Interactive : Rituel Quotidien de Foi (+10 Pts) */}
-          <div className="mt-3 pt-2.5 border-t border-slate-100 space-y-1.5">
-            <button
-              type="button"
-              onClick={handleMeditationAction}
-              disabled={hasMeditatedToday}
-              className={`w-full py-1.5 px-2.5 rounded-xl text-[11px] font-black transition shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 ${
-                hasMeditatedToday
-                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 cursor-default'
-                  : 'bg-emerald-700 hover:bg-emerald-800 text-white shadow-emerald-700/10'
-              }`}
-            >
-              <span>{hasMeditatedToday ? '✓' : '🙏'}</span>
-              <span>{hasMeditatedToday ? 'Médité aujourd’hui (+10 Pts)' : 'J’ai médité ce passage (+10 Pts)'}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleTabChange(DashboardTab.PRAYERS)}
-              className="w-full py-1 text-[10px] font-extrabold text-emerald-800 hover:text-emerald-950 hover:underline flex items-center justify-center gap-1 transition"
-            >
-              <span>🕯️ Déposer une prière dans le Cercle</span>
-            </button>
-          </div>
+        <div className="p-3.5 bg-white rounded-xl border border-emerald-100/80 text-center">
+          <p className="text-[11px] font-medium text-slate-600 italic leading-relaxed">« {currentVerse.text} »</p>
+          <span className="text-[10px] font-bold text-emerald-700 mt-1.5 block">— {currentVerse.ref}</span>
         </div>
       </div>
     </div>
@@ -694,7 +586,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
       {/* TOAST DE RÉCOMPENSE SPIRITUELLE */}
       {meditationToast && (
         <div className="fixed top-20 right-4 md:right-8 z-50 bg-emerald-800 text-white px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 animate-in slide-in-from-top-3 border border-emerald-600 font-bold text-xs">
-          <span>✨</span>
+          <span>🕊️</span>
           <span>{meditationToast}</span>
         </div>
       )}
@@ -720,7 +612,6 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
       <aside className={`fixed top-0 bottom-0 left-0 z-50 w-[280px] max-w-[85vw] bg-white shadow-xl transform transition-transform duration-300 ease-in-out md:hidden flex flex-col rounded-r-2xl overflow-hidden border-r border-slate-200 ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex items-center justify-between p-4 px-5 border-b border-slate-100 bg-emerald-800 text-white shrink-0">
           <div className="flex items-center gap-2">
-            <span className="text-xl">✨</span>
             <span className="font-extrabold text-sm tracking-tight font-display">Navigation 225 Chrétien</span>
           </div>
           <button onClick={onCloseMobileSidebar} className="p-1.5 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full transition cursor-pointer">
@@ -734,83 +625,10 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
 
       {/* Main Content Area */}
       <main ref={mainContentRef} className={`flex-1 w-full flex flex-col ${isMatchesTabAndVerified ? 'h-[calc(100dvh-4rem)] overflow-hidden' : ''}`}>
-
-        {/* BAROMÈTRE DE PREUVE SOCIALE DYNAMIQUE & ANIMÉ (IN-GROUP SOCIAL PROOF TICKER) */}
-        <div className="px-3 pt-3 md:px-8 max-w-4xl w-full mx-auto flex-shrink-0">
-          <SocialProofTicker
-            userLocation={currentUser?.location}
-            userDenomination={currentUser?.denomination}
-            onNavigateTab={(tabKey) => {
-              if (tabKey === 'MATCHES') handleTabChange(DashboardTab.MATCHES);
-              else if (tabKey === 'FORUM') handleTabChange(DashboardTab.FORUM);
-              else if (tabKey === 'PRAYERS') handleTabChange(DashboardTab.PRAYERS);
-              else if (tabKey === 'EVENTS') handleTabChange(DashboardTab.EVENTS);
-            }}
-          />
-        </div>
-
-        {/* Modern Clean Header Banner (Green & White Theme) */}
-        {!isMatchesTab && (
-          <div className="px-4 pt-3 md:px-8 max-w-4xl w-full mx-auto animate-in fade-in duration-300 flex-shrink-0">
-            <div className="bg-white border border-emerald-100 border-l-4 border-l-emerald-600 p-5 sm:p-6 rounded-2xl text-slate-800 shadow-2xs relative overflow-hidden mb-4 sm:mb-6">
-              <div className="relative">
-                <div className="flex flex-wrap items-center gap-2 mb-1">
-                  <p className="text-xs font-bold text-emerald-700 uppercase tracking-wider">
-                    {getChristianGreeting(userName.split(' ')[0])}
-                  </p>
-                  {currentUser?.denomination && (
-                    <span className="text-[10px] font-extrabold bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded-full border border-emerald-200">
-                      🕊️ {currentUser.denomination} {currentUser.location ? `• ${currentUser.location.split(',')[0]}` : ''}
-                    </span>
-                  )}
-                </div>
-                <h2 className="text-xl md:text-2xl font-extrabold text-slate-900 tracking-tight font-display">{currentTabHeader.title}</h2>
-                <p className="text-xs md:text-sm text-slate-600 mt-1 max-w-xl font-medium">{currentTabHeader.subtitle}</p>
-              </div>
-            </div>
-          </div>
-        )}
-
         <div className={`max-w-4xl mx-auto p-3 pt-2 md:p-8 w-full flex-1 ${isMatchesTabAndVerified ? 'h-full flex flex-col pb-24 md:pb-[90px]' : 'pb-36 sm:pb-40 md:pb-16'}`}>
           {renderContent()}
         </div>
       </main>
-
-      {/* BULLE FLOTTANTE ÉVÉNEMENTS À VENIR 📅 */}
-      {upcomingEventsCount > 0 && !isEventsBubbleDismissed && activeTab !== DashboardTab.EVENTS && (
-        <div
-          onClick={() => {
-            setIsEventsBubbleDismissed(true);
-            handleTabChange(DashboardTab.EVENTS);
-          }}
-          className="fixed bottom-24 sm:bottom-28 md:bottom-8 right-4 md:right-8 z-40 bg-gradient-to-r from-emerald-700 via-teal-800 to-emerald-900 text-white p-3 px-4 sm:p-3.5 sm:px-5 rounded-full shadow-2xl border-2 border-white/90 flex items-center gap-2.5 sm:gap-3 cursor-pointer hover:scale-105 active:scale-95 transition-all duration-300"
-        >
-          <div className="relative flex items-center justify-center">
-            <Calendar size={22} className="text-amber-300 animate-pulse" />
-            <span className="absolute -top-2 -right-2.5 bg-red-500 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full border-2 border-white shadow-sm">
-              {upcomingEventsCount}
-            </span>
-          </div>
-          <div className="flex flex-col text-left">
-            <span className="text-xs font-black tracking-wide leading-tight">
-              {upcomingEventsCount === 1 ? '1 Événement à venir !' : `${upcomingEventsCount} Événements à venir !`}
-            </span>
-            <span className="text-[10px] text-emerald-100 font-medium leading-tight">
-              Cliquez pour découvrir et participer ➔
-            </span>
-          </div>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setIsEventsBubbleDismissed(true);
-            }}
-            className="ml-1 text-white/70 hover:text-white p-1 rounded-full hover:bg-white/20 transition cursor-pointer"
-            title="Fermer l'alerte"
-          >
-            <X size={14} />
-          </button>
-        </div>
-      )}
 
       {/* MODALE EXPLICATION & CONVERSION DES POINTS 💎 */}
       <PointsExplanationModal

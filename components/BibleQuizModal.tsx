@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Award, CheckCircle2, XCircle, ArrowRight, Sparkles, RefreshCw, Trophy } from 'lucide-react';
+import { X, Award, CheckCircle2, XCircle, ArrowRight, RefreshCw, Trophy } from 'lucide-react';
 import { BibleQuestion, getRandomQuizQuestions } from '../constants/bibleQuizData';
 
 interface BibleQuizModalProps {
@@ -80,7 +80,7 @@ export const BibleQuizModal: React.FC<BibleQuizModalProps> = ({
           </button>
           
           <div className="flex items-center gap-2 text-amber-200 text-xs font-extrabold uppercase tracking-wider mb-1">
-            <Sparkles size={16} />
+            <Award size={16} />
             <span>{isChallenging ? `Défi Quiz contre ${opponentName}` : 'Quiz Biblique en Duo 📖'}</span>
           </div>
           

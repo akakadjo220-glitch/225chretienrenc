@@ -2,7 +2,7 @@ import * as React from 'react';
 import { useState, useEffect, useRef } from 'react';
 import {
   Heart, Users, BookOpen, Calendar, ShieldCheck,
-  ChevronDown, ChevronUp, Sparkles, Check, ArrowRight,
+  ChevronDown, ChevronUp, Check, ArrowRight,
   Lock, Flame, UserCheck, Star, Church, Award, MessageCircle,
   Play, Pause, Volume2, VolumeX
 } from 'lucide-react';
@@ -222,7 +222,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-600"></span>
               </span>
-              <Sparkles className="w-4 h-4 text-emerald-600" />
+              <Heart className="w-4 h-4 text-emerald-600" />
               <span>La 1ère plateforme chrétienne ivoirienne</span>
               <span className="bg-emerald-600 text-white text-[10px] px-2.5 py-0.5 rounded-full font-extrabold uppercase tracking-wide shadow-xs">100% Sécurisé</span>
             </div>
@@ -260,8 +260,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
                 }}
                 className="px-8 py-4 rounded-xl bg-white/90 hover:bg-white border border-emerald-200 text-emerald-800 font-semibold flex items-center justify-center gap-2 text-base backdrop-blur-md transition-all hover:scale-[1.02] active:scale-[0.98] shadow-md"
               >
-                <Sparkles className="w-4 h-4 text-emerald-600" />
-                <span>Simuler la compatibilité</span>
+                <Heart className="w-4 h-4 text-emerald-600" />
+                <span>Découvrir la compatibilité</span>
               </button>
             </div>
 
@@ -360,8 +360,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
             }}
             className="px-4 py-2 rounded-full bg-amber-400 text-amber-950 font-bold text-xs flex items-center gap-1.5 shadow-lg hover:bg-amber-300 transition-all hover:scale-105"
           >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Simulateur IA Chrétien</span>
+            <Heart className="w-3.5 h-3.5" />
+            <span>Test de Compatibilité Spirituelle</span>
           </button>
 
           <button
@@ -579,7 +579,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
             <div className="space-y-6 max-w-2xl mx-auto">
               <div className="text-center space-y-1">
                 <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full text-xs font-bold">
-                  <Sparkles className="w-3.5 h-3.5" /> Compatibilité Trouvée !
+                  <Heart className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600" /> Compatibilité Trouvée !
                 </span>
                 <h3 className="text-2xl font-extrabold text-slate-900 font-display">Un profil hautement compatible correspond à vos critères !</h3>
               </div>

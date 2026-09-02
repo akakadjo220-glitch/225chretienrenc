@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Crown, Sparkles, Clock, Zap } from 'lucide-react';
+import { Crown, Clock, Zap } from 'lucide-react';
 
 interface PremiumCountdownBadgeProps {
   isPremium: boolean;

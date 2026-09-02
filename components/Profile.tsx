@@ -1274,38 +1274,38 @@ export const Profile: React.FC = () => {
                 </div>
             </div>
 
-            {/* 🗂️ BARRE D'ONGLETS INTUITIVE */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm mb-8">
+            {/* Barre d'onglets épurée */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 bg-white p-1.5 rounded-2xl border border-slate-200/80 shadow-xs mb-8">
                 <button
                     onClick={() => setProfileTab('PROFIL')}
-                    className={`py-3 px-3 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-1.5 cursor-pointer ${profileTab === 'PROFIL' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'
+                    className={`py-2.5 px-3 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-2 cursor-pointer ${profileTab === 'PROFIL' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-50'
                         }`}
                 >
-                    <span>👤</span>
+                    <UserCheck size={15} />
                     <span>Profil & Galerie</span>
                 </button>
                 <button
                     onClick={() => setProfileTab('VERIFICATION')}
-                    className={`py-3 px-3 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-1.5 cursor-pointer ${profileTab === 'VERIFICATION' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'
+                    className={`py-2.5 px-3 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-2 cursor-pointer ${profileTab === 'VERIFICATION' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-50'
                         }`}
                 >
-                    <span>🛡️</span>
+                    <ShieldCheck size={15} />
                     <span>Vérification & Identité</span>
                 </button>
                 <button
                     onClick={() => setProfileTab('POINTS')}
-                    className={`py-3 px-3 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-1.5 cursor-pointer ${profileTab === 'POINTS' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'
+                    className={`py-2.5 px-3 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-2 cursor-pointer ${profileTab === 'POINTS' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-50'
                         }`}
                 >
-                    <span>💎</span>
+                    <CreditCard size={15} />
                     <span>Points & Offres</span>
                 </button>
                 <button
                     onClick={() => setProfileTab('SECURITY')}
-                    className={`py-3 px-3 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-1.5 cursor-pointer ${profileTab === 'SECURITY' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'
+                    className={`py-2.5 px-3 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-2 cursor-pointer ${profileTab === 'SECURITY' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-50'
                         }`}
                 >
-                    <span>🔒</span>
+                    <Lock size={15} />
                     <span>Sécurité & PIN</span>
                 </button>
             </div>
@@ -1324,7 +1324,7 @@ export const Profile: React.FC = () => {
                                     </div>
                                     <div>
                                         <h3 className="font-extrabold text-amber-950 text-sm flex items-center gap-1.5">
-                                            <span>Sceau Spirituel & Paroissial 🕊️✨</span>
+                                            <span>Sceau Spirituel & Paroissial 🕊️</span>
                                             <span className="text-[10px] bg-amber-200 text-amber-900 font-black px-2 py-0.5 rounded-full uppercase">Palier Excellence</span>
                                         </h3>
                                         <p className="text-[11px] text-amber-800/90">Certificat de baptême et/ou parrainage physique par les ambassadeurs paroissiaux.</p>
@@ -1345,7 +1345,7 @@ export const Profile: React.FC = () => {
                                 {isCommunityCertified ? (
                                     <div className="bg-gradient-to-br from-amber-50 to-yellow-50 border border-amber-200 rounded-2xl p-5 text-xs text-amber-900 leading-relaxed text-left space-y-2">
                                         <div className="flex items-center gap-2 font-extrabold text-amber-950 text-sm">
-                                            <span>🕊️✨</span>
+                                            <span>🕊️</span>
                                             <span>Félicitations ! Vous possédez le Sceau Spirituel & Paroissial.</span>
                                         </div>
                                         <p className="text-amber-800">

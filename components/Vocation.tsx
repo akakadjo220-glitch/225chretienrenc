@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   PlayCircle, FileText, Mic, X, Phone, MapPin, User, AlertCircle, 
   Heart, Cross, Globe, Calendar, CheckCircle2, ChevronDown, ChevronUp, 
-  BookOpen, Clock, Save, Sparkles, Send, MessageCircle, ArrowRight, 
+  BookOpen, Clock, Save, Send, MessageCircle, ArrowRight, 
   Check, Search, ShieldCheck, HeartHandshake, HelpCircle, Volume2
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
@@ -357,7 +357,7 @@ export const Vocation: React.FC = () => {
         }, { onConflict: 'key' });
 
         if (!isCompleted) {
-          showToast("✨ Étape validée avec succès ! Que Dieu bénisse votre marche.");
+          showToast("✓ Étape validée avec succès ! Que Dieu bénisse votre marche.");
         }
       } catch (e) {
         console.error("Erreur sauvegarde progression:", e);
@@ -485,7 +485,7 @@ export const Vocation: React.FC = () => {
       {/* TOAST DE FEEDBACK */}
       {toastMessage && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[150] bg-slate-900/95 backdrop-blur-md text-white px-5 py-3 rounded-2xl shadow-2xl border border-emerald-500/40 flex items-center gap-3 animate-in slide-in-from-top-4 duration-300">
-          <Sparkles className="text-emerald-400 shrink-0" size={18} />
+          <CheckCircle2 className="text-emerald-400 shrink-0" size={18} />
           <span className="text-xs sm:text-sm font-extrabold">{toastMessage}</span>
         </div>
       )}

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MapPin, Search, Navigation, Check, X, Sparkles, Globe, Compass, Loader2 } from 'lucide-react';
+import { MapPin, Search, Navigation, Check, X, Globe, Compass, Loader2 } from 'lucide-react';
 import { REFERENCE_LOCATIONS, GeoLocationItem, detectPreciseGPS, PreciseLocationResult } from '../utils/geoService';
 
 interface LocationSelectorModalProps {
@@ -125,8 +125,8 @@ export const LocationSelectorModal: React.FC<LocationSelectorModalProps> = ({
 
           {/* CHIPS POPULAIRES RAPIDES */}
           <div>
-            <div className="flex items-center space-x-1 mb-2">
-              <Sparkles size={14} className="text-amber-500" />
+            <div className="flex items-center space-x-1.5 mb-2">
+              <MapPin size={14} className="text-emerald-600" />
               <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Accès Rapide :</span>
             </div>
             <div className="flex flex-wrap gap-1.5">

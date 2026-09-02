@@ -31,7 +31,7 @@ const getCuratedPlaceholder = (gender: 'M' | 'F' | undefined, id: string) => {
 };
 
 import { MatchProfile } from '../types';
-import { Check, X, MapPin, ShieldCheck, Search, Star, MessageCircle, Loader, CreditCard, CheckCircle, RefreshCw, SlidersHorizontal, ChevronDown, HeartHandshake, Mic, Lock, Plus } from 'lucide-react';
+import { Check, X, MapPin, ShieldCheck, Search, Star, MessageCircle, Loader, CreditCard, CheckCircle, RefreshCw, SlidersHorizontal, ChevronDown, HeartHandshake, Mic, Lock, Plus, Heart } from 'lucide-react';
 import { generateDeepMatchScore, DeepMatchResult } from '../aiClient';
 import { calculateAge, calculateChristianMatchScore, isSameParishFuzzy, detectProfileFraud, recordInteractionAndTrainMl, extractDenomination } from '../matchingEngine';
 
@@ -343,7 +343,7 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
                 const sameParish = isSameParishFuzzy(currentUserModel.parish, record.parish);
                 if (sameParish) calculatedBadges.push('SAME_PARISH');
 
-                if (record.is_premium) calculatedBadges.push('✨ Premium');
+                if (record.is_premium) calculatedBadges.push('⭐ Premium');
                 if (record.verification_status === 'VERIFIED') calculatedBadges.push('🛡️ Vérifié');
                 const hasFullProfile = (record.bio && record.bio.length > 30) && (record.photos_urls && record.photos_urls.length >= 2);
                 if (hasFullProfile) calculatedBadges.push('⭐ Complet');
@@ -1122,8 +1122,8 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
                                                     🕊️ Baptême Certifié
                                                 </span>
                                             ) : badge === 'COMMUNITY_CERTIFIED' ? (
-                                                <span key={idx} className="flex items-center gap-1 bg-gradient-to-r from-amber-500 to-emerald-600 backdrop-blur-md text-white border border-amber-300/60 text-[9px] sm:text-[10px] font-extrabold px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full shadow-lg shadow-amber-500/30 animate-pulse">
-                                                    🛡️✨ Certifié Communauté (Niveau 3)
+                                                <span key={idx} className="flex items-center gap-1 bg-gradient-to-r from-amber-500 to-emerald-600 backdrop-blur-md text-white border border-amber-300/60 text-[9px] sm:text-[10px] font-extrabold px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full shadow-lg shadow-amber-500/30">
+                                                    🛡️ Certifié Communauté (Niveau 3)
                                                 </span>
                                             ) : badge === 'PARISH_BOOSTED' ? (
                                                 <span key={idx} className="flex items-center gap-1 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[9px] sm:text-[10px] font-bold px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full shadow-lg shadow-amber-400/40 border border-amber-300/50">
@@ -1144,7 +1144,7 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
 
                                     {aiAnalysisResult ? (
                                         <div className="bg-black/40 backdrop-blur-md rounded-xl p-2 sm:p-3 mb-1.5 sm:mb-2 border border-emerald-500/30 animate-in fade-in slide-in-from-bottom-2">
-                                            <h4 className="text-emerald-300 text-[10px] sm:text-xs font-bold uppercase mb-0.5 sm:mb-1 flex items-center"><Star size={11} className="mr-1 sm:w-3 sm:h-3" fill="currentColor" /> Analyse IA</h4>
+                                            <h4 className="text-emerald-300 text-[10px] sm:text-xs font-bold uppercase mb-0.5 sm:mb-1 flex items-center"><Star size={11} className="mr-1 sm:w-3 sm:h-3" fill="currentColor" /> Aperçu Spirituel</h4>
                                             <p className="text-xs sm:text-sm text-slate-100 italic">"{aiAnalysisResult.analysis}"</p>
                                         </div>
                                     ) : (
@@ -1161,8 +1161,8 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
                                                 disabled={isAnalyzingAI}
                                                 className="backdrop-blur-md bg-white/10 hover:bg-white/20 border border-white/20 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-medium text-white shadow-sm flex items-center transition-all disabled:opacity-50"
                                             >
-                                                {isAnalyzingAI ? <Loader size={12} className="animate-spin mr-1 sm:w-3.5 sm:h-3.5" /> : <span className="mr-1">✨</span>}
-                                                IA Compatibilité
+                                                {isAnalyzingAI ? <Loader size={12} className="animate-spin mr-1 sm:w-3.5 sm:h-3.5" /> : <Heart size={12} className="mr-1 sm:w-3.5 sm:h-3.5 text-rose-300 fill-rose-300" />}
+                                                Compatibilité
                                             </button>
                                         </div>
                                     )}
