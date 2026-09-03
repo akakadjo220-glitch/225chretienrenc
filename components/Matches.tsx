@@ -30,7 +30,7 @@ const getCuratedPlaceholder = (gender: 'M' | 'F' | undefined, id: string) => {
     return list[index];
 };
 
-import { MatchProfile } from '../types';
+import { MatchProfile, VerificationStatus } from '../types';
 import { Check, X, MapPin, ShieldCheck, Search, Star, MessageCircle, Loader, CreditCard, CheckCircle, RefreshCw, SlidersHorizontal, ChevronDown, HeartHandshake, Mic, Lock, Plus, Heart, Play, Pause, Volume2, Bell } from 'lucide-react';
 import { generateDeepMatchScore, DeepMatchResult } from '../aiClient';
 import { calculateAge, calculateChristianMatchScore, isSameParishFuzzy, detectProfileFraud, recordInteractionAndTrainMl, extractDenomination } from '../matchingEngine';
@@ -827,6 +827,7 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
 
     const isVerifiedOrBypassed = currentUser?.verification_status === 'VERIFIED' || 
                                  currentUser?.verificationStatus === 'VERIFIED' || 
+                                 currentUser?.verificationStatus === VerificationStatus?.VERIFIED || 
                                  currentUser?.role === 'ADMIN' || 
                                  currentUser?.liveness_verified === true;
 
@@ -839,9 +840,9 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
         location: 'Abidjan',
         parish: 'Protestant',
         bio: 'Chrétienne engagée, amoureuse de la louange et de la Parole divine.',
-        imageUrl: '/awa_exact_portrait.jpg',
+        imageUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=800',
         photos: [
-            '/awa_exact_portrait.jpg'
+            'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=800'
         ],
         percentage: 92,
         church_attendance: 'Active in Church',
@@ -1006,30 +1007,27 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
                 </div>
             )}
 
-            {/* HEADER AURORE ROYALE COMPLET (À L'IDENTIQUE EXACT DE LA MAQUETTE) */}
-            <div className="mb-2.5 px-1 flex-shrink-0">
+            {/* HEADER AURORE ROYALE COMPLET (À L'IDENTIQUE DE LA MAQUETTE) */}
+            <div className="mb-3 px-1 flex-shrink-0">
                 {/* Ligne 1 : Salutation & Cloche de notification carrée arrondie */}
                 <div className="flex justify-between items-start mb-2.5">
                     <div>
-                        <h2 className="text-[26px] sm:text-[28px] font-bold text-[#083D25] tracking-tight leading-tight">
+                        <h2 className="text-2xl sm:text-3xl font-extrabold text-[#0D4A2D] font-display tracking-tight leading-tight">
                             Bonjour {currentProfile?.name || 'Awa'},
                         </h2>
-                        <p className="text-[14px] sm:text-[15px] text-[#4A5D52] font-normal mt-0.5">
+                        <p className="text-xs sm:text-sm text-slate-600 font-medium mt-0.5">
                             trouvez votre âme sœur chrétienne
                         </p>
                     </div>
 
-                    {/* Cloche Notification carrée arrondie exacte */}
+                    {/* Cloche Notification de la maquette */}
                     <button
                         type="button"
                         onClick={fetchAdmirateurs}
-                        className="w-12 h-12 rounded-[18px] bg-[#F5EDE1] border border-[#E8DCC9] flex items-center justify-center text-[#083D25] hover:bg-white shadow-[0_2px_8px_rgba(0,0,0,0.03)] transition cursor-pointer relative shrink-0"
+                        className="w-11 h-11 rounded-2xl bg-[#FAF2E6] border border-[#E5D9C8] flex items-center justify-center text-[#1E3A2B] hover:bg-white shadow-xs transition cursor-pointer relative"
                         title="Notifications"
                     >
-                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#083D25" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-                        </svg>
+                        <Bell size={20} className="text-[#1E3A2B]" />
                         {admirateursList.length > 0 && (
                             <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-[#D4A359] rounded-full animate-pulse" />
                         )}
@@ -1041,12 +1039,12 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
                     <button
                         type="button"
                         onClick={fetchAdmirateurs}
-                        className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#F6EFE3] border border-[#E7DBC7] text-[#2E4236] text-[13px] font-medium hover:bg-white transition cursor-pointer shadow-[0_2px_6px_rgba(0,0,0,0.02)]"
+                        className="flex items-center gap-2 px-4 py-2 rounded-full bg-[#FAF2E6] border border-[#E5D9C8] text-slate-800 text-xs font-semibold hover:bg-white transition cursor-pointer shadow-2xs"
                     >
-                        <span className="text-[14px]">💛</span>
-                        <span>Notification</span>
+                        <span className="text-sm">💛</span>
+                        <span className="text-[12px] font-bold text-slate-800">Notification</span>
                         {admirateursList.length > 0 && (
-                            <span className="bg-[#D4A359] text-white text-[9px] font-bold px-1.5 py-0.2 rounded-full ml-1">
+                            <span className="bg-[#D4A359] text-white text-[9px] font-black px-1.5 py-0.2 rounded-full ml-1">
                                 {admirateursList.length}
                             </span>
                         )}
@@ -1055,51 +1053,33 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
                     <button
                         type="button"
                         onClick={() => setIsFilterModalOpen(true)}
-                        className={`flex items-center gap-2 px-4 py-1.5 rounded-full border text-[13px] font-medium transition cursor-pointer shadow-[0_2px_6px_rgba(0,0,0,0.02)] ${
+                        className={`flex items-center gap-2 px-4 py-2 rounded-full border text-xs font-semibold transition cursor-pointer shadow-2xs ${
                             hasActiveFilters
-                                ? 'bg-[#083D25] text-[#F5CD6D] border-[#083D25]'
-                                : 'bg-[#F6EFE3] text-[#2E4236] border-[#E7DBC7] hover:bg-white'
+                                ? 'bg-[#0D4A2D] text-amber-200 border-[#0D4A2D]'
+                                : 'bg-[#FAF2E6] text-slate-800 border-[#E5D9C8] hover:bg-white'
                         }`}
                     >
-                        <span>Filtres</span>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2E4236" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                            <line x1="4" y1="21" x2="4" y2="14" />
-                            <line x1="4" y1="10" x2="4" y2="3" />
-                            <line x1="12" y1="21" x2="12" y2="12" />
-                            <line x1="12" y1="8" x2="12" y2="3" />
-                            <line x1="20" y1="21" x2="20" y2="16" />
-                            <line x1="20" y1="12" x2="20" y2="3" />
-                            <line x1="1" y1="14" x2="7" y2="14" />
-                            <line x1="9" y1="8" x2="15" y2="8" />
-                            <line x1="17" y1="16" x2="23" y2="16" />
-                        </svg>
+                        <span className="text-[12px] font-bold">Filtres</span>
+                        <SlidersHorizontal size={14} className="text-[#1E3A2B]" />
                     </button>
                 </div>
             </div>
 
             {/* --- SWIPE DECK AVEC EFFET DE CARTES EMPILÉES CONFORME À LA MAQUETTE --- */}
-            <div className="flex-1 flex flex-col items-center justify-center relative w-full max-w-[370px] mx-auto min-h-0 mb-2 select-none">
+            <div className="flex-1 flex flex-col items-center justify-center relative w-full max-w-[390px] mx-auto min-h-0 mb-3">
                 {/* Languette dorée en haut qui dépasse derrière la carte principale */}
-                <div className="w-[240px] h-[10px] mx-auto bg-gradient-to-r from-[#B99252] via-[#D8B473] to-[#B99252] rounded-t-xl opacity-95 -mb-[1px] shadow-xs z-0" />
+                <div className="w-48 h-3.5 mx-auto bg-[#E0B87A] rounded-t-2xl opacity-90 -mb-1 shadow-xs" />
 
-                {/* Carte fantôme gauche qui dépasse sur le côté (asset exact découpé du mockup) */}
-                <img
-                    src="/ghost_card_left.jpg"
-                    alt="Carte précédente"
-                    className="absolute -left-3 top-8 bottom-10 w-[22px] object-cover rounded-l-[26px] opacity-90 shadow-md pointer-events-none z-0"
-                />
+                {/* Carte fantôme gauche qui dépasse sur le côté (effet mockup) */}
+                <div className="absolute -left-2 sm:-left-3 top-12 bottom-12 w-4 bg-[#F5EDE1] rounded-l-3xl border-l border-y border-[#E2D6C4] opacity-75 pointer-events-none shadow-xs" />
 
-                {/* Carte fantôme droite qui dépasse sur le côté (asset exact découpé du mockup) */}
-                <img
-                    src="/ghost_card_right.jpg"
-                    alt="Carte suivante"
-                    className="absolute -right-3 top-8 bottom-10 w-[22px] object-cover rounded-r-[26px] opacity-90 shadow-md pointer-events-none z-0"
-                />
+                {/* Carte fantôme droite qui dépasse sur le côté (effet mockup) */}
+                <div className="absolute -right-2 sm:-right-3 top-12 bottom-12 w-4 bg-[#F5EDE1] rounded-r-3xl border-r border-y border-[#E2D6C4] opacity-75 pointer-events-none shadow-xs" />
 
                 {/* CARTE PRINCIPALE BI-TON AURORE ROYALE (PHOTO HAUTE + CONTENU ALBÂTRE CHAUD BAS) */}
                 <div
                     ref={cardRef}
-                    className="relative w-full bg-[#FAF7F2] rounded-[34px] overflow-hidden z-10 touch-none select-none border-[1.5px] border-[#E8DCC9] shadow-[0_20px_50px_rgba(180,140,90,0.22)] flex flex-col"
+                    className="relative w-full bg-[#FAF7F2] rounded-[32px] overflow-hidden z-10 touch-none select-none border border-[#E8DCC9] shadow-[0_20px_45px_-10px_rgba(180,140,90,0.22),0_4px_16px_rgba(0,0,0,0.03)] flex flex-col"
                     style={getCardStyle()}
                     onMouseDown={onPointerDown}
                     onMouseMove={onPointerMove}
@@ -1110,99 +1090,96 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
                     onTouchEnd={onPointerUp}
                 >
                     {/* Swipe Indicators */}
-                    <div className="swipe-badge-like absolute top-6 left-6 border-4 border-[#083D25] text-[#083D25] font-bold text-2xl px-3 py-1 rounded-xl transform -rotate-12 z-30 bg-white/90 backdrop-blur-sm opacity-0 transition-opacity duration-150 pointer-events-none">SE CONNECTER</div>
+                    <div className="swipe-badge-like absolute top-6 left-6 border-4 border-[#0D4A2D] text-[#0D4A2D] font-bold text-2xl px-3 py-1 rounded-xl transform -rotate-12 z-30 bg-white/90 backdrop-blur-sm opacity-0 transition-opacity duration-150 pointer-events-none">SE CONNECTER</div>
                     <div className="swipe-badge-nope absolute top-6 right-6 border-4 border-amber-600 text-amber-600 font-bold text-2xl px-3 py-1 rounded-xl transform rotate-12 z-30 bg-white/90 backdrop-blur-sm opacity-0 transition-opacity duration-150 pointer-events-none">PASSER</div>
 
-                    {/* 1. SECTION PHOTO DU PROFIL (FUSION PROGRESSIVE AVEC LE FOND DU MOCKUP) */}
-                    <div className="relative w-full h-[260px] sm:h-[275px] overflow-hidden rounded-t-[32px] bg-[#FAF7F2] shrink-0">
+                    {/* 1. SECTION PHOTO DU PROFIL (PARTIE HAUTE DU MOCKUP) */}
+                    <div className="relative w-full h-[250px] sm:h-[270px] overflow-hidden rounded-t-[30px] bg-slate-100 shrink-0">
                         {(() => {
-                            const photoSrc = currentProfile.id === 'sample-awa-profile-1'
-                                ? '/awa_exact_portrait.jpg'
-                                : (currentProfile.imageUrl || '/awa_exact_portrait.jpg');
-
+                            const allImages = [currentProfile.imageUrl, ...(currentProfile.photos || [])];
                             return (
                                 <>
                                     <img
-                                        src={photoSrc}
+                                        src={allImages[activeImageIndex] || currentProfile.imageUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=800'}
                                         alt={currentProfile.name}
-                                        className="w-full h-full object-cover object-top pointer-events-none"
-                                        style={{
-                                            maskImage: 'linear-gradient(to bottom, black 65%, transparent 100%)',
-                                            WebkitMaskImage: 'linear-gradient(to bottom, black 65%, transparent 100%)'
-                                        }}
+                                        className="w-full h-full object-cover pointer-events-none"
                                         draggable={false}
                                     />
+                                    {/* Barres d'indicateurs photos en haut */}
+                                    <div className="absolute top-2.5 left-4 right-4 flex space-x-1.5 z-20">
+                                        {allImages.map((_, idx) => (
+                                            <div
+                                                key={idx}
+                                                className={`h-1 flex-1 rounded-full shadow-xs transition-colors ${
+                                                    idx === activeImageIndex ? 'bg-[#D4A359]' : 'bg-white/50'
+                                                }`}
+                                            />
+                                        ))}
+                                    </div>
                                 </>
                             );
                         })()}
                     </div>
 
                     {/* 2. SECTION CONTENU ALBÂTRE CHAUD (PARTIE BASSE DU MOCKUP) */}
-                    <div className="px-4 pb-4 -mt-7 relative z-10 flex flex-col gap-2.5 bg-[#FAF7F2]">
+                    <div className="p-3.5 sm:p-4 bg-[#FAF7F2] flex flex-col gap-2.5 flex-1 justify-between">
 
                         {/* A. Nom, Âge & Ville */}
                         <div className="flex justify-between items-center">
-                            <h3 className="text-[26px] font-bold text-[#083D25] tracking-tight leading-none">
+                            <h3 className="text-2xl font-extrabold text-[#0D4A2D] font-display tracking-tight">
                                 {currentProfile.name || 'Awa'}, {currentProfile.age || 27}
                             </h3>
-                            <div className="flex items-center text-[15px] font-medium text-[#2E4236]">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2E4236" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1 shrink-0">
-                                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                                    <circle cx="12" cy="10" r="3" />
-                                </svg>
+                            <div className="flex items-center text-xs font-semibold text-slate-700">
+                                <MapPin size={13} className="mr-1 text-[#0D4A2D] shrink-0" />
                                 <span>{currentProfile.location ? currentProfile.location.split(',')[0] : 'Abidjan'}</span>
                             </div>
                         </div>
 
-                        {/* B. Les 3 Badges de Foi en Vert Sauge Doux (Exacte Réplique de la Maquette) */}
-                        <div className="flex items-center justify-between gap-1.5">
-                            <span className="bg-[#BDD6C8] text-[#0A3D24] text-[12px] font-medium px-3 py-1 rounded-full border border-[#A6C5B4] flex items-center gap-1.5 shrink-0">
-                                <span className="w-4 h-4 rounded-full bg-[#0A3D24] text-white flex items-center justify-center text-[10px] font-bold">✝</span>
-                                <span>Protestant</span>
+                        {/* B. Les 3 Badges de Foi en Vert Sauge Doux */}
+                        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+                            <span className="bg-[#DCE8E1] text-[#0D4A2D] text-[11px] font-bold px-3 py-1 rounded-full border border-[#C2D6CA] flex items-center gap-1 shrink-0">
+                                <span className="text-[12px]">✝</span>
+                                <span>{currentProfile.parish ? currentProfile.parish.split(' ')[0] : 'Protestant'}</span>
                             </span>
-                            <span className="bg-[#BDD6C8] text-[#0A3D24] text-[12px] font-medium px-3 py-1 rounded-full border border-[#A6C5B4] flex items-center gap-1.5 shrink-0">
+                            <span className="bg-[#DCE8E1] text-[#0D4A2D] text-[11px] font-bold px-3 py-1 rounded-full border border-[#C2D6CA] flex items-center gap-1 shrink-0">
                                 <span>⛪</span>
                                 <span>Active in Church</span>
                             </span>
-                            <span className="bg-[#BDD6C8] text-[#0A3D24] text-[12px] font-medium px-3 py-1 rounded-full border border-[#A6C5B4] flex items-center gap-1.5 shrink-0">
-                                <span>🤲</span>
+                            <span className="bg-[#DCE8E1] text-[#0D4A2D] text-[11px] font-bold px-3 py-1 rounded-full border border-[#C2D6CA] flex items-center gap-1 shrink-0">
+                                <span>🕊️</span>
                                 <span>Believer</span>
                             </span>
                         </div>
 
-                        {/* C. Bannière Compatibilité Spirituelle (Exacte Image Texture Émeraude du Mockup) */}
-                        <div
-                            className="rounded-[20px] p-3 px-4 flex items-center justify-between border border-[#D8B473]/50 shadow-[0_6px_22px_rgba(210,165,85,0.4)] relative overflow-hidden"
-                            style={{
-                                background: 'url(/spiritual_banner_bg.png) no-repeat center / cover',
-                                minHeight: '56px'
-                            }}
-                        >
+                        {/* C. Bannière Compatibilité Spirituelle (Vert Forêt Impérial & Lueur Dorée) */}
+                        <div className="bg-gradient-to-r from-[#0C4328] to-[#082C1A] text-white rounded-[20px] py-2.5 px-3.5 border border-[#D4A359]/50 flex items-center justify-between shadow-[0_8px_20px_rgba(212,163,89,0.3)] relative overflow-hidden">
+                            {/* Lueur dorée d'arrière-plan */}
+                            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-[#D4A359]/20 via-transparent to-transparent pointer-events-none" />
+
                             <div className="flex items-center gap-2.5 relative z-10">
-                                {/* Médaillon boussole/croix dorée */}
-                                <div className="w-8 h-8 rounded-full border-[1.8px] border-[#E6BF5C] bg-[#072F1B] flex items-center justify-center shadow-[0_0_10px_rgba(230,191,92,0.45)] shrink-0">
+                                {/* Médaillon Doré Boussole / Croix Lumineuse */}
+                                <div className="w-8 h-8 rounded-full border-2 border-[#E5C178] bg-[#0A3620] flex items-center justify-center shadow-inner shrink-0">
                                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                                        <circle cx="12" cy="12" r="9" stroke="#E6BF5C" strokeWidth="1.6" />
-                                        <path d="M12 5 L12 19 M5 12 L19 12" stroke="#E6BF5C" strokeWidth="1.6" />
-                                        <polygon points="12,6 14,12 12,18 10,12" fill="#E6BF5C" />
-                                        <polygon points="6,12 12,14 18,12 12,10" fill="#E6BF5C" />
+                                        <circle cx="12" cy="12" r="9" stroke="#E5C178" strokeWidth="1.6" />
+                                        <path d="M12 4 L12 20 M4 12 L20 12" stroke="#E5C178" strokeWidth="1.6" />
+                                        <circle cx="12" cy="12" r="2.2" fill="#E5C178" />
                                     </svg>
                                 </div>
-                                <span className="text-[15px] font-semibold tracking-tight text-white font-sans">
+                                <span className="text-xs sm:text-sm font-semibold tracking-tight text-[#F7F3EB] font-sans">
                                     Spiritual Compatibility
                                 </span>
                             </div>
-                            <span className="text-[22px] font-extrabold text-[#E6BF5C] tracking-tight relative z-10">
+                            <span className="text-xl font-black text-[#F5CD6D] tracking-tight relative z-10">
                                 {currentProfile.percentage || 92}%
                             </span>
                         </div>
 
                         {/* D. Lecteur Audio du Témoignage */}
-                        <div className="bg-[#F5EDE1] text-[#2E4236] rounded-[20px] p-2.5 px-4 border border-[#E7DCCB] flex items-center justify-between shadow-2xs">
+                        <div className="bg-[#FAF5EC] text-slate-800 rounded-[18px] py-2 px-3.5 border border-[#EAE0D0] flex items-center justify-between shadow-2xs">
                             <button
                                 type="button"
                                 onClick={(e) => toggleAudioPlayback(e, currentProfile.id)}
-                                className="w-8 h-8 rounded-full bg-[#E2D5C3] text-[#083D25] flex items-center justify-center hover:bg-[#D5C6B2] transition shadow-xs cursor-pointer shrink-0"
+                                className="w-8 h-8 rounded-full bg-[#E5DAC9] text-[#0C4328] flex items-center justify-center hover:bg-[#D8CABA] transition shadow-xs cursor-pointer shrink-0"
                                 title="Écouter le témoignage audio"
                             >
                                 {playingAudioId === currentProfile.id ? (
@@ -1212,12 +1189,12 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
                                 )}
                             </button>
 
-                            {/* Onde sonore dorée de la maquette */}
-                            <div className="flex items-center gap-[2.5px] mx-3 flex-1 h-5 justify-center overflow-hidden">
-                                {[18, 30, 48, 28, 65, 45, 85, 55, 75, 40, 92, 58, 30, 68, 45, 55, 35, 20].map((h, i) => (
+                            {/* Onde sonore dorée */}
+                            <div className="flex items-center gap-0.5 mx-3 flex-1 h-5 justify-center overflow-hidden">
+                                {[25, 45, 65, 35, 80, 55, 95, 70, 85, 45, 90, 65, 35, 75, 50, 65, 40, 25].map((h, i) => (
                                     <span
                                         key={i}
-                                        className={`w-[2.5px] bg-[#C8A46B] rounded-full transition-all ${
+                                        className={`w-0.5 sm:w-1 bg-[#D4A359] rounded-full transition-all ${
                                             playingAudioId === currentProfile.id ? `wave-animate-${(i % 6) + 1}` : ''
                                         }`}
                                         style={{ height: `${h}%` }}
@@ -1225,7 +1202,7 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
                                 ))}
                             </div>
 
-                            <span className="text-[13px] font-semibold text-[#2E4236] shrink-0">
+                            <span className="text-xs font-semibold text-slate-700 shrink-0">
                                 Listen
                             </span>
 
@@ -1236,20 +1213,17 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
                             />
                         </div>
 
-                        {/* E. Les 3 Boutons d'Action Inférieurs (Exacte reproduction du mockup) */}
-                        <div className="flex items-center justify-between gap-3 pt-1">
+                        {/* E. Les 3 Boutons d'Action Inférieurs */}
+                        <div className="flex items-center justify-between gap-3 pt-0.5">
                             {/* Bouton Gauche : Bénédiction (+) */}
                             <button
                                 type="button"
                                 onClick={() => handleSwipeAction('left')}
                                 disabled={isAlreadyMatched}
-                                className="w-[52px] h-[52px] rounded-full bg-[#083D25] border-[1.5px] border-[#C8A46B] text-[#E8C274] shadow-[0_6px_16px_rgba(8,61,37,0.25)] flex items-center justify-center transition hover:scale-105 active:scale-95 cursor-pointer shrink-0"
+                                className="w-12 h-12 rounded-full bg-[#0D4A2D] border border-[#D4A359]/70 text-[#E5C178] shadow-md shadow-emerald-950/20 flex items-center justify-center transition hover:scale-105 active:scale-95 cursor-pointer shrink-0"
                                 title="Bénir & Passer"
                             >
-                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#E8C274" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                                    <line x1="12" y1="5" x2="12" y2="19" />
-                                    <line x1="5" y1="12" x2="19" y2="12" />
-                                </svg>
+                                <Plus size={24} className="text-[#E5C178]" />
                             </button>
 
                             {/* Bouton Central : Se Connecter */}
@@ -1257,30 +1231,31 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
                                 type="button"
                                 onClick={() => handleSwipeAction('right')}
                                 disabled={isAlreadyMatched}
-                                className="flex-1 h-[52px] rounded-full bg-[#083D25] border-[1.5px] border-[#C8A46B] flex items-center justify-center gap-2.5 font-semibold text-[15px] text-white shadow-[0_8px_20px_rgba(8,61,37,0.3)] hover:scale-[1.02] active:scale-[0.98] transition cursor-pointer"
+                                className="flex-1 h-12 rounded-full bg-[#0D4A2D] border border-[#D4A359]/75 flex items-center justify-center gap-2 font-bold text-xs sm:text-sm text-white shadow-lg shadow-emerald-950/25 hover:scale-[1.02] active:scale-[0.98] transition cursor-pointer"
                             >
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="shrink-0">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="shrink-0">
                                     <path
                                         d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
-                                        stroke="#E8C274"
+                                        stroke="#E5C178"
                                         strokeWidth="1.8"
                                     />
                                 </svg>
                                 <span className="tracking-wide text-white">Se Connecter</span>
                             </button>
 
-                            {/* Bouton Droit : Prière (Mains jointes exactes de la maquette) */}
+                            {/* Bouton Droit : Prière (Mains jointes) */}
                             <button
                                 type="button"
                                 onClick={() => handlePremiumAction('SUPERLIKE')}
                                 disabled={isAlreadyMatched}
-                                className="w-[52px] h-[52px] rounded-full bg-[#083D25] border-[1.5px] border-[#C8A46B] text-[#E8C274] shadow-[0_6px_16px_rgba(8,61,37,0.25)] flex items-center justify-center transition hover:scale-105 active:scale-95 cursor-pointer shrink-0"
+                                className="w-12 h-12 rounded-full bg-[#0D4A2D] border border-[#D4A359]/70 text-[#E5C178] shadow-md shadow-emerald-950/20 flex items-center justify-center transition hover:scale-105 active:scale-95 cursor-pointer shrink-0"
                                 title="Intercession & Prière"
                             >
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#E8C274" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                                    <path d="M12 3 L12 16" />
-                                    <path d="M9 7 L12 4 L15 7" />
-                                    <path d="M7 11 C8.5 8.5 10.5 7 12 7 C13.5 7 15.5 8.5 17 11 L17 19 C17 20 16 21 14.5 21 L9.5 21 C8 21 7 20 7 19 Z" />
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#E5C178" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M7 21v-4a4 4 0 0 1 4-4h2a4 4 0 0 1 4 4v4" />
+                                    <path d="M10 3.5 C10 2.5 11 2 12 2 C13 2 14 2.5 14 3.5 L14 13 L10 13 Z" />
+                                    <path d="M7.5 7 L10 9" />
+                                    <path d="M16.5 7 L14 9" />
                                 </svg>
                             </button>
                         </div>
