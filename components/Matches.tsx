@@ -1034,26 +1034,12 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
                     </button>
                 </div>
 
-                {/* Ligne 2 : Pastilles "💛 Notification" et "Filtres 🎛️" */}
-                <div className="flex items-center justify-between gap-2">
-                    <button
-                        type="button"
-                        onClick={fetchAdmirateurs}
-                        className="flex items-center gap-2 px-4 py-2 rounded-full bg-[#FAF2E6] border border-[#E5D9C8] text-slate-800 text-xs font-semibold hover:bg-white transition cursor-pointer shadow-2xs"
-                    >
-                        <span className="text-sm">💛</span>
-                        <span className="text-[12px] font-bold text-slate-800">Notification</span>
-                        {admirateursList.length > 0 && (
-                            <span className="bg-[#D4A359] text-white text-[9px] font-black px-1.5 py-0.2 rounded-full ml-1">
-                                {admirateursList.length}
-                            </span>
-                        )}
-                    </button>
-
+                {/* Ligne 2 : Pastille Filtres */}
+                <div className="flex items-center justify-end">
                     <button
                         type="button"
                         onClick={() => setIsFilterModalOpen(true)}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-full border text-xs font-semibold transition cursor-pointer shadow-2xs ${
+                        className={`flex items-center gap-2 px-4 py-1.5 rounded-full border text-xs font-semibold transition cursor-pointer shadow-2xs ${
                             hasActiveFilters
                                 ? 'bg-[#0D4A2D] text-amber-200 border-[#0D4A2D]'
                                 : 'bg-[#FAF2E6] text-slate-800 border-[#E5D9C8] hover:bg-white'
