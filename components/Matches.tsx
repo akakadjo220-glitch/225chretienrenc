@@ -840,9 +840,9 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
         location: 'Abidjan',
         parish: 'Protestant',
         bio: 'Chrétienne engagée, amoureuse de la louange et de la Parole divine.',
-        imageUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=800',
+        imageUrl: '/awa_portrait.jpg',
         photos: [
-            'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=800'
+            '/awa_portrait.jpg'
         ],
         percentage: 92,
         church_attendance: 'Active in Church',
@@ -1102,6 +1102,8 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
                                             />
                                         ))}
                                     </div>
+                                    {/* Fondu doux vers la partie albâtre */}
+                                    <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-[#FAF7F2] to-transparent pointer-events-none" />
                                 </>
                             );
                         })()}

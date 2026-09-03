@@ -329,7 +329,7 @@ const App: React.FC = () => {
     currentView === AppView.PROFILE;
 
   return (
-    <div className={`bg-[#FDFBF7] font-sans min-h-screen flex flex-col ${isPrivacyBlurred ? 'privacy-blur-active' : ''}`}>
+    <div className={`bg-aurore-royale font-sans min-h-screen flex flex-col ${isPrivacyBlurred ? 'privacy-blur-active' : ''}`}>
       {/* Gestionnaire de Notifications & Gestionnaire de Session Inactive */}
       <NotificationManager />
       <SessionTimeoutManager

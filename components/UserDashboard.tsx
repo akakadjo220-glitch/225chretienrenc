@@ -484,7 +484,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
   const currentTabHeader = TAB_HEADERS[activeTab] || { title: 'Tableau de Bord', subtitle: '' };
 
   return (
-    <div className="flex-1 w-full bg-[#FDFBF7] md:pl-64 relative flex flex-col min-h-screen">
+    <div className="flex-1 w-full bg-transparent md:pl-64 relative flex flex-col min-h-screen">
 
       {/* TOAST DE RÉCOMPENSE SPIRITUELLE */}
       {meditationToast && (
