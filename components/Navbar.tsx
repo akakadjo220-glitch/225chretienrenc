@@ -145,26 +145,26 @@ export const Navbar: React.FC<NavbarProps> = ({ currentUserRole, onChangeView, t
             </div>
           )}
 
-          {/* Mobile Menu Button (Hamburger) */}
+          {/* Mobile Actions */}
           <div className="md:hidden flex items-center space-x-2">
-            {/* Si connecté, bouton Menu Sidebar (Gauche) */}
-            {currentUserRole !== UserRole.GUEST && (
-              <button onClick={toggleSidebar} className="p-2 rounded-xl text-slate-700 hover:bg-emerald-50 mr-1 border border-slate-200">
-                <Menu className="h-6 w-6" />
+            {currentUserRole === UserRole.GUEST ? (
+              <button
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                className="p-2 rounded-xl text-slate-700 hover:bg-emerald-50 border border-slate-200 focus:outline-none"
+              >
+                {isMobileMenuOpen ? <X className="h-6 w-6 text-emerald-700" /> : <Menu className="h-6 w-6 text-emerald-700" />}
               </button>
-            )}
-
-            {/* Bouton Menu Navbar (Droite) */}
-            <button
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="p-2 rounded-xl text-slate-700 hover:bg-emerald-50 border border-slate-200 focus:outline-none"
-            >
-              {isMobileMenuOpen ? <X className="h-6 w-6 text-emerald-700" /> : (currentUserRole === UserRole.GUEST ? <Menu className="h-6 w-6 text-emerald-700" /> :
-                <div className="h-8 w-8 rounded-full overflow-hidden border-2 border-emerald-600">
+            ) : (
+              <button
+                onClick={() => onChangeView(AppView.PROFILE)}
+                className="p-1 rounded-full text-slate-700 hover:bg-emerald-50 focus:outline-none cursor-pointer"
+                title="Mon Profil"
+              >
+                <div className="h-8 w-8 rounded-full overflow-hidden border-2 border-emerald-600 shadow-2xs">
                   {userAvatarUrl ? <img src={userAvatarUrl} className="h-full w-full object-cover" /> : <User className="h-full w-full p-1 text-emerald-700" />}
                 </div>
-              )}
-            </button>
+              </button>
+            )}
           </div>
 
           {/* Logged In User Menu (Desktop) */}

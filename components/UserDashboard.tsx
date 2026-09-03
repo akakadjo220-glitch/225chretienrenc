@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { DashboardTab, AppView } from '../types';
-import { Heart, MessageCircle, Users, BookOpen, User, Home, X, Calendar, Lock, Shield, WifiOff, Star, Zap, HeartHandshake, ArrowRight, ShieldCheck, UserCheck } from 'lucide-react';
+import { Heart, MessageCircle, Users, BookOpen, User, Home, X, Calendar, Lock, Shield, WifiOff, Star, Zap, HeartHandshake, ArrowRight, ShieldCheck, UserCheck, LogOut } from 'lucide-react';
 import { Matches } from './Matches';
 import { Forum } from './Forum';
 import { Vocation } from './Vocation';
@@ -331,6 +331,11 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
     setNewLikesCount(prev => Math.max(0, prev - 1));
   };
 
+  const handleLogout = () => {
+    if (onCloseMobileSidebar) onCloseMobileSidebar();
+    if (onChangeView) onChangeView(AppView.LANDING);
+  };
+
   const renderContent = () => {
     switch (activeTab) {
       case DashboardTab.MATCHES:
@@ -448,6 +453,19 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
             active={activeTab === DashboardTab.PROFILE}
             onClick={() => handleTabChange(DashboardTab.PROFILE)}
           />
+
+          {/* Déconnexion au menu */}
+          <div className="pt-2 border-t border-slate-100 mt-2">
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl transition-all duration-150 text-left cursor-pointer text-red-600 hover:bg-red-50 hover:text-red-700 font-bold group"
+            >
+              <div className="relative shrink-0">
+                <LogOut size={18} className="text-red-500 group-hover:scale-110 transition-transform" />
+              </div>
+              <span className="text-xs sm:text-sm truncate">Déconnexion</span>
+            </button>
+          </div>
         </nav>
       </div>
 

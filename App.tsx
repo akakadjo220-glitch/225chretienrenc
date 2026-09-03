@@ -412,6 +412,7 @@ const App: React.FC = () => {
         <MobileBottomNav
           currentView={currentView}
           onChangeView={handleNavigate}
+          onOpenMenu={() => setIsSidebarOpen(prev => !prev)}
         />
       )}
 
