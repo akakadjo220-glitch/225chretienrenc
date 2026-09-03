@@ -4,7 +4,7 @@ import { supabase } from '../supabaseClient';
 
 const getImlrUrl = (path: string) => {
     if (!path) return '';
-    if (path.startsWith('http')) return path;
+    if (path.startsWith('http') || path.startsWith('/')) return path;
     return supabase.storage.from('Public').getPublicUrl(path).data.publicUrl;
 };
 
@@ -831,30 +831,10 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
                                  currentUser?.role === 'ADMIN' || 
                                  currentUser?.liveness_verified === true;
 
-    // Profil modèle Awa (conforme à 100% à la maquette de référence)
-    const sampleAwaProfile: any = {
-        id: 'sample-awa-profile-1',
-        name: 'Awa',
-        age: 27,
-        gender: 'FEMALE',
-        location: 'Abidjan',
-        parish: 'Protestant',
-        bio: 'Chrétienne engagée, amoureuse de la louange et de la Parole divine.',
-        imageUrl: '/awa_portrait.jpg',
-        photos: [
-            '/awa_portrait.jpg'
-        ],
-        percentage: 92,
-        church_attendance: 'Active in Church',
-        faith_level: 'Believer',
-        is_verified: true,
-        testimonial_audio_url: 'https://assets.mixkit.co/active_storage/sfx/2874/2874-preview.mp3'
-    };
-
-    const effectiveMatches = filteredMatches.length > 0 ? filteredMatches : [sampleAwaProfile];
-    const currentProfile = effectiveMatches[currentIndex] || sampleAwaProfile;
+    // Récupération dynamique des profils réels vérifiés depuis la base de données
+    const currentProfile = matches[currentIndex];
     const isAlreadyMatched = currentProfile ? knownMatchIds.has(currentProfile.id) : false;
-    const isDeckEmpty = false;
+    const isDeckEmpty = !currentProfile || matches.length === 0;
     const hasActiveFilters = Boolean(searchQuery || selectedParish || maxDistanceKm !== null);
 
     return (
@@ -1013,7 +993,7 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
                 <div className="flex justify-between items-start mb-2.5">
                     <div>
                         <h2 className="text-2xl sm:text-3xl font-extrabold text-[#0D4A2D] font-display tracking-tight leading-tight">
-                            Bonjour {currentProfile?.name || 'Awa'},
+                            Bonjour {currentUser?.full_name?.split(' ')[0] || currentUser?.name?.split(' ')[0] || 'Frédi'},
                         </h2>
                         <p className="text-xs sm:text-sm text-slate-600 font-medium mt-0.5">
                             trouvez votre âme sœur chrétienne
@@ -1052,7 +1032,28 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
             </div>
 
             {/* --- SWIPE DECK AVEC EFFET DE CARTES EMPILÉES CONFORME À LA MAQUETTE --- */}
-            <div className="flex-1 flex flex-col items-center justify-center relative w-full max-w-[390px] mx-auto min-h-0 mb-3">
+            {isDeckEmpty || !currentProfile ? (
+                <div className="flex-1 flex flex-col items-center justify-center p-6 text-center max-w-[360px] mx-auto">
+                    <div className="w-20 h-20 rounded-full bg-[#FAF2E6] border-2 border-[#E5C178] flex items-center justify-center text-3xl shadow-sm mb-4">
+                        ✨
+                    </div>
+                    <h3 className="text-xl font-bold text-[#0D4A2D] mb-2 font-display">
+                        Vous avez vu tous les profils !
+                    </h3>
+                    <p className="text-xs text-slate-600 mb-6 leading-relaxed">
+                        Revenez bientôt pour découvrir de nouveaux profils ou réinitialisez pour les revoir dès maintenant.
+                    </p>
+                    <button
+                        type="button"
+                        onClick={handleResetHistory}
+                        className="px-6 py-3 rounded-full bg-gradient-to-r from-[#0D4A2D] to-[#0A3620] text-[#F5CD6D] font-bold text-sm shadow-md hover:scale-105 transition active:scale-95 cursor-pointer flex items-center gap-2"
+                    >
+                        <RefreshCw size={16} />
+                        <span>Revoir les profils</span>
+                    </button>
+                </div>
+            ) : (
+                <div className="flex-1 flex flex-col items-center justify-center relative w-full max-w-[390px] mx-auto min-h-0 mb-3">
                 {/* Languette dorée en haut qui dépasse derrière la carte principale */}
                 <div className="w-48 h-3.5 mx-auto bg-[#E0B87A] rounded-t-2xl opacity-90 -mb-1 shadow-xs" />
 
@@ -1251,6 +1252,7 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
                     </div>
                 </div>
             </div>
+        )}
 
             {/* MATCH POPUP */}
             {matchedProfile && (
