@@ -43,24 +43,16 @@
 
 body {
   font-family: var(--font-sans);
-  background-color: #FAF6ED;
-  background-image: 
-    radial-gradient(ellipse 75% 50% at 100% 0%, #F9DFAE 0%, #F4E0BB 30%, rgba(249, 246, 237, 0) 70%),
-    radial-gradient(ellipse 70% 50% at 0% 100%, #FADFB0 0%, #F7DBAB 30%, rgba(249, 246, 237, 0) 65%),
-    linear-gradient(180deg, #FAF6ED 0%, #FCF9F2 50%, #FAF6ED 100%);
-  background-attachment: fixed;
+  background-color: #ffffff;
+  background-image: none;
   color: #1e293b;
   overflow-x: hidden;
   -webkit-tap-highlight-color: transparent;
 }
 
 .bg-aurore-royale {
-  background-color: #FAF6ED;
-  background-image: 
-    radial-gradient(ellipse 75% 50% at 100% 0%, #F9DFAE 0%, #F4E0BB 30%, rgba(249, 246, 237, 0) 70%),
-    radial-gradient(ellipse 70% 50% at 0% 100%, #FADFB0 0%, #F7DBAB 30%, rgba(249, 246, 237, 0) 65%),
-    linear-gradient(180deg, #FAF6ED 0%, #FCF9F2 50%, #FAF6ED 100%);
-  background-attachment: fixed;
+  background-color: #ffffff;
+  background-image: none;
 }
 
 /* Optimisation Mobile Touch & Anti-Zoom iOS */
