@@ -527,7 +527,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
       </aside>
 
       {/* Main Content Area */}
-      <main ref={mainContentRef} className={`flex-1 w-full flex flex-col ${isMatchesTabAndVerified ? 'h-[calc(100dvh-4rem)] overflow-hidden' : ''}`}>
+      <main ref={mainContentRef} className={`flex-1 w-full flex flex-col ${isMatchesTabAndVerified ? 'h-screen md:h-[calc(100dvh-4rem)] overflow-hidden' : ''}`}>
         <div className={`max-w-4xl mx-auto p-3 pt-2 md:p-8 w-full flex-1 ${isMatchesTabAndVerified ? 'h-full flex flex-col pb-28 md:pb-[90px]' : 'pb-36 sm:pb-40 md:pb-16'}`}>
           {renderContent()}
         </div>
