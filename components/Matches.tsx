@@ -1094,7 +1094,7 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
                     <div className="swipe-badge-nope absolute top-6 right-6 border-4 border-amber-600 text-amber-600 font-bold text-2xl px-3 py-1 rounded-xl transform rotate-12 z-30 bg-white/90 backdrop-blur-sm opacity-0 transition-opacity duration-150 pointer-events-none">PASSER</div>
 
                     {/* 1. SECTION PHOTO DU PROFIL (PARTIE HAUTE DU MOCKUP) */}
-                    <div className="relative w-full h-[250px] sm:h-[270px] overflow-hidden rounded-t-[30px] bg-slate-100 shrink-0">
+                    <div className="relative w-full h-[320px] sm:h-[350px] overflow-hidden rounded-t-[30px] bg-slate-100 shrink-0">
                         {(() => {
                             const allImages = [currentProfile.imageUrl, ...(currentProfile.photos || [])];
                             return (
@@ -1122,7 +1122,7 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
                     </div>
 
                     {/* 2. SECTION CONTENU ALBÂTRE CHAUD (PARTIE BASSE DU MOCKUP) */}
-                    <div className="p-3.5 sm:p-4 bg-[#FAF7F2] flex flex-col gap-2.5 flex-1 justify-between">
+                    <div className="p-4 sm:p-5 bg-[#FAF7F2] flex flex-col gap-3 sm:gap-3.5 flex-1 justify-between">
 
                         {/* A. Nom, Âge & Ville */}
                         <div className="flex justify-between items-center">
