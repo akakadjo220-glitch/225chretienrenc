@@ -21,7 +21,15 @@ import { Heart } from 'lucide-react';
 
 const App: React.FC = () => {
   const [currentUserRole, setCurrentUserRole] = useState<UserRole>(UserRole.GUEST);
-  const [currentView, setCurrentView] = useState<AppView>(AppView.LANDING);
+  const [currentView, setCurrentView] = useState<AppView>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = sessionStorage.getItem('225_current_view') as AppView;
+      if (saved && Object.values(AppView).includes(saved)) {
+        return saved;
+      }
+    }
+    return AppView.LANDING;
+  });
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
 
@@ -206,17 +214,22 @@ const App: React.FC = () => {
         // Si l'utilisateur est un Administrateur, le maintenir toujours sur l'ADMIN_DASHBOARD lors du rafraîchissement
         if (role === UserRole.ADMIN) {
           setCurrentView(AppView.ADMIN_DASHBOARD);
-        } else if (
-          currentView === AppView.LANDING ||
-          currentView === AppView.AUTH_LOGIN ||
-          currentView === AppView.AUTH_REGISTER ||
-          currentView === AppView.AUTH_VERIFY_EMAIL ||
-          currentView === AppView.ONBOARDING_INTERESTS ||
-          currentView === AppView.ONBOARDING_BIO ||
-          currentView === AppView.ONBOARDING_PREFERENCES ||
-          currentView === AppView.AUTH_ADMIN_LOGIN
-        ) {
-          setCurrentView(AppView.USER_DASHBOARD);
+        } else {
+          const savedView = typeof window !== 'undefined' ? (sessionStorage.getItem('225_current_view') as AppView) : null;
+          if (savedView && [AppView.USER_DASHBOARD, AppView.PROFILE, AppView.MESSAGES, AppView.FORUM, AppView.LIKES_YOU, AppView.SPEED_DATE].includes(savedView)) {
+            setCurrentView(savedView);
+          } else if (
+            currentView === AppView.LANDING ||
+            currentView === AppView.AUTH_LOGIN ||
+            currentView === AppView.AUTH_REGISTER ||
+            currentView === AppView.AUTH_VERIFY_EMAIL ||
+            currentView === AppView.ONBOARDING_INTERESTS ||
+            currentView === AppView.ONBOARDING_BIO ||
+            currentView === AppView.ONBOARDING_PREFERENCES ||
+            currentView === AppView.AUTH_ADMIN_LOGIN
+          ) {
+            setCurrentView(AppView.USER_DASHBOARD);
+          }
         }
         setIsAuthLoading(false);
 
@@ -283,6 +296,9 @@ const App: React.FC = () => {
   };
 
   const handleNavigate = (view: AppView) => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('225_current_view', view);
+    }
     // Protection : on ne peut pas aller au dashboard si invité
     if ((view === AppView.USER_DASHBOARD || view === AppView.ADMIN_DASHBOARD) && currentUserRole === UserRole.GUEST) {
       setCurrentView(AppView.AUTH_LOGIN);
@@ -292,6 +308,11 @@ const App: React.FC = () => {
     // Déconnexion
     if (view === AppView.LANDING && currentUserRole !== UserRole.GUEST) {
       supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('225_current_view');
+        sessionStorage.removeItem('225_active_tab');
+        sessionStorage.removeItem('225_profile_subtab');
+      }
       setCurrentUserRole(UserRole.GUEST);
       setIsSidebarOpen(false);
     }

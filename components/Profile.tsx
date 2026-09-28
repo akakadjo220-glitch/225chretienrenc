@@ -25,13 +25,31 @@ interface ProfileProps {
 
 export const Profile: React.FC<ProfileProps> = ({ initialTab = 'PROFIL' }) => {
     const [user, setUser] = useState<User | null>(null);
-    const [profileTab, setProfileTab] = useState<'PROFIL' | 'VERIFICATION' | 'POINTS' | 'SECURITY'>(initialTab);
+    const [profileTab, setProfileTab] = useState<'PROFIL' | 'VERIFICATION' | 'POINTS' | 'SECURITY'>(() => {
+        if (typeof window !== 'undefined') {
+            const saved = sessionStorage.getItem('225_profile_subtab') as any;
+            if (saved && ['PROFIL', 'VERIFICATION', 'POINTS', 'SECURITY'].includes(saved)) {
+                return saved;
+            }
+        }
+        return initialTab;
+    });
 
     useEffect(() => {
         if (initialTab) {
             setProfileTab(initialTab);
+            if (typeof window !== 'undefined') {
+                sessionStorage.setItem('225_profile_subtab', initialTab);
+            }
         }
     }, [initialTab]);
+
+    const handleSetProfileTab = (tab: 'PROFIL' | 'VERIFICATION' | 'POINTS' | 'SECURITY') => {
+        setProfileTab(tab);
+        if (typeof window !== 'undefined') {
+            sessionStorage.setItem('225_profile_subtab', tab);
+        }
+    };
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
@@ -54,6 +72,16 @@ export const Profile: React.FC<ProfileProps> = ({ initialTab = 'PROFIL' }) => {
     // Verification Files State
     const [idFile, setIdFile] = useState<File | null>(null);
     const [baptismFile, setBaptismFile] = useState<File | null>(null);
+
+    // États de la Caméra en Direct pour Pièce d'Identité (Anti-Usurpation : Galerie STRICTEMENT interdite)
+    const [isIdCameraActive, setIsIdCameraActive] = useState(false);
+    const [idFacingMode, setIdFacingMode] = useState<'environment' | 'user'>('environment');
+    const [idPreviewUrl, setIdPreviewUrl] = useState<string | null>(null);
+    const [idCaptureLoading, setIdCaptureLoading] = useState(false);
+    const [idCameraError, setIdCameraError] = useState<string | null>(null);
+
+    const idVideoRef = useRef<HTMLVideoElement>(null);
+    const idStreamRef = useRef<MediaStream | null>(null);
 
     // Video Verification State
     const [videoFile, setVideoFile] = useState<File | null>(null);
@@ -866,6 +894,129 @@ export const Profile: React.FC<ProfileProps> = ({ initialTab = 'PROFIL' }) => {
         }
     };
 
+    const stopIdCamera = () => {
+        if (idStreamRef.current) {
+            idStreamRef.current.getTracks().forEach(track => { track.stop(); });
+            idStreamRef.current = null;
+        }
+        if (idVideoRef.current) {
+            idVideoRef.current.srcObject = null;
+        }
+        setIsIdCameraActive(false);
+    };
+
+    const startIdCamera = async (facing: 'environment' | 'user' = idFacingMode) => {
+        stopIdCamera();
+        setIdCameraError(null);
+        if (!navigator?.mediaDevices?.getUserMedia) {
+            setIdCameraError("L'accès direct à la caméra nécessite une connexion sécurisée (HTTPS ou localhost).");
+            return;
+        }
+
+        try {
+            let stream: MediaStream;
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: { ideal: facing },
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 }
+                    },
+                    audio: false
+                });
+            } catch {
+                stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+            }
+
+            idStreamRef.current = stream;
+            setIsIdCameraActive(true);
+            setIdFacingMode(facing);
+
+            setTimeout(() => {
+                if (idVideoRef.current) {
+                    idVideoRef.current.srcObject = stream;
+                    idVideoRef.current.play().catch(() => {});
+                }
+            }, 100);
+        } catch (err: any) {
+            console.error("Erreur caméra CNI:", err);
+            setIdCameraError("Impossible d'accéder à la caméra. Veuillez autoriser la caméra dans les permissions de votre navigateur.");
+        }
+    };
+
+    const switchIdCamera = () => {
+        const nextFacing = idFacingMode === 'environment' ? 'user' : 'environment';
+        startIdCamera(nextFacing);
+    };
+
+    const captureIdPhoto = async () => {
+        if (!idVideoRef.current || !idStreamRef.current) return;
+        setIdCaptureLoading(true);
+        try {
+            const video = idVideoRef.current;
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth || 1280;
+            canvas.height = video.videoHeight || 720;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) throw new Error("Erreur initialisation canvas");
+
+            if (idFacingMode === 'user') {
+                ctx.translate(canvas.width, 0);
+                ctx.scale(-1, 1);
+            }
+
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            canvas.toBlob(async (blob) => {
+                if (!blob) {
+                    alert("Erreur lors de la capture de la photo. Veuillez réessayer.");
+                    setIdCaptureLoading(false);
+                    return;
+                }
+                const rawFile = new File([blob], `cni_live_${Date.now()}.jpg`, { type: 'image/jpeg' });
+                try {
+                    const compressed = await compressImage(rawFile, 3);
+                    setIdFile(compressed);
+                } catch {
+                    setIdFile(rawFile);
+                }
+
+                if (idPreviewUrl) URL.revokeObjectURL(idPreviewUrl);
+                const preview = URL.createObjectURL(blob);
+                setIdPreviewUrl(preview);
+
+                stopIdCamera();
+                setIdCaptureLoading(false);
+            }, 'image/jpeg', 0.95);
+        } catch (err: any) {
+            console.error("Erreur capture CNI:", err);
+            alert("Erreur de capture : " + (err.message || err));
+            setIdCaptureLoading(false);
+        }
+    };
+
+    const resetIdPhoto = () => {
+        if (idPreviewUrl) URL.revokeObjectURL(idPreviewUrl);
+        setIdPreviewUrl(null);
+        setIdFile(null);
+        startIdCamera(idFacingMode);
+    };
+
+    const handleDirectCameraInput = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const rawFile = e.target.files[0];
+            try {
+                const compressed = await compressImage(rawFile, 3);
+                setIdFile(compressed);
+            } catch {
+                setIdFile(rawFile);
+            }
+            if (idPreviewUrl) URL.revokeObjectURL(idPreviewUrl);
+            setIdPreviewUrl(URL.createObjectURL(rawFile));
+            stopIdCamera();
+        }
+    };
+
     const stopCameraStream = () => {
         if (streamRef.current) {
             streamRef.current.getTracks().forEach(track => { track.stop(); });
@@ -1123,6 +1274,8 @@ export const Profile: React.FC<ProfileProps> = ({ initialTab = 'PROFIL' }) => {
                 setIdFile(null);
                 setBaptismFile(null);
                 setVideoFile(null);
+                if (idPreviewUrl) URL.revokeObjectURL(idPreviewUrl);
+                setIdPreviewUrl(null);
                 alert(
                     `🎉 Validation biométrique IA réussie (Score DeepFace: ${aiMatchScore || 90}%).\n\n` +
                     `Votre dossier de vérification (${baptismPath ? 'avec Certificat de Baptême inclus 🕊️' : 'Vérification Membre'}) a été transmis à l'administrateur avec succès pour validation finale !`
@@ -1199,18 +1352,145 @@ export const Profile: React.FC<ProfileProps> = ({ initialTab = 'PROFIL' }) => {
                                         <span className="text-[10px] bg-emerald-100 text-emerald-800 font-black px-2 py-0.5 rounded-full uppercase">Obligatoire</span>
                                     </div>
 
-                                    {/* Upload CNI */}
-                                    <div>
-                                        <label className={`border-2 border-dashed rounded-xl p-4 flex flex-col items-center justify-center text-center cursor-pointer transition group ${idFile ? 'border-emerald-500 bg-emerald-50' : 'border-slate-300 hover:bg-white bg-white/70'}`}>
-                                            <input type="file" className="hidden" accept="image/*,.pdf" onChange={(e) => handleFileChange(e, 'ID')} />
-                                            <div className={`p-2.5 rounded-full mb-2 transition ${idFile ? 'bg-emerald-200 text-emerald-800' : 'bg-slate-100 text-slate-500 group-hover:scale-110'}`}>
-                                                {idFile ? <CheckCircle className="h-5 w-5" /> : <UserCheck className="h-5 w-5" />}
-                                            </div>
-                                            <span className="font-bold text-slate-800 text-xs">
-                                                {idFile ? `✓ ${idFile.name}` : "Pièce d'Identité (CNI / Passeport)"}
+                                    {/* Upload CNI - CAMÉRA EN DIRECT OBLIGATOIRE (GALERIE INTERDITE) */}
+                                    <div className="space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <p className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                                                <ShieldCheck size={14} className="text-emerald-600" />
+                                                <span>Pièce d'Identité (CNI / Passeport / Attestation) :</span>
+                                            </p>
+                                            <span className="text-[10px] bg-red-100 text-red-700 font-bold px-2 py-0.5 rounded-full uppercase">
+                                                Caméra en direct uniquement
                                             </span>
-                                            <span className="text-[10px] text-slate-500 mt-0.5">Photo nette et lisible sans reflets</span>
-                                        </label>
+                                        </div>
+                                        <p className="text-[11px] text-slate-500 leading-snug">
+                                            Pour éviter les faux profils et l'usurpation, <strong>l'importation depuis la galerie photo est désactivée</strong>. Prenez votre document en photo avec votre appareil.
+                                        </p>
+
+                                        {!idFile && !isIdCameraActive && (
+                                            <div className="rounded-2xl border-2 border-dashed border-emerald-400/80 bg-emerald-50/20 p-5 flex flex-col items-center justify-center text-center transition hover:bg-emerald-50/40">
+                                                <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mb-2.5 shadow-2xs">
+                                                    <Camera size={24} />
+                                                </div>
+                                                <span className="font-extrabold text-slate-900 text-xs sm:text-sm mb-1">
+                                                    Photographier ma pièce d'identité
+                                                </span>
+                                                <span className="text-[11px] text-slate-500 max-w-sm mb-3.5">
+                                                    Posez votre CNI ou Passeport sur une surface plane et bien éclairée.
+                                                </span>
+
+                                                <div className="flex flex-wrap items-center justify-center gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => startIdCamera('environment')}
+                                                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 shadow-md shadow-emerald-700/20 transition active:scale-95 cursor-pointer"
+                                                    >
+                                                        <Camera size={16} />
+                                                        <span>Activer la caméra et photographier</span>
+                                                    </button>
+
+                                                    {/* Fallback appareil photo système mobile (capture="environment", PAS DE GALERIE) */}
+                                                    <label className="text-[11px] text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 px-3.5 py-2 rounded-xl font-semibold cursor-pointer flex items-center gap-1.5 transition shadow-2xs">
+                                                        <input
+                                                            type="file"
+                                                            className="hidden"
+                                                            accept="image/*"
+                                                            capture="environment"
+                                                            onChange={handleDirectCameraInput}
+                                                        />
+                                                        <span>Appareil photo direct</span>
+                                                    </label>
+                                                </div>
+
+                                                {idCameraError && (
+                                                    <p className="text-xs text-red-600 mt-2.5 font-medium">{idCameraError}</p>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {!idFile && isIdCameraActive && (
+                                            <div className="relative w-full h-72 sm:h-80 rounded-2xl overflow-hidden bg-black border-2 border-emerald-500 shadow-lg">
+                                                <video
+                                                    ref={idVideoRef}
+                                                    autoPlay
+                                                    playsInline
+                                                    muted
+                                                    className={`w-full h-full object-cover ${idFacingMode === 'user' ? 'transform -scale-x-100' : ''}`}
+                                                />
+
+                                                {/* Guide visuel de cadrage CNI rectangulaire */}
+                                                <div className="absolute inset-4 sm:inset-6 border-2 border-dashed border-emerald-400 rounded-2xl pointer-events-none flex flex-col items-center justify-between p-3 bg-black/15 shadow-[0_0_0_9999px_rgba(0,0,0,0.45)]">
+                                                    <div className="bg-slate-900/85 backdrop-blur-md px-3 py-1 rounded-full text-[10px] text-emerald-300 font-bold flex items-center gap-1.5 border border-emerald-400/40">
+                                                        <ShieldCheck size={12} />
+                                                        <span>Cadrez votre pièce d'identité ici</span>
+                                                    </div>
+                                                    <span className="text-[10px] text-white/90 bg-black/70 px-2 py-0.5 rounded-md font-medium">
+                                                        Texte lisible • Aucun reflet lumineux
+                                                    </span>
+                                                </div>
+
+                                                {/* Boutons de contrôle */}
+                                                <div className="absolute bottom-3 left-0 right-0 flex items-center justify-center gap-3 z-30 px-4">
+                                                    <button
+                                                        type="button"
+                                                        onClick={stopIdCamera}
+                                                        className="bg-slate-800/90 hover:bg-slate-800 text-white rounded-full p-2.5 backdrop-blur-sm transition cursor-pointer"
+                                                        title="Fermer la caméra"
+                                                    >
+                                                        <X size={18} />
+                                                    </button>
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={captureIdPhoto}
+                                                        disabled={idCaptureLoading}
+                                                        className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full px-6 py-2.5 shadow-xl font-black text-xs flex items-center gap-2 transition active:scale-95 cursor-pointer border-2 border-white"
+                                                    >
+                                                        {idCaptureLoading ? (
+                                                            <Loader size={16} className="animate-spin text-white" />
+                                                        ) : (
+                                                            <Camera size={16} />
+                                                        )}
+                                                        <span>Prendre la photo</span>
+                                                    </button>
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={switchIdCamera}
+                                                        className="bg-slate-800/90 hover:bg-slate-800 text-white rounded-full p-2.5 backdrop-blur-sm transition cursor-pointer"
+                                                        title="Changer d'objectif (Avant / Arrière)"
+                                                    >
+                                                        <RefreshCw size={18} />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {idFile && (
+                                            <div className="relative w-full rounded-2xl overflow-hidden border-2 border-emerald-500 bg-slate-900 shadow-md">
+                                                {idPreviewUrl ? (
+                                                    <img src={idPreviewUrl} alt="Pièce d'identité" className="w-full h-48 sm:h-56 object-contain bg-black" />
+                                                ) : (
+                                                    <div className="w-full h-48 flex items-center justify-center text-white text-xs">
+                                                        Photo enregistrée ({idFile.name})
+                                                    </div>
+                                                )}
+
+                                                <div className="absolute top-2.5 left-2.5 bg-emerald-600 text-white text-[11px] font-bold px-3 py-1 rounded-full flex items-center gap-1.5 shadow-md">
+                                                    <CheckCircle size={14} />
+                                                    <span>Photo prise en direct ✓</span>
+                                                </div>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={resetIdPhoto}
+                                                    className="absolute top-2.5 right-2.5 bg-white/95 hover:bg-white text-slate-800 rounded-full px-3 py-1.5 shadow-md font-bold text-xs flex items-center gap-1.5 cursor-pointer transition active:scale-95"
+                                                >
+                                                    <RefreshCw size={13} />
+                                                    <span>Reprendre</span>
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* Preuve de vie vidéo 5s */}
@@ -1383,7 +1663,7 @@ export const Profile: React.FC<ProfileProps> = ({ initialTab = 'PROFIL' }) => {
             {/* Barre d'onglets épurée */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 bg-white p-1.5 rounded-2xl border border-slate-200/80 shadow-xs mb-8">
                 <button
-                    onClick={() => setProfileTab('PROFIL')}
+                    onClick={() => handleSetProfileTab('PROFIL')}
                     className={`py-2.5 px-3 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-2 cursor-pointer ${profileTab === 'PROFIL' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-50'
                         }`}
                 >
@@ -1391,7 +1671,7 @@ export const Profile: React.FC<ProfileProps> = ({ initialTab = 'PROFIL' }) => {
                     <span>Profil & Galerie</span>
                 </button>
                 <button
-                    onClick={() => setProfileTab('VERIFICATION')}
+                    onClick={() => handleSetProfileTab('VERIFICATION')}
                     className={`py-2.5 px-3 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-2 cursor-pointer relative ${profileTab === 'VERIFICATION' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-50'
                         }`}
                 >
@@ -1405,7 +1685,7 @@ export const Profile: React.FC<ProfileProps> = ({ initialTab = 'PROFIL' }) => {
                     )}
                 </button>
                 <button
-                    onClick={() => setProfileTab('POINTS')}
+                    onClick={() => handleSetProfileTab('POINTS')}
                     className={`py-2.5 px-3 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-2 cursor-pointer ${profileTab === 'POINTS' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-50'
                         }`}
                 >
@@ -1413,7 +1693,7 @@ export const Profile: React.FC<ProfileProps> = ({ initialTab = 'PROFIL' }) => {
                     <span>Points & Offres</span>
                 </button>
                 <button
-                    onClick={() => setProfileTab('SECURITY')}
+                    onClick={() => handleSetProfileTab('SECURITY')}
                     className={`py-2.5 px-3 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-2 cursor-pointer ${profileTab === 'SECURITY' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-50'
                         }`}
                 >

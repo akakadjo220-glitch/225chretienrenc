@@ -92,8 +92,24 @@ interface UserDashboardProps {
 }
 
 export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onChangeView, isMobileSidebarOpen, onCloseMobileSidebar }) => {
-  const [activeTab, setActiveTab] = useState<DashboardTab>(DashboardTab.MATCHES);
-  const [profileInitialTab, setProfileInitialTab] = useState<'PROFIL' | 'VERIFICATION' | 'POINTS' | 'SECURITY'>('PROFIL');
+  const [activeTab, setActiveTab] = useState<DashboardTab>(() => {
+    if (typeof window !== 'undefined') {
+      const savedTab = sessionStorage.getItem('225_active_tab') as DashboardTab;
+      if (savedTab && Object.values(DashboardTab).includes(savedTab)) {
+        return savedTab;
+      }
+    }
+    return DashboardTab.MATCHES;
+  });
+  const [profileInitialTab, setProfileInitialTab] = useState<'PROFIL' | 'VERIFICATION' | 'POINTS' | 'SECURITY'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = sessionStorage.getItem('225_profile_subtab') as any;
+      if (saved && ['PROFIL', 'VERIFICATION', 'POINTS', 'SECURITY'].includes(saved)) {
+        return saved;
+      }
+    }
+    return 'PROFIL';
+  });
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
 
@@ -103,8 +119,16 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
     else if (currentView === AppView.LIKES_YOU) setActiveTab(DashboardTab.LIKES_YOU);
     else if (currentView === AppView.MESSAGES) setActiveTab(DashboardTab.MESSAGES);
     else if (currentView === AppView.FORUM) setActiveTab(DashboardTab.FORUM);
-    else if (currentView === AppView.PROFILE) setActiveTab(DashboardTab.PROFILE);
-    else if (currentView === AppView.USER_DASHBOARD) setActiveTab(DashboardTab.MATCHES);
+    else if (currentView === AppView.PROFILE) {
+      setActiveTab(DashboardTab.PROFILE);
+    } else if (currentView === AppView.USER_DASHBOARD) {
+      const savedTab = typeof window !== 'undefined' ? (sessionStorage.getItem('225_active_tab') as DashboardTab) : null;
+      if (savedTab && savedTab !== DashboardTab.MATCHES) {
+        setActiveTab(savedTab);
+      } else {
+        setActiveTab(DashboardTab.MATCHES);
+      }
+    }
   }, [currentView]);
 
   // Global counts for badges
@@ -321,6 +345,9 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
 
   const handleTabChange = (tab: DashboardTab) => {
     setActiveTab(tab);
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('225_active_tab', tab);
+    }
     if (tab !== DashboardTab.MESSAGES) setSelectedContactId(null);
     if (onCloseMobileSidebar) onCloseMobileSidebar();
 
@@ -438,11 +465,12 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
               <button
                 type="button"
                 onClick={() => {
-                  if (!isVerified) {
-                    setProfileInitialTab('VERIFICATION');
-                  } else {
-                    setProfileInitialTab('PROFIL');
+                  const targetSubTab = !isVerified ? 'VERIFICATION' : 'PROFIL';
+                  if (typeof window !== 'undefined') {
+                    sessionStorage.setItem('225_active_tab', DashboardTab.PROFILE);
+                    sessionStorage.setItem('225_profile_subtab', targetSubTab);
                   }
+                  setProfileInitialTab(targetSubTab);
                   handleTabChange(DashboardTab.PROFILE);
                 }}
                 className="w-full bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white py-3.5 px-6 rounded-xl font-bold shadow-lg shadow-emerald-700/20 active:scale-95 transition flex items-center justify-center gap-2 text-sm cursor-pointer"

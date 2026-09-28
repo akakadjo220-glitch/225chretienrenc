@@ -935,6 +935,12 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
                 <button
                     type="button"
                     onClick={() => {
+                        const isVerified = currentUser?.verification_status === 'VERIFIED' || currentUser?.verificationStatus === 'VERIFIED';
+                        const targetSubTab = !isVerified ? 'VERIFICATION' : 'PROFIL';
+                        if (typeof window !== 'undefined') {
+                            sessionStorage.setItem('225_active_tab', 'PROFILE');
+                            sessionStorage.setItem('225_profile_subtab', targetSubTab);
+                        }
                         if (onGoToProfile) onGoToProfile();
                     }}
                     className="w-full bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white py-3.5 px-6 rounded-xl font-bold shadow-lg shadow-emerald-700/20 active:scale-95 transition flex items-center justify-center gap-2 text-sm cursor-pointer"
