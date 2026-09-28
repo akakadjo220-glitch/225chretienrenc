@@ -93,6 +93,7 @@ interface UserDashboardProps {
 
 export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onChangeView, isMobileSidebarOpen, onCloseMobileSidebar }) => {
   const [activeTab, setActiveTab] = useState<DashboardTab>(DashboardTab.MATCHES);
+  const [profileInitialTab, setProfileInitialTab] = useState<'PROFIL' | 'VERIFICATION' | 'POINTS' | 'SECURITY'>('PROFIL');
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
 
@@ -107,7 +108,13 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
   }, [currentView]);
 
   // Global counts for badges
-  const mainContentRef = useRef<HTMLElement>(null);
+  const mainContentRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (mainContentRef.current) {
+      mainContentRef.current.scrollTop = 0;
+    }
+  }, [activeTab]);
   const [totalUnreadCount, setTotalUnreadCount] = useState(0);
   const [newLikesCount, setNewLikesCount] = useState(0);
   const [upcomingEventsCount, setUpcomingEventsCount] = useState(0);
@@ -151,12 +158,16 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
   };
 
   // 🎯 CALCUL DE L'EFFET DE PROGRESSION DOTÉE (ENDOWED PROGRESS & ZEIGARNIK)
+  const hasRealAvatar = Boolean(currentUser?.avatar_url && !currentUser.avatar_url.includes('ui-avatars') && !currentUser.avatar_url.includes('picsum'));
+  const galleryCount = Array.isArray(currentUser?.photos_urls) ? currentUser.photos_urls.length : (currentUser?.photos?.length || 0);
+  const totalRealPhotos = (hasRealAvatar ? 1 : 0) + galleryCount;
+  const hasEnoughPhotos = totalRealPhotos >= 3;
+
   const calculateProfileScore = () => {
     let score = 35; // Acquis à l'inscription (Identité & Confession de base)
-    const totalPhotos = (currentUser?.avatar_url || currentUser?.avatarUrl ? 1 : 0) + (currentUser?.photos_urls?.length || currentUser?.photos?.length || 0);
-    if (totalPhotos >= 3) score += 35;
-    else if (totalPhotos === 2) score += 25;
-    else if (totalPhotos === 1) score += 15;
+    if (totalRealPhotos >= 3) score += 35;
+    else if (totalRealPhotos === 2) score += 25;
+    else if (totalRealPhotos === 1) score += 15;
 
     if (currentUser?.liveness_verified || currentUser?.verification_status === 'VERIFIED') score += 30;
     return Math.min(100, score);
@@ -231,9 +242,9 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
   };
 
   const userName = resolveUserName(currentUser);
-  const userAvatar = currentUser?.avatar_url
+  const userAvatar = hasRealAvatar
     ? getImlrUrl(currentUser.avatar_url)
-    : `https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=059669&color=fff`;
+    : `https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=0D5C3A&color=fff&bold=true`;
   const isPremium = currentUser?.is_premium || false;
   const isVerified = currentUser?.verification_status === 'VERIFIED';
 
@@ -339,13 +350,123 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
   const renderContent = () => {
     switch (activeTab) {
       case DashboardTab.MATCHES:
+        if ((!isVerified || !hasEnoughPhotos) && currentUser?.role !== 'ADMIN') {
+          return (
+            <div className="flex flex-col items-center justify-center text-center px-4 pt-6 pb-12 sm:pt-10 sm:pb-12 sm:px-8 my-auto animate-in fade-in zoom-in duration-300 relative bg-white/95 rounded-3xl border border-slate-200/80 shadow-xl max-w-xl mx-auto w-full">
+              <div className="bg-gradient-to-br from-amber-400 to-amber-600 p-4 sm:p-5 rounded-full mb-4 relative shadow-lg shadow-amber-500/25 shrink-0 mt-2">
+                <Shield className="h-10 w-10 sm:h-12 sm:w-12 text-white" />
+                <div className="absolute -bottom-1 -right-1 bg-white p-1.5 rounded-full border-2 border-amber-500 shadow-md">
+                  <Lock className="h-4 w-4 text-emerald-700" />
+                </div>
+              </div>
+
+              <h3 className="text-xl sm:text-2xl font-extrabold text-slate-900 mb-2 tracking-tight">Porte du Discernement</h3>
+              <p className="text-slate-600 max-w-md mb-6 text-xs sm:text-sm leading-relaxed px-2">
+                Afin de préserver la pureté et le sérieux des démarches au sein de la communauté <strong>225 Chrétien</strong>, l'accès à l'espace Rencontres requiert la validation de votre profil.
+              </p>
+
+              {/* État d'Onboarding Checkpoints (Étapes pour terminer la vérification) */}
+              <div className="w-full bg-slate-50/90 rounded-2xl p-4 border border-slate-200 mb-6 space-y-2.5 text-left">
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1 px-1">
+                  Étapes pour terminer la vérification
+                </p>
+
+                {/* 1. Informations Profil */}
+                <div className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-200/60 shadow-2xs">
+                  <div className="flex items-center space-x-3">
+                    <span className="w-6 h-6 bg-emerald-100 text-emerald-700 font-bold rounded-full flex items-center justify-center text-xs">✓</span>
+                    <span className="text-xs sm:text-sm font-semibold text-slate-800">1. Profil & Engagement chrétien</span>
+                  </div>
+                  <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full font-bold uppercase">Validé</span>
+                </div>
+
+                {/* 2. Pièce d'Identité */}
+                <div className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-200/60 shadow-2xs">
+                  <div className="flex items-center space-x-3">
+                    <span className={`w-6 h-6 font-bold rounded-full flex items-center justify-center text-xs ${
+                      currentUser?.verification_status === 'VERIFIED' ? 'bg-emerald-100 text-emerald-700' :
+                      currentUser?.verification_status === 'PENDING' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'
+                    }`}>
+                      {currentUser?.verification_status === 'VERIFIED' ? '✓' : '2'}
+                    </span>
+                    <span className="text-xs sm:text-sm font-semibold text-slate-800">2. Pièce d'identité (CNI / Passeport)</span>
+                  </div>
+                  <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase ${
+                    currentUser?.verification_status === 'VERIFIED' ? 'bg-emerald-100 text-emerald-800' :
+                    currentUser?.verification_status === 'PENDING' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'
+                  }`}>
+                    {currentUser?.verification_status === 'VERIFIED' ? 'Validé' :
+                     currentUser?.verification_status === 'PENDING' ? 'En cours' : 'À fournir'}
+                  </span>
+                </div>
+
+                {/* 3. Liveness video proof */}
+                <div className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-200/60 shadow-2xs">
+                  <div className="flex items-center space-x-3">
+                    <span className={`w-6 h-6 font-bold rounded-full flex items-center justify-center text-xs ${
+                      currentUser?.liveness_verified ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
+                    }`}>
+                      {currentUser?.liveness_verified ? '✓' : '3'}
+                    </span>
+                    <span className="text-xs sm:text-sm font-semibold text-slate-800">3. Preuve de vie vidéo (5 sec)</span>
+                  </div>
+                  <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase ${
+                    currentUser?.liveness_verified ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
+                  }`}>
+                    {currentUser?.liveness_verified ? 'Validé' : 'À fournir'}
+                  </span>
+                </div>
+
+                {/* 4. Galerie photo (3 photos obligatoires) */}
+                <div className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-200/60 shadow-2xs">
+                  <div className="flex items-center space-x-3">
+                    <span className={`w-6 h-6 font-bold rounded-full flex items-center justify-center text-xs ${
+                      hasEnoughPhotos ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
+                    }`}>
+                      {hasEnoughPhotos ? '✓' : '4'}
+                    </span>
+                    <span className="text-xs sm:text-sm font-semibold text-slate-800">4. Galerie photo (3 photos obligatoires)</span>
+                  </div>
+                  <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase ${
+                    hasEnoughPhotos ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                  }`}>
+                    {hasEnoughPhotos ? 'Validé' : `${totalRealPhotos}/3 photos`}
+                  </span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (!isVerified) {
+                    setProfileInitialTab('VERIFICATION');
+                  } else {
+                    setProfileInitialTab('PROFIL');
+                  }
+                  handleTabChange(DashboardTab.PROFILE);
+                }}
+                className="w-full bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white py-3.5 px-6 rounded-xl font-bold shadow-lg shadow-emerald-700/20 active:scale-95 transition flex items-center justify-center gap-2 text-sm cursor-pointer"
+              >
+                <ShieldCheck size={18} />
+                <span>
+                  {!isVerified
+                    ? "Compléter ma vérification maintenant"
+                    : "Ajouter mes photos dans mon profil"}
+                </span>
+              </button>
+            </div>
+          );
+        }
 
         return <Matches
           onGoToMessages={(contactId) => {
             if (contactId) setSelectedContactId(contactId);
             handleTabChange(DashboardTab.MESSAGES);
           }}
-          onGoToProfile={() => handleTabChange(DashboardTab.PROFILE)}
+          onGoToProfile={() => {
+            setProfileInitialTab('VERIFICATION');
+            handleTabChange(DashboardTab.PROFILE);
+          }}
         />;
       case DashboardTab.LIKES_YOU:
         return <LikesYou onLikeProcessed={handleLikeProcessed} onGoToMessages={(contactId) => {
@@ -363,11 +484,14 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
       case DashboardTab.MESSAGES:
         return <Messages initialContactId={selectedContactId} />;
       case DashboardTab.PROFILE:
-        return <Profile />;
+        return <Profile initialTab={profileInitialTab} />;
       default:
         return <Matches onGoToMessages={(contactId) => {
           if (contactId) setSelectedContactId(contactId);
           setActiveTab(DashboardTab.MESSAGES);
+        }} onGoToProfile={() => {
+          setProfileInitialTab('VERIFICATION');
+          handleTabChange(DashboardTab.PROFILE);
         }} />;
     }
   };
@@ -470,7 +594,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
       </div>
 
       {/* Verset du jour sobre & discret */}
-      <div className="p-4 pt-3 pb-24 md:pb-6 border-t border-slate-100 shrink-0 bg-slate-50/50">
+      <div className="p-4 pt-3 pb-8 md:pb-6 border-t border-slate-100 shrink-0 bg-slate-50/50">
         <div className="p-3.5 bg-white rounded-xl border border-emerald-100/80 text-center">
           <p className="text-[11px] font-medium text-slate-600 italic leading-relaxed">« {currentVerse.text} »</p>
           <span className="text-[10px] font-bold text-emerald-700 mt-1.5 block">— {currentVerse.ref}</span>
@@ -480,11 +604,30 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
   );
 
   const isMatchesTab = activeTab === DashboardTab.MATCHES;
-  const isMatchesTabAndVerified = isMatchesTab;
+  const isMatchesTabAndVerified = isMatchesTab && isVerified && hasEnoughPhotos;
+  const isMessagesTab = activeTab === DashboardTab.MESSAGES;
+  const isLikesYouTab = activeTab === DashboardTab.LIKES_YOU;
+  const isFixedLayoutTab = true;
   const currentTabHeader = TAB_HEADERS[activeTab] || { title: 'Tableau de Bord', subtitle: '' };
 
+  // Verrouillage strict du défilement racine pour supprimer l'ascenseur UNIQUEMENT sur le deck de rencontres
+  useEffect(() => {
+    if (isMatchesTabAndVerified) {
+      document.documentElement.classList.add('overflow-hidden', 'deck-scroll-lock');
+      document.body.classList.add('overflow-hidden', 'deck-scroll-lock');
+      document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
+      return () => {
+        document.documentElement.classList.remove('overflow-hidden', 'deck-scroll-lock');
+        document.body.classList.remove('overflow-hidden', 'deck-scroll-lock');
+        document.body.style.overflow = '';
+        document.documentElement.style.overflow = '';
+      };
+    }
+  }, [isMatchesTabAndVerified]);
+
   return (
-    <div className="flex-1 w-full bg-white md:pl-64 relative flex flex-col min-h-screen">
+    <div className={`flex-1 w-full bg-white md:pl-64 relative flex flex-col ${isFixedLayoutTab ? 'h-full overflow-hidden' : 'min-h-screen'}`}>
 
       {/* TOAST DE RÉCOMPENSE SPIRITUELLE */}
       {meditationToast && (
@@ -507,15 +650,15 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
         <SidebarContent />
       </aside>
 
-      {/* Mobile Sidebar Overlay & Drawer */}
-      <div className={`fixed inset-0 z-50 md:hidden transition-opacity duration-300 ${isMobileSidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
-        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onCloseMobileSidebar} />
+      {/* Mobile Sidebar Overlay & Drawer (Priorité absolue au-dessus de tout z-[60] et z-[70]) */}
+      <div className={`fixed inset-0 z-[60] md:hidden transition-opacity duration-300 ${isMobileSidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+        <div className="absolute inset-0 bg-slate-900/65 backdrop-blur-sm" onClick={onCloseMobileSidebar} />
       </div>
 
-      <aside className={`fixed top-0 bottom-0 left-0 z-50 w-[280px] max-w-[85vw] bg-white shadow-xl transform transition-transform duration-300 ease-in-out md:hidden flex flex-col rounded-r-2xl overflow-hidden border-r border-amber-200/50 ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`fixed top-0 bottom-0 left-0 z-[70] w-[290px] max-w-[85vw] bg-white shadow-2xl transform transition-transform duration-300 ease-in-out md:hidden flex flex-col rounded-r-3xl overflow-hidden border-r border-amber-200/50 ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex items-center justify-between p-4 px-5 border-b border-amber-200/50 bg-[#0D5C3A] text-white shrink-0">
           <div className="flex items-center gap-2">
-            <span className="font-extrabold text-sm tracking-tight font-display text-amber-200">Navigation 225 Chrétien</span>
+            <span className="font-extrabold text-sm tracking-wider font-display text-white">225 CHRÉTIEN</span>
           </div>
           <button onClick={onCloseMobileSidebar} className="p-1.5 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full transition cursor-pointer">
             <X size={18} />
@@ -527,8 +670,16 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
       </aside>
 
       {/* Main Content Area */}
-      <main ref={mainContentRef} className={`flex-1 w-full flex flex-col ${isMatchesTabAndVerified ? 'h-screen md:h-[calc(100dvh-4rem)] overflow-hidden' : ''}`}>
-        <div className={`max-w-4xl mx-auto p-3 pt-2 md:p-8 w-full flex-1 ${isMatchesTabAndVerified ? 'h-full flex flex-col pb-28 md:pb-[90px]' : 'pb-36 sm:pb-40 md:pb-16'}`}>
+      <main className="flex-1 w-full flex flex-col h-full overflow-hidden">
+        <div 
+          ref={mainContentRef}
+          className={`max-w-4xl mx-auto w-full flex-1 ${
+          isMatchesTabAndVerified 
+            ? 'h-full flex flex-col px-2 sm:px-4 pt-1 pb-[114px] md:pb-4 overflow-hidden' 
+            : (isMessagesTab || isLikesYouTab)
+              ? 'h-full flex flex-col px-2 sm:px-4 pt-2 pb-[88px] md:pb-4 overflow-hidden'
+              : 'h-full flex flex-col px-2 sm:px-4 md:px-6 pt-2 pb-[88px] md:pb-6 overflow-y-auto custom-scrollbar'
+        }`}>
           {renderContent()}
         </div>
       </main>

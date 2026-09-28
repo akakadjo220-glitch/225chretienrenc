@@ -49,14 +49,25 @@ export const OnboardingInterests: React.FC<OnboardingInterestsProps> = ({ onComp
       <div className="max-w-2xl w-full bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden">
 
         {/* Header */}
-        <div className="bg-emerald-600 p-8 text-center text-white">
-          <div className="bg-white/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 backdrop-blur-sm">
+        <div className="bg-gradient-to-br from-emerald-600 to-emerald-800 p-6 sm:p-8 text-center text-white relative">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-emerald-100 text-xs font-semibold uppercase tracking-wider mb-4 border border-white/20">
+            <span>Étape 1 sur 2</span>
+            <span className="opacity-60">•</span>
+            <span>Centres d'intérêt</span>
+          </div>
+
+          <div className="bg-white/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 backdrop-blur-sm border border-white/30 shadow-inner">
             <Heart className="h-8 w-8 text-white" fill="currentColor" />
           </div>
-          <h1 className="text-3xl font-bold mb-2">Bienvenue dans la famille !</h1>
-          <p className="text-emerald-100 text-lg">
+          <h1 className="text-2xl sm:text-3xl font-extrabold mb-2 tracking-tight">Bienvenue dans la famille !</h1>
+          <p className="text-emerald-100 text-sm sm:text-base max-w-lg mx-auto leading-relaxed">
             Votre profil est vérifié. Apprenons à mieux vous connaître.
           </p>
+        </div>
+
+        {/* Barre de progression visuelle (Étape 1/2 = 50%) */}
+        <div className="w-full bg-slate-100 h-1.5">
+          <div className="bg-emerald-500 h-1.5 transition-all duration-500" style={{ width: '50%' }}></div>
         </div>
 
         {/* Content */}

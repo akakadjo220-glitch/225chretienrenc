@@ -22,27 +22,9 @@ type Phase = 'LOBBY' | 'INTRO' | 'SESSION' | 'TRANSITION' | 'RESULTS';
 const SESSION_DURATION = 180; // 3 minutes en secondes
 const TRANSITION_DURATION = 5;  // 5s entre sessions
 
-// Avatars de secours si l'utilisateur réel n'a pas de photo
-const MOCK_AVATARS_M = [
-    "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=200&h=200&fit=crop&q=80",
-    "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&q=80",
-    "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop&q=80",
-    "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&h=200&fit=crop&q=80",
-    "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=200&h=200&fit=crop&q=80"
-];
-
-const MOCK_AVATARS_F = [
-    "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop&q=80",
-    "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=200&h=200&fit=crop&q=80",
-    "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop&q=80",
-    "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200&h=200&fit=crop&q=80",
-    "https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?w=200&h=200&fit=crop&q=80"
-];
-
-const getCuratedPlaceholder = (gender: 'M' | 'F' | undefined, id: string) => {
-    const list = gender === 'M' ? MOCK_AVATARS_M : MOCK_AVATARS_F;
-    const index = Math.abs(id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)) % list.length;
-    return list[index];
+const getDefaultAvatar = (name?: string) => {
+    const cleanName = encodeURIComponent(name?.trim() || 'Chrétien');
+    return `https://ui-avatars.com/api/?name=${cleanName}&background=0D5C3A&color=ffffff&size=512&bold=true`;
 };
 
 const getImlrUrl = (path: string) => {
@@ -312,10 +294,14 @@ export const SpeedDate: React.FC<SpeedDateProps> = ({
                 if (!myId) return;
 
                 // 1. Inscrire automatiquement l'utilisateur courant
-                await supabase.from('event_attendees').upsert({
-                    event_id: eventId,
-                    user_id: myId
-                }, { onConflict: 'event_id,user_id' }).catch(() => {});
+                try {
+                    await supabase.from('event_attendees').upsert({
+                        event_id: eventId,
+                        user_id: myId
+                    }, { onConflict: 'event_id,user_id' });
+                } catch (attendeeErr) {
+                    console.warn("Auto-inscription attendee non bloquante :", attendeeErr);
+                }
 
                 // 2. Charger les participants de la table event_attendees
                 let mapped: SpeedDateParticipant[] = [];
@@ -338,7 +324,7 @@ export const SpeedDate: React.FC<SpeedDateProps> = ({
                                 mapped = profs.map((p: any, idx: number) => ({
                                     id: p.id,
                                     name: p.full_name || `Membre ${idx + 1}`,
-                                    avatar: p.avatar_url ? getImlrUrl(p.avatar_url) : getCuratedPlaceholder(p.gender as 'M' | 'F' | undefined, p.id),
+                                    avatar: p.avatar_url ? getImlrUrl(p.avatar_url) : getDefaultAvatar(p.full_name),
                                     parish: p.parish || 'Paroisse non renseignée',
                                     age: p.baptism_year ? (new Date().getFullYear() - p.baptism_year + 18) : 25
                                 }));
@@ -362,7 +348,7 @@ export const SpeedDate: React.FC<SpeedDateProps> = ({
                         mapped = realProfiles.map((p: any, idx: number) => ({
                             id: p.id,
                             name: p.full_name || `Membre ${idx + 1}`,
-                            avatar: p.avatar_url ? getImlrUrl(p.avatar_url) : getCuratedPlaceholder(p.gender as 'M' | 'F' | undefined, p.id),
+                            avatar: p.avatar_url ? getImlrUrl(p.avatar_url) : getDefaultAvatar(p.full_name),
                             parish: p.parish || 'Paroisse non renseignée',
                             age: p.baptism_year ? (new Date().getFullYear() - p.baptism_year + 18) : 25
                         }));

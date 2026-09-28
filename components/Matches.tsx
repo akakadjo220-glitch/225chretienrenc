@@ -7,31 +7,13 @@ const getImlrUrl = (path: string) => {
     if (path.startsWith('http') || path.startsWith('/')) return path;
     return supabase.storage.from('Public').getPublicUrl(path).data.publicUrl;
 };
-
-const MOCK_AVATARS_M = [
-    "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&h=500&fit=crop&q=80",
-    "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=500&fit=crop&q=80",
-    "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&h=500&fit=crop&q=80",
-    "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=400&h=500&fit=crop&q=80",
-    "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=400&h=500&fit=crop&q=80"
-];
-
-const MOCK_AVATARS_F = [
-    "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&h=500&fit=crop&q=80",
-    "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=400&h=500&fit=crop&q=80",
-    "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=500&fit=crop&q=80",
-    "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400&h=500&fit=crop&q=80",
-    "https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?w=400&h=500&fit=crop&q=80"
-];
-
-const getCuratedPlaceholder = (gender: 'M' | 'F' | undefined, id: string) => {
-    const list = gender === 'M' ? MOCK_AVATARS_M : MOCK_AVATARS_F;
-    const index = Math.abs(id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)) % list.length;
-    return list[index];
+const getDefaultAvatar = (name?: string) => {
+    const cleanName = encodeURIComponent(name?.trim() || 'Chrétien');
+    return `https://ui-avatars.com/api/?name=${cleanName}&background=0D5C3A&color=ffffff&size=512&bold=true`;
 };
 
+import { Check, X, MapPin, ShieldCheck, Shield, Search, Star, MessageCircle, Loader, CreditCard, CheckCircle, RefreshCw, SlidersHorizontal, ChevronDown, HeartHandshake, Mic, Lock, Plus, Heart, Play, Pause, Volume2, Bell, Sparkles } from 'lucide-react';
 import { MatchProfile, VerificationStatus } from '../types';
-import { Check, X, MapPin, ShieldCheck, Search, Star, MessageCircle, Loader, CreditCard, CheckCircle, RefreshCw, SlidersHorizontal, ChevronDown, HeartHandshake, Mic, Lock, Plus, Heart, Play, Pause, Volume2, Bell } from 'lucide-react';
 import { generateDeepMatchScore, DeepMatchResult } from '../aiClient';
 import { calculateAge, calculateChristianMatchScore, isSameParishFuzzy, detectProfileFraud, recordInteractionAndTrainMl, extractDenomination } from '../matchingEngine';
 
@@ -63,6 +45,13 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
     // Refs pour le drag haute-performance (évite les re-renders intempestifs en cours de glissement)
     const dragStartRef = useRef<{ x: number; y: number } | null>(null);
     const isDraggingRef = useRef(false);
+    const isSwipingRef = useRef(false);
+
+    // Sécurité Frontend : Nettoyage contre les injections XSS
+    const sanitizeText = (text: any, fallback = '') => {
+        if (!text) return fallback;
+        return String(text).replace(/[<>&"']/g, '').trim() || fallback;
+    };
 
     const [matchedProfile, setMatchedProfile] = useState<MatchProfile | null>(null);
     const [showPremiumModal, setShowPremiumModal] = useState(false);
@@ -99,30 +88,44 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
 
     useEffect(() => {
         const initUser = async () => {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (session?.user) {
-                const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle();
-                let parsedPhotos: string[] = [];
-                if (profile?.photos_urls) {
-                    if (Array.isArray(profile.photos_urls)) {
-                        parsedPhotos = profile.photos_urls;
-                    } else if (typeof profile.photos_urls === 'string') {
-                        try {
-                            parsedPhotos = JSON.parse(profile.photos_urls);
-                        } catch {
-                            parsedPhotos = [profile.photos_urls];
+            try {
+                const { data: { session } } = await supabase.auth.getSession();
+                if (session?.user) {
+                    const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle();
+                    let parsedPhotos: string[] = [];
+                    if (profile?.photos_urls) {
+                        if (Array.isArray(profile.photos_urls)) {
+                            parsedPhotos = profile.photos_urls;
+                        } else if (typeof profile.photos_urls === 'string') {
+                            try {
+                                parsedPhotos = JSON.parse(profile.photos_urls);
+                            } catch {
+                                parsedPhotos = [profile.photos_urls];
+                            }
                         }
                     }
+                    setCurrentUser({ 
+                        ...session.user, 
+                        ...(profile || {}), 
+                        photos_urls: parsedPhotos, 
+                        lookingFor: profile?.looking_for 
+                    });
+                } else {
+                    setIsLoading(false);
                 }
-                setCurrentUser({ 
-                    ...session.user, 
-                    ...(profile || {}), 
-                    photos_urls: parsedPhotos, 
-                    lookingFor: profile?.looking_for 
-                });
+            } catch (err) {
+                console.error("Erreur initUser Matches:", err);
+                setIsLoading(false);
             }
         };
         initUser();
+
+        // Sécurité anti-blocage: la page ne doit jamais rester bloquée sur le loader
+        const timer = setTimeout(() => {
+            setIsLoading(false);
+        }, 1500);
+
+        return () => clearTimeout(timer);
     }, []);
 
     useEffect(() => {
@@ -252,17 +255,11 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
                 (theirLikes || []).forEach((l: any) => admirersIds.add(l.from_user_id));
             } catch (e) { console.log("Info: Pas d'admirateurs chargés"); }
 
-            // --- ETAPE 2 : REQUÊTE BASE DE DONNÉES (FILTRAGE DE CONFESSION STRICT) ---
+            // --- ETAPE 2 : REQUÊTE BASE DE DONNÉES EN TEMPS RÉEL ---
             let query = supabase.from('profiles').select('*').neq('id', currentUserId);
 
             if (currentUserModel.lookingFor) {
                 query = query.eq('gender', currentUserModel.lookingFor);
-            }
-
-            // Règle de matching par Confession (Dénomination)
-            if (currentUserModel.denomination && currentUserModel.denomination.trim()) {
-                const myDenom = currentUserModel.denomination.trim();
-                query = query.ilike('denomination', `%${myDenom}%`);
             }
 
             if (parishStr) {
@@ -271,19 +268,11 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
 
             const { data: resultList } = await query.limit(200);
 
-            // --- ETAPE 3 : FILTRAGE CLIENT STRICT PAR CONFESSION & ANONYMAT ---
+            // --- ETAPE 3 : FILTRAGE CLIENT ET SÉCURITÉ ---
             let candidates = (resultList || []).filter((u: any) => {
                 if (alwaysExcludeIds.has(u.id)) return false;
                 if (!includeSeenProfiles && historyIds.has(u.id)) return false;
                 if (u.is_invisible && !admirersIds.has(u.id)) return false;
-
-                // Validation Confession Chrétienne Stricte
-                if (currentUserModel.denomination && u.denomination) {
-                    const myD = currentUserModel.denomination.trim().toLowerCase();
-                    const thD = u.denomination.trim().toLowerCase();
-                    if (myD && thD && myD !== thD) return false;
-                }
-
                 return true;
             });
 
@@ -317,31 +306,31 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
                 });
             }
 
-            // Sort: Boosted profiles first, then shuffle
+            // Tri par compatibilité spirituelle et boost
             const now = new Date();
-            const boosted = candidates.filter((u: any) => u.boost_expires_at && new Date(u.boost_expires_at) > now);
-            const unboosted = candidates.filter((u: any) => !u.boost_expires_at || new Date(u.boost_expires_at) <= now);
-            candidates = [
-                ...boosted.sort(() => Math.random() - 0.5),
-                ...unboosted.sort(() => Math.random() - 0.5)
-            ];
+            candidates.sort((a: any, b: any) => {
+                const isBoostedA = a.boost_expires_at && new Date(a.boost_expires_at) > now ? 1 : 0;
+                const isBoostedB = b.boost_expires_at && new Date(b.boost_expires_at) > now ? 1 : 0;
+                if (isBoostedA !== isBoostedB) return isBoostedB - isBoostedA;
+                const scoreA = calculateChristianMatchScore(currentUserModel, a).score;
+                const scoreB = calculateChristianMatchScore(currentUserModel, b).score;
+                return scoreB - scoreA;
+            });
 
-            // --- ETAPE 4 : MAPPING AVEC ALGORITHME PUISSANT DE MATCHING ---
+            // --- ETAPE 4 : MAPPING 100% BASE DE DONNÉES RÉELLE ---
             const realMatches: MatchProfile[] = candidates.map((record: any) => {
                 const matchAnalysis = calculateChristianMatchScore(currentUserModel, record);
                 const realAge = calculateAge(record.birth_date, record.age);
-                const rName = record.full_name || record.name;
+                const rName = record.full_name || record.name || 'Membre Chrétien';
 
-                // Badges gamification
+                // Badges gamification réels
                 const calculatedBadges: string[] = [];
                 if (record.document_baptism_url) calculatedBadges.push('BAPTISM_CERTIFIED');
                 if (record.verification_status === 'VERIFIED') calculatedBadges.push('COMMUNITY_CERTIFIED');
 
-                // --- BOOST DE PAROISSE ---
                 const isBoosted = record.boost_expires_at && new Date(record.boost_expires_at) > new Date();
                 if (isBoosted) calculatedBadges.push('PARISH_BOOSTED');
 
-                // --- MÊME PAROISSE / CONFESSION ---
                 if (matchAnalysis.isSameDenomination) calculatedBadges.push('MÊME_CONFESSION');
                 const sameParish = isSameParishFuzzy(currentUserModel.parish, record.parish);
                 if (sameParish) calculatedBadges.push('SAME_PARISH');
@@ -356,23 +345,30 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
                 const distanceBadge = dist !== undefined ? (dist < 1 ? ' • < 1 km' : ` • ${dist} km`) : '';
                 const locationWithDistance = `${locationStr}${distanceBadge}`;
 
+                const userDenom = record.denomination || extractDenomination(record.parish);
+                const userInvolvement = record.church_involvement || (record.gender === 'F' ? 'Engagée en paroisse' : 'Engagé en paroisse');
+                const userSpiritual = record.spiritual_status || (record.gender === 'F' ? 'Croyante' : 'Croyant');
+                const audioUrl = record.testimonial_audio_url ? getImlrUrl(record.testimonial_audio_url) : undefined;
+
                 return {
                     id: record.id,
                     name: rName,
+                    gender: record.gender,
                     age: realAge,
                     location: locationWithDistance,
                     latitude: record.latitude,
                     longitude: record.longitude,
                     distanceKm: dist,
                     parish: record.parish || 'Non renseignée',
-                    bio: record.bio || "Membre de la communauté chrétienne.",
-                    imageUrl: record.avatar_url ? getImlrUrl(record.avatar_url) : getCuratedPlaceholder(record.gender, record.id),
+                    denomination: userDenom,
+                    church_involvement: userInvolvement,
+                    spiritual_status: userSpiritual,
+                    bio: record.bio || "Membre engagé(e) de la communauté chrétienne.",
+                    imageUrl: record.avatar_url ? getImlrUrl(record.avatar_url) : getDefaultAvatar(rName),
                     photos: (record.photos_urls || record.photos || []).map((p: string) => getImlrUrl(p)),
                     percentage: matchAnalysis.score,
                     interests: parseInterests(record.interests),
-                    testimonial_audio_url: record.testimonial_audio_url
-                        ? supabase.storage.from('Public').getPublicUrl(record.testimonial_audio_url).data.publicUrl
-                        : undefined,
+                    testimonial_audio_url: audioUrl,
                     badges: calculatedBadges,
                     isInvisible: record.is_invisible,
                     isBoosted: !!isBoosted
@@ -429,6 +425,7 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
     const filteredMatches = matches;
 
     const handleSwipeAction = async (direction: 'left' | 'right', isDragAction = false) => {
+        if (isSwipingRef.current) return;
         const currentProfile = filteredMatches[currentIndex];
         if (!currentProfile) return;
 
@@ -436,6 +433,8 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
             setCurrentIndex(prev => prev + 1);
             return;
         }
+
+        isSwipingRef.current = true;
 
         // Si ce n'est pas initié par drag (clic sur les boutons), on anime le départ
         if (!isDragAction && cardRef.current) {
@@ -514,6 +513,7 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
                 if (nopeBadge) nopeBadge.style.opacity = '0';
             }
             setCurrentIndex(prev => prev + 1);
+            isSwipingRef.current = false;
         }, isDragAction ? 200 : 350);
     };
 
@@ -525,10 +525,20 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
             audioEl.pause();
             setPlayingAudioId(null);
         } else {
-            document.querySelectorAll('audio').forEach(a => { if (a !== audioEl) a.pause(); });
-            audioEl.play().catch(() => {});
-            setPlayingAudioId(profileId);
+            document.querySelectorAll('audio').forEach(a => {
+                if (a !== audioEl) {
+                    a.pause();
+                    a.currentTime = 0;
+                }
+            });
+            audioEl.play().then(() => {
+                setPlayingAudioId(profileId);
+            }).catch((err) => {
+                console.warn("Audio playback issue:", err);
+                setPlayingAudioId(null);
+            });
             audioEl.onended = () => setPlayingAudioId(null);
+            audioEl.onerror = () => setPlayingAudioId(null);
         }
     };
 
@@ -823,13 +833,122 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
         return <div className="flex justify-center items-center h-64"><Loader className="animate-spin text-emerald-600" /></div>;
     }
 
-    const totalUserPhotos = (currentUser?.avatar_url || currentUser?.avatarUrl ? 1 : 0) + (Array.isArray(currentUser?.photos_urls) ? currentUser.photos_urls.length : (currentUser?.photos?.length || 0));
+    const hasRealAvatar = Boolean((currentUser?.avatar_url || currentUser?.avatarUrl) && 
+        !(currentUser?.avatar_url || currentUser?.avatarUrl)?.includes('ui-avatars') && 
+        !(currentUser?.avatar_url || currentUser?.avatarUrl)?.includes('picsum'));
+    const galleryCount = Array.isArray(currentUser?.photos_urls) ? currentUser.photos_urls.length : (currentUser?.photos?.length || 0);
+    const totalRealPhotos = (hasRealAvatar ? 1 : 0) + galleryCount;
+    const hasEnoughPhotos = totalRealPhotos >= 3;
 
-    const isVerifiedOrBypassed = currentUser?.verification_status === 'VERIFIED' || 
-                                 currentUser?.verificationStatus === 'VERIFIED' || 
-                                 currentUser?.verificationStatus === VerificationStatus?.VERIFIED || 
-                                 currentUser?.role === 'ADMIN' || 
-                                 currentUser?.liveness_verified === true;
+    const isVerifiedOrBypassed = currentUser?.role === 'ADMIN' || (
+        (currentUser?.verification_status === 'VERIFIED' || 
+         currentUser?.verificationStatus === 'VERIFIED' || 
+         currentUser?.verificationStatus === VerificationStatus?.VERIFIED || 
+         currentUser?.liveness_verified === true) && hasEnoughPhotos
+    );
+
+    if (!isVerifiedOrBypassed) {
+        return (
+            <div className="flex flex-col items-center justify-center text-center px-4 pt-6 pb-12 sm:pt-10 sm:pb-12 sm:px-8 my-auto animate-in fade-in zoom-in duration-300 relative bg-white/95 rounded-3xl border border-slate-200/80 shadow-xl max-w-xl mx-auto w-full">
+                <div className="bg-gradient-to-br from-amber-400 to-amber-600 p-4 sm:p-5 rounded-full mb-4 relative shadow-lg shadow-amber-500/25 shrink-0 mt-2">
+                    <Shield className="h-10 w-10 sm:h-12 sm:w-12 text-white" />
+                    <div className="absolute -bottom-1 -right-1 bg-white p-1.5 rounded-full border-2 border-amber-500 shadow-md">
+                        <Lock className="h-4 w-4 text-emerald-700" />
+                    </div>
+                </div>
+
+                <h3 className="text-xl sm:text-2xl font-extrabold text-slate-900 mb-2 tracking-tight">Porte du Discernement</h3>
+                <p className="text-slate-600 max-w-md mb-6 text-xs sm:text-sm leading-relaxed px-2">
+                    Afin de préserver la pureté et le sérieux des démarches au sein de la communauté <strong>225 Chrétien</strong>, l'accès à l'espace Rencontres requiert la validation de votre profil.
+                </p>
+
+                {/* État d'Onboarding Checkpoints (Étapes pour terminer la vérification) */}
+                <div className="w-full bg-slate-50/90 rounded-2xl p-4 border border-slate-200 mb-6 space-y-2.5 text-left">
+                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1 px-1">
+                        Étapes pour terminer la vérification
+                    </p>
+
+                    {/* Étape 1 : Profil & Identité de base */}
+                    <div className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-200/60 shadow-2xs">
+                        <div className="flex items-center space-x-3">
+                            <span className="w-6 h-6 bg-emerald-100 text-emerald-700 font-bold rounded-full flex items-center justify-center text-xs">✓</span>
+                            <span className="text-xs sm:text-sm font-semibold text-slate-800">1. Profil & Engagement chrétien</span>
+                        </div>
+                        <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full font-bold uppercase">Validé</span>
+                    </div>
+
+                    {/* Étape 2 : Pièce d'identité */}
+                    <div className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-200/60 shadow-2xs">
+                        <div className="flex items-center space-x-3">
+                            <span className={`w-6 h-6 font-bold rounded-full flex items-center justify-center text-xs ${
+                                currentUser?.verification_status === 'VERIFIED' ? 'bg-emerald-100 text-emerald-700' :
+                                currentUser?.verification_status === 'PENDING' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'
+                            }`}>
+                                {currentUser?.verification_status === 'VERIFIED' ? '✓' : '2'}
+                            </span>
+                            <span className="text-xs sm:text-sm font-semibold text-slate-800">2. Pièce d'identité (CNI / Passeport)</span>
+                        </div>
+                        <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase ${
+                            currentUser?.verification_status === 'VERIFIED' ? 'bg-emerald-100 text-emerald-800' :
+                            currentUser?.verification_status === 'PENDING' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'
+                        }`}>
+                            {currentUser?.verification_status === 'VERIFIED' ? 'Validé' :
+                             currentUser?.verification_status === 'PENDING' ? 'En cours' : 'À fournir'}
+                        </span>
+                    </div>
+
+                    {/* Étape 3 : Preuve de vie vidéo */}
+                    <div className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-200/60 shadow-2xs">
+                        <div className="flex items-center space-x-3">
+                            <span className={`w-6 h-6 font-bold rounded-full flex items-center justify-center text-xs ${
+                                currentUser?.liveness_verified ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
+                            }`}>
+                                {currentUser?.liveness_verified ? '✓' : '3'}
+                            </span>
+                            <span className="text-xs sm:text-sm font-semibold text-slate-800">3. Preuve de vie vidéo (5 sec)</span>
+                        </div>
+                        <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase ${
+                            currentUser?.liveness_verified ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
+                        }`}>
+                            {currentUser?.liveness_verified ? 'Validé' : 'À fournir'}
+                        </span>
+                    </div>
+
+                    {/* Étape 4 : Galerie photo (3 photos obligatoires) */}
+                    <div className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-200/60 shadow-2xs">
+                        <div className="flex items-center space-x-3">
+                            <span className={`w-6 h-6 font-bold rounded-full flex items-center justify-center text-xs ${
+                                hasEnoughPhotos ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
+                            }`}>
+                                {hasEnoughPhotos ? '✓' : '4'}
+                            </span>
+                            <span className="text-xs sm:text-sm font-semibold text-slate-800">4. Galerie photo (3 photos obligatoires)</span>
+                        </div>
+                        <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase ${
+                            hasEnoughPhotos ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                        }`}>
+                            {hasEnoughPhotos ? 'Validé' : `${totalRealPhotos}/3 photos`}
+                        </span>
+                    </div>
+                </div>
+
+                <button
+                    type="button"
+                    onClick={() => {
+                        if (onGoToProfile) onGoToProfile();
+                    }}
+                    className="w-full bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white py-3.5 px-6 rounded-xl font-bold shadow-lg shadow-emerald-700/20 active:scale-95 transition flex items-center justify-center gap-2 text-sm cursor-pointer"
+                >
+                    <ShieldCheck size={18} />
+                    <span>
+                        {!hasEnoughPhotos && (currentUser?.verification_status === 'VERIFIED' || currentUser?.verificationStatus === 'VERIFIED')
+                            ? "Ajouter mes photos dans mon profil"
+                            : "Compléter ma vérification maintenant"}
+                    </span>
+                </button>
+            </div>
+        );
+    }
 
     // Récupération dynamique des profils réels vérifiés depuis la base de données
     const currentProfile = matches[currentIndex];
@@ -838,25 +957,25 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
     const hasActiveFilters = Boolean(searchQuery || selectedParish || maxDistanceKm !== null);
 
     return (
-        <div className="flex flex-col h-full w-full relative">
+        <div className="flex flex-col h-full w-full relative overflow-hidden">
 
             {/* ADMIRATEURS MODAL */}
             {showAdmirateurs && (
-                <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowAdmirateurs(false)} />
-                    <div className="bg-white w-full sm:w-[440px] sm:rounded-2xl rounded-t-2xl relative z-10 overflow-hidden max-h-[80vh] flex flex-col">
+                <div className="fixed inset-0 z-[150] flex items-end sm:items-center justify-center p-0 sm:p-4">
+                    <div className="fixed inset-0 bg-slate-950/75 backdrop-blur-sm animate-in fade-in" onClick={() => setShowAdmirateurs(false)} />
+                    <div className="bg-white w-full sm:w-[440px] sm:rounded-3xl rounded-t-3xl relative z-10 overflow-hidden max-h-[85dvh] flex flex-col shadow-2xl border border-slate-100 animate-in slide-in-from-bottom duration-200">
                         {/* Header */}
-                        <div className="bg-gradient-to-r from-rose-500 to-pink-600 p-5 text-white flex justify-between items-center">
+                        <div className="bg-gradient-to-r from-rose-500 to-pink-600 p-5 text-white flex justify-between items-center shrink-0">
                             <div>
                                 <h3 className="text-xl font-bold">❤️ Mes Admirateurs</h3>
                                 <p className="text-xs text-rose-100 mt-0.5">Personnes ayant aimé votre profil chrétien</p>
                             </div>
-                            <button onClick={() => setShowAdmirateurs(false)} className="bg-white/20 p-2 rounded-full hover:bg-white/30 text-white transition">
+                            <button onClick={() => setShowAdmirateurs(false)} className="bg-white/20 p-2 rounded-full hover:bg-white/30 text-white transition cursor-pointer">
                                 <X size={18} />
                             </button>
                         </div>
                         {/* Body */}
-                        <div className="overflow-y-auto p-4 flex-1">
+                        <div className="overflow-y-auto p-4 flex-1 pb-8 sm:pb-4 custom-scrollbar">
                             {isLoadingAdmirateurs ? (
                                 <div className="flex justify-center py-10"><Loader className="animate-spin text-rose-400" /></div>
                             ) : admirateursList.length === 0 ? (
@@ -908,45 +1027,101 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
 
             {/* FILTER MODAL */}
             {isFilterModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsFilterModalOpen(false)} />
-                    <div className="bg-white w-full sm:w-[420px] sm:rounded-2xl rounded-t-2xl p-6 relative z-10 animate-in slide-in-from-bottom duration-300">
-                        <div className="flex justify-between items-center mb-5">
-                            <h3 className="text-xl font-black text-slate-800 flex items-center">
-                                <SlidersHorizontal className="mr-2 text-emerald-600" /> Filtres de Découverte
-                            </h3>
-                            <button onClick={() => setIsFilterModalOpen(false)} className="bg-slate-100 p-2 rounded-full hover:bg-slate-200 cursor-pointer">
-                                <X size={20} className="text-slate-600" />
+                <div className="fixed inset-0 z-[150] flex items-end sm:items-center justify-center p-0 sm:p-4">
+                    <div 
+                        className="fixed inset-0 bg-slate-950/75 backdrop-blur-sm animate-in fade-in duration-200" 
+                        onClick={() => setIsFilterModalOpen(false)} 
+                    />
+                    <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl relative z-10 flex flex-col max-h-[88dvh] sm:max-h-[85dvh] overflow-hidden border border-slate-100 animate-in slide-in-from-bottom duration-200 text-left">
+                        {/* Poignée tactile mobile */}
+                        <div className="pt-3 pb-1 sm:hidden flex justify-center shrink-0">
+                            <div className="w-12 h-1.5 bg-slate-200 rounded-full" />
+                        </div>
+
+                        {/* Header */}
+                        <div className="px-5 sm:px-6 py-3.5 border-b border-slate-100 flex items-center justify-between shrink-0">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center border border-emerald-100 shadow-2xs">
+                                    <SlidersHorizontal size={19} />
+                                </div>
+                                <div>
+                                    <h3 className="text-base sm:text-lg font-black text-slate-900 leading-tight font-display">
+                                        Filtres de Découverte
+                                    </h3>
+                                    <p className="text-[11px] text-slate-500 font-medium">
+                                        Trouvez les profils selon vos critères
+                                    </p>
+                                </div>
+                            </div>
+                            <button 
+                                type="button"
+                                onClick={() => setIsFilterModalOpen(false)} 
+                                className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition cursor-pointer"
+                                aria-label="Fermer les filtres"
+                            >
+                                <X size={18} />
                             </button>
                         </div>
 
-                        <div className="space-y-5">
+                        {/* Corps défilable */}
+                        <div className="overflow-y-auto px-5 sm:px-6 py-5 space-y-5 flex-1 custom-scrollbar">
+                            {/* Mots-clés */}
                             <div>
-                                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Mots-clés (Nom, Bio, Intérêt)</label>
+                                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5 flex items-center gap-1.5">
+                                    <span>Mots-clés</span>
+                                    <span className="text-[10px] text-slate-400 font-normal lowercase">(nom, bio, centres d'intérêt)</span>
+                                </label>
                                 <div className="relative">
-                                    <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                                    <input type="text" className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:bg-white text-sm transition" placeholder="Ex: Chorale, Abidjan, Musique..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                                    <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
+                                    <input 
+                                        type="text" 
+                                        className="w-full pl-10 pr-9 py-2.5 bg-slate-50 hover:bg-slate-100/70 focus:bg-white border border-slate-200 rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm font-medium text-slate-900 transition outline-none" 
+                                        placeholder="Ex: Chorale, Abidjan, Musique, Foi..." 
+                                        value={searchQuery} 
+                                        onChange={(e) => setSearchQuery(e.target.value)} 
+                                    />
+                                    {searchQuery && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setSearchQuery('')}
+                                            className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 p-0.5"
+                                        >
+                                            <X size={14} />
+                                        </button>
+                                    )}
                                 </div>
                             </div>
 
+                            {/* Paroisse / Église */}
                             <div>
-                                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Paroisse / Église</label>
+                                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5 flex items-center gap-1.5">
+                                    <span>Paroisse / Église</span>
+                                    <span className="text-[10px] text-slate-400 font-normal lowercase">(communauté locale)</span>
+                                </label>
                                 <div className="relative">
-                                    <MapPin className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                                    <select value={selectedParish} onChange={(e) => setSelectedParish(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:bg-white text-sm transition appearance-none">
-                                        <option value="">Toutes les paroisses</option>
-                                        {parishesList.map(parish => (<option key={parish.id} value={parish.name}>{parish.name}</option>))}
+                                    <MapPin className="absolute left-3.5 top-3.5 h-4 w-4 text-emerald-600" />
+                                    <select 
+                                        value={selectedParish} 
+                                        onChange={(e) => setSelectedParish(e.target.value)} 
+                                        className="w-full pl-10 pr-9 py-2.5 bg-slate-50 hover:bg-slate-100/70 focus:bg-white border border-slate-200 rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm font-semibold text-slate-800 transition appearance-none outline-none cursor-pointer"
+                                    >
+                                        <option value="">Toutes les paroisses & assemblées</option>
+                                        {parishesList.map(parish => (
+                                            <option key={parish.id} value={parish.name}>{parish.name}</option>
+                                        ))}
                                     </select>
-                                    <ChevronDown className="absolute right-3 top-3.5 h-4 w-4 text-slate-400 pointer-events-none" />
+                                    <ChevronDown className="absolute right-3.5 top-3.5 h-4 w-4 text-slate-400 pointer-events-none" />
                                 </div>
                             </div>
 
-                            {/* RAYON GÉOGRAPHIQUE GPS */}
+                            {/* Rayon GPS de Proximité */}
                             <div>
-                                <div className="flex justify-between items-center mb-1.5">
-                                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Rayon GPS de Proximité</label>
-                                    <span className="text-xs font-black text-emerald-700">
-                                        {maxDistanceKm === null ? 'Tous (Sans limite)' : `Moins de ${maxDistanceKm} km`}
+                                <div className="flex justify-between items-center mb-2">
+                                    <label className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                                        Rayon GPS de Proximité
+                                    </label>
+                                    <span className="text-xs font-extrabold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                                        {maxDistanceKm === null ? 'Tous (Sans limite)' : `≤ ${maxDistanceKm} km`}
                                     </span>
                                 </div>
                                 <div className="grid grid-cols-3 gap-2">
@@ -957,76 +1132,92 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
                                         { label: '≤ 30 km', value: 30 },
                                         { label: '≤ 75 km', value: 75 },
                                         { label: '≤ 150 km', value: 150 }
-                                    ].map(dist => (
-                                        <button
-                                            key={dist.label}
-                                            type="button"
-                                            onClick={() => setMaxDistanceKm(dist.value)}
-                                            className={`py-2 px-2 text-xs font-bold rounded-xl border transition-all cursor-pointer ${
-                                                maxDistanceKm === dist.value
-                                                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
-                                                    : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                                            }`}
-                                        >
-                                            {dist.label}
-                                        </button>
-                                    ))}
+                                    ].map(dist => {
+                                        const isSelected = maxDistanceKm === dist.value;
+                                        return (
+                                            <button
+                                                key={dist.label}
+                                                type="button"
+                                                onClick={() => setMaxDistanceKm(dist.value)}
+                                                className={`py-2.5 px-2 text-xs font-extrabold rounded-xl border transition-all cursor-pointer active:scale-95 ${
+                                                    isSelected
+                                                        ? 'bg-emerald-700 text-white border-emerald-700 shadow-sm shadow-emerald-900/20'
+                                                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
+                                                }`}
+                                            >
+                                                {dist.label}
+                                            </button>
+                                        );
+                                    })}
                                 </div>
                             </div>
+                        </div>
 
-                            <div className="pt-2 flex gap-3">
-                                <button onClick={handleResetFilters} className="flex-1 py-3 text-slate-600 font-bold hover:bg-slate-100 rounded-xl transition text-xs cursor-pointer border border-slate-200">
-                                    Réinitialiser
-                                </button>
-                                <button onClick={handleApplyFilters} className="flex-1 py-3 bg-emerald-600 text-white font-bold rounded-xl shadow-md hover:bg-emerald-700 transition text-xs cursor-pointer">
-                                    Appliquer les filtres
-                                </button>
-                            </div>
+                        {/* Footer fixe avec boutons d'action et marge de sécurité mobile */}
+                        <div className="p-4 sm:p-5 bg-slate-50/95 border-t border-slate-100 flex items-center gap-3 shrink-0 pb-7 sm:pb-5">
+                            <button 
+                                type="button"
+                                onClick={handleResetFilters} 
+                                className="flex-1 py-3 px-3 text-slate-700 font-bold bg-white hover:bg-slate-100 rounded-xl transition text-xs sm:text-sm cursor-pointer border border-slate-200 shadow-2xs active:scale-95"
+                            >
+                                Réinitialiser
+                            </button>
+                            <button 
+                                type="button"
+                                onClick={handleApplyFilters} 
+                                className="flex-[1.6] py-3 px-4 bg-gradient-to-r from-emerald-700 to-teal-700 hover:from-emerald-800 hover:to-teal-800 text-white font-extrabold rounded-xl shadow-md shadow-emerald-950/20 transition text-xs sm:text-sm cursor-pointer active:scale-95 flex items-center justify-center gap-2"
+                            >
+                                <span>Appliquer les filtres</span>
+                                {hasActiveFilters && (
+                                    <span className="w-2 h-2 rounded-full bg-amber-300 animate-pulse" />
+                                )}
+                            </button>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* HEADER AURORE ROYALE COMPLET (À L'IDENTIQUE DE LA MAQUETTE) */}
-            <div className="mb-3 px-1 flex-shrink-0">
-                {/* Ligne 1 : Salutation & Cloche de notification carrée arrondie */}
-                <div className="flex justify-between items-start mb-2.5">
-                    <div>
-                        <h2 className="text-2xl sm:text-3xl font-extrabold text-[#0D4A2D] font-display tracking-tight leading-tight">
-                            Bonjour {currentUser?.full_name?.split(' ')[0] || currentUser?.name?.split(' ')[0] || 'Frédi'},
-                        </h2>
-                        <p className="text-xs sm:text-sm text-slate-600 font-medium mt-0.5">
-                            trouvez votre âme sœur chrétienne
-                        </p>
-                    </div>
+            {/* HEADER HARMONISÉ & COMPACT (UX PRO) */}
+            <div className="mb-2 px-1 flex-shrink-0 flex items-center justify-between">
+                <div>
+                    <h2 className="text-xl sm:text-2xl font-extrabold text-[#0D4A2D] font-display tracking-tight leading-tight flex items-center gap-1.5">
+                        Bonjour {sanitizeText(currentUser?.full_name?.split(' ')[0] || currentUser?.name?.split(' ')[0], 'Frédi')}
+                    </h2>
+                    <p className="text-[11px] sm:text-xs text-slate-500 font-medium">
+                        Trouvez votre âme sœur chrétienne
+                    </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                    {/* Pastille Filtres */}
+                    <button
+                        type="button"
+                        onClick={() => setIsFilterModalOpen(true)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-bold transition cursor-pointer shadow-2xs ${
+                            hasActiveFilters
+                                ? 'bg-[#0D4A2D] text-amber-200 border-[#0D4A2D]'
+                                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                        }`}
+                        title="Filtres de recherche"
+                    >
+                        <SlidersHorizontal size={13} className={hasActiveFilters ? 'text-amber-200' : 'text-[#0D5C3A]'} />
+                        <span>Filtres</span>
+                    </button>
 
                     {/* Cloche Notification de la maquette */}
                     <button
                         type="button"
                         onClick={fetchAdmirateurs}
-                        className="w-11 h-11 rounded-2xl bg-[#FAF2E6] border border-[#E5D9C8] flex items-center justify-center text-[#1E3A2B] hover:bg-white shadow-xs transition cursor-pointer relative"
-                        title="Notifications"
+                        className="w-9 h-9 rounded-full bg-white border border-slate-200 flex items-center justify-center text-[#1E3A2B] hover:bg-emerald-50 shadow-2xs transition cursor-pointer relative"
+                        title="Mes admirateurs & notifications"
                     >
-                        <Bell size={20} className="text-[#1E3A2B]" />
+                        <Bell size={16} className="text-[#0D5C3A]" />
                         {admirateursList.length > 0 && (
-                            <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-[#D4A359] rounded-full animate-pulse" />
+                            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#D4A359] rounded-full animate-ping" />
                         )}
-                    </button>
-                </div>
-
-                {/* Ligne 2 : Pastille Filtres */}
-                <div className="flex items-center justify-end">
-                    <button
-                        type="button"
-                        onClick={() => setIsFilterModalOpen(true)}
-                        className={`flex items-center gap-2 px-4 py-1.5 rounded-full border text-xs font-semibold transition cursor-pointer shadow-2xs ${
-                            hasActiveFilters
-                                ? 'bg-[#0D4A2D] text-amber-200 border-[#0D4A2D]'
-                                : 'bg-[#FAF2E6] text-slate-800 border-[#E5D9C8] hover:bg-white'
-                        }`}
-                    >
-                        <span className="text-[12px] font-bold">Filtres</span>
-                        <SlidersHorizontal size={14} className="text-[#1E3A2B]" />
+                        {admirateursList.length > 0 && (
+                            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#D4A359] rounded-full" />
+                        )}
                     </button>
                 </div>
             </div>
@@ -1034,7 +1225,7 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
             {/* --- SWIPE DECK AVEC EFFET DE CARTES EMPILÉES CONFORME À LA MAQUETTE --- */}
             {isDeckEmpty || !currentProfile ? (
                 <div className="flex-1 flex flex-col items-center justify-center p-6 text-center max-w-[360px] mx-auto">
-                    <div className="w-20 h-20 rounded-full bg-[#FAF2E6] border-2 border-[#E5C178] flex items-center justify-center text-3xl shadow-sm mb-4">
+                    <div className="w-16 h-16 rounded-full bg-emerald-50 border-2 border-emerald-200 flex items-center justify-center text-2xl shadow-sm mb-4">
                         ✨
                     </div>
                     <h3 className="text-xl font-bold text-[#0D4A2D] mb-2 font-display">
@@ -1046,217 +1237,229 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
                     <button
                         type="button"
                         onClick={handleResetHistory}
-                        className="px-6 py-3 rounded-full bg-gradient-to-r from-[#0D4A2D] to-[#0A3620] text-[#F5CD6D] font-bold text-sm shadow-md hover:scale-105 transition active:scale-95 cursor-pointer flex items-center gap-2"
+                        className="px-6 py-2.5 rounded-full bg-gradient-to-r from-[#0D4A2D] to-[#0A3620] text-[#F5CD6D] font-bold text-sm shadow-md hover:scale-105 transition active:scale-95 cursor-pointer flex items-center gap-2"
                     >
-                        <RefreshCw size={16} />
+                        <RefreshCw size={15} />
                         <span>Revoir les profils</span>
                     </button>
                 </div>
             ) : (
-                <div className="flex-1 flex flex-col items-center justify-center relative w-full max-w-[390px] mx-auto min-h-0 mb-3">
-                {/* Languette dorée en haut qui dépasse derrière la carte principale */}
-                <div className="w-48 h-3.5 mx-auto bg-[#E0B87A] rounded-t-2xl opacity-90 -mb-1 shadow-xs" />
+                <div className="flex-1 flex flex-col items-center justify-start h-full w-full max-w-[400px] md:max-w-[420px] mx-auto min-h-0 relative">
+                    {/* Cartes empilées discrètes en arrière-plan */}
+                    <div className="absolute inset-x-3 -top-1.5 h-6 bg-white/70 rounded-t-[24px] border-t border-x border-slate-200/50 pointer-events-none shadow-2xs" />
+                    <div className="absolute -left-1 sm:-left-2 top-8 bottom-8 w-3 bg-white/80 rounded-l-2xl border-l border-y border-slate-200/50 opacity-80 pointer-events-none shadow-xs" />
+                    <div className="absolute -right-1 sm:-right-2 top-8 bottom-8 w-3 bg-white/80 rounded-r-2xl border-r border-y border-slate-200/50 opacity-80 pointer-events-none shadow-xs" />
 
-                {/* Carte fantôme gauche qui dépasse sur le côté (effet mockup) */}
-                <div className="absolute -left-2 sm:-left-3 top-12 bottom-12 w-4 bg-[#F5EDE1] rounded-l-3xl border-l border-y border-[#E2D6C4] opacity-75 pointer-events-none shadow-xs" />
+                    {/* CARTE PRINCIPALE BI-TON ÉPURÉE FOND BLANC */}
+                    <div
+                        ref={cardRef}
+                        className="relative w-full h-full bg-white rounded-[26px] sm:rounded-[30px] overflow-hidden z-10 touch-none select-none border border-slate-100 shadow-[0_14px_35px_-8px_rgba(13,92,58,0.12),0_4px_14px_rgba(0,0,0,0.03)] flex flex-col justify-between"
+                        style={getCardStyle()}
+                        onMouseDown={onPointerDown}
+                        onMouseMove={onPointerMove}
+                        onMouseUp={onPointerUp}
+                        onMouseLeave={onPointerUp}
+                        onTouchStart={onPointerDown}
+                        onTouchMove={onPointerMove}
+                        onTouchEnd={onPointerUp}
+                    >
+                        {/* Swipe Indicators */}
+                        <div className="swipe-badge-like absolute top-6 left-6 border-4 border-[#0D4A2D] text-[#0D4A2D] font-bold text-2xl px-3 py-1 rounded-xl transform -rotate-12 z-30 bg-white/90 backdrop-blur-sm opacity-0 transition-opacity duration-150 pointer-events-none">SE CONNECTER</div>
+                        <div className="swipe-badge-nope absolute top-6 right-6 border-4 border-amber-600 text-amber-600 font-bold text-2xl px-3 py-1 rounded-xl transform rotate-12 z-30 bg-white/90 backdrop-blur-sm opacity-0 transition-opacity duration-150 pointer-events-none">PASSER</div>
 
-                {/* Carte fantôme droite qui dépasse sur le côté (effet mockup) */}
-                <div className="absolute -right-2 sm:-right-3 top-12 bottom-12 w-4 bg-[#F5EDE1] rounded-r-3xl border-r border-y border-[#E2D6C4] opacity-75 pointer-events-none shadow-xs" />
+                        {/* 1. SECTION PHOTO DU PROFIL */}
+                        <div className="relative w-full flex-1 min-h-[220px] overflow-hidden rounded-t-[26px] sm:rounded-t-[30px] bg-slate-100">
+                            {(() => {
+                                const allImages = [currentProfile.imageUrl, ...(currentProfile.photos || [])].filter(Boolean);
+                                const safeImageUrl = allImages[activeImageIndex] || currentProfile.imageUrl || getDefaultAvatar(currentProfile.name);
+                                return (
+                                    <>
+                                        <img
+                                            src={safeImageUrl}
+                                            alt={sanitizeText(currentProfile.name, 'Membre chrétien')}
+                                            className="w-full h-full object-cover pointer-events-none"
+                                            draggable={false}
+                                            loading="eager"
+                                            onError={(e) => {
+                                                (e.currentTarget as HTMLImageElement).src = getDefaultAvatar(currentProfile.name);
+                                            }}
+                                        />
+                                        {/* Barres d'indicateurs photos en haut */}
+                                        {allImages.length > 1 && (
+                                            <div className="absolute top-2.5 left-3 right-3 flex space-x-1.5 z-20">
+                                                {allImages.map((_, idx) => (
+                                                    <div
+                                                        key={idx}
+                                                        className={`h-1 flex-1 rounded-full shadow-xs transition-colors ${
+                                                            idx === activeImageIndex ? 'bg-[#D4A359]' : 'bg-white/60'
+                                                        }`}
+                                                    />
+                                                ))}
+                                            </div>
+                                        )}
 
-                {/* CARTE PRINCIPALE BI-TON AURORE ROYALE (PHOTO HAUTE + CONTENU ALBÂTRE CHAUD BAS) */}
-                <div
-                    ref={cardRef}
-                    className="relative w-full bg-[#FAF7F2] rounded-[32px] overflow-hidden z-10 touch-none select-none border border-[#E8DCC9] shadow-[0_20px_45px_-10px_rgba(180,140,90,0.22),0_4px_16px_rgba(0,0,0,0.03)] flex flex-col"
-                    style={getCardStyle()}
-                    onMouseDown={onPointerDown}
-                    onMouseMove={onPointerMove}
-                    onMouseUp={onPointerUp}
-                    onMouseLeave={onPointerUp}
-                    onTouchStart={onPointerDown}
-                    onTouchMove={onPointerMove}
-                    onTouchEnd={onPointerUp}
-                >
-                    {/* Swipe Indicators */}
-                    <div className="swipe-badge-like absolute top-6 left-6 border-4 border-[#0D4A2D] text-[#0D4A2D] font-bold text-2xl px-3 py-1 rounded-xl transform -rotate-12 z-30 bg-white/90 backdrop-blur-sm opacity-0 transition-opacity duration-150 pointer-events-none">SE CONNECTER</div>
-                    <div className="swipe-badge-nope absolute top-6 right-6 border-4 border-amber-600 text-amber-600 font-bold text-2xl px-3 py-1 rounded-xl transform rotate-12 z-30 bg-white/90 backdrop-blur-sm opacity-0 transition-opacity duration-150 pointer-events-none">PASSER</div>
+                                        {/* Badge de confiance Chrétien Vérifié */}
+                                        <div className="absolute top-6 left-3 z-20">
+                                            <span className="inline-flex items-center gap-1 bg-white/90 backdrop-blur-md text-[#0D5C3A] text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border border-emerald-200/60 shadow-xs">
+                                                <span>🛡️</span> Profil Vérifié
+                                            </span>
+                                        </div>
 
-                    {/* 1. SECTION PHOTO DU PROFIL (PARTIE HAUTE DU MOCKUP) */}
-                    <div className="relative w-full h-[320px] sm:h-[350px] overflow-hidden rounded-t-[30px] bg-slate-100 shrink-0">
-                        {(() => {
-                            const allImages = [currentProfile.imageUrl, ...(currentProfile.photos || [])];
-                            return (
-                                <>
-                                    <img
-                                        src={allImages[activeImageIndex] || currentProfile.imageUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=800'}
-                                        alt={currentProfile.name}
-                                        className="w-full h-full object-cover pointer-events-none"
-                                        draggable={false}
-                                    />
-                                    {/* Barres d'indicateurs photos en haut */}
-                                    <div className="absolute top-2.5 left-4 right-4 flex space-x-1.5 z-20">
-                                        {allImages.map((_, idx) => (
-                                            <div
-                                                key={idx}
-                                                className={`h-1 flex-1 rounded-full shadow-xs transition-colors ${
-                                                    idx === activeImageIndex ? 'bg-[#D4A359]' : 'bg-white/50'
-                                                }`}
-                                            />
-                                        ))}
-                                    </div>
-                                    {/* Fondu doux vers la partie albâtre */}
-                                    <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-[#FAF7F2] to-transparent pointer-events-none" />
-                                </>
-                            );
-                        })()}
-                    </div>
-
-                    {/* 2. SECTION CONTENU ALBÂTRE CHAUD (PARTIE BASSE DU MOCKUP) */}
-                    <div className="p-4 sm:p-5 bg-[#FAF7F2] flex flex-col gap-3 sm:gap-3.5 flex-1 justify-between">
-
-                        {/* A. Nom, Âge & Ville */}
-                        <div className="flex justify-between items-center">
-                            <h3 className="text-2xl font-extrabold text-[#0D4A2D] font-display tracking-tight">
-                                {currentProfile.name || 'Awa'}, {currentProfile.age || 27}
-                            </h3>
-                            <div className="flex items-center text-xs font-semibold text-slate-700">
-                                <MapPin size={13} className="mr-1 text-[#0D4A2D] shrink-0" />
-                                <span>{currentProfile.location ? currentProfile.location.split(',')[0] : 'Abidjan'}</span>
-                            </div>
+                                        {/* Fondu doux vers le fond blanc */}
+                                        <div className="absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-white via-white/20 to-transparent pointer-events-none" />
+                                    </>
+                                );
+                            })()}
                         </div>
 
-                        {/* B. Les 3 Badges de Foi en Vert Sauge Doux */}
-                        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-                            <span className="bg-[#DCE8E1] text-[#0D4A2D] text-[11px] font-bold px-3 py-1 rounded-full border border-[#C2D6CA] flex items-center gap-1 shrink-0">
-                                <span className="text-[12px]">✝</span>
-                                <span>{currentProfile.parish ? currentProfile.parish.split(' ')[0] : 'Protestant'}</span>
-                            </span>
-                            <span className="bg-[#DCE8E1] text-[#0D4A2D] text-[11px] font-bold px-3 py-1 rounded-full border border-[#C2D6CA] flex items-center gap-1 shrink-0">
-                                <span>⛪</span>
-                                <span>Active in Church</span>
-                            </span>
-                            <span className="bg-[#DCE8E1] text-[#0D4A2D] text-[11px] font-bold px-3 py-1 rounded-full border border-[#C2D6CA] flex items-center gap-1 shrink-0">
-                                <span>🕊️</span>
-                                <span>Believer</span>
-                            </span>
-                        </div>
+                        {/* 2. SECTION CONTENU ÉPURÉ FOND BLANC */}
+                        <div className="p-3 sm:p-4 bg-white flex flex-col gap-2 shrink-0">
 
-                        {/* C. Bannière Compatibilité Spirituelle (Vert Forêt Impérial & Lueur Dorée) */}
-                        <div className="bg-gradient-to-r from-[#0C4328] to-[#082C1A] text-white rounded-[20px] py-2.5 px-3.5 border border-[#D4A359]/50 flex items-center justify-between shadow-[0_8px_20px_rgba(212,163,89,0.3)] relative overflow-hidden">
-                            {/* Lueur dorée d'arrière-plan */}
-                            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-[#D4A359]/20 via-transparent to-transparent pointer-events-none" />
-
-                            <div className="flex items-center gap-2.5 relative z-10">
-                                {/* Médaillon Doré Boussole / Croix Lumineuse */}
-                                <div className="w-8 h-8 rounded-full border-2 border-[#E5C178] bg-[#0A3620] flex items-center justify-center shadow-inner shrink-0">
-                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                                        <circle cx="12" cy="12" r="9" stroke="#E5C178" strokeWidth="1.6" />
-                                        <path d="M12 4 L12 20 M4 12 L20 12" stroke="#E5C178" strokeWidth="1.6" />
-                                        <circle cx="12" cy="12" r="2.2" fill="#E5C178" />
-                                    </svg>
+                            {/* A. Nom, Âge & Ville */}
+                            <div className="flex justify-between items-center">
+                                <h3 className="text-xl sm:text-2xl font-extrabold text-[#0D4A2D] font-display tracking-tight">
+                                    {sanitizeText(currentProfile.name, 'Membre chrétien')}, {currentProfile.age || 25}
+                                </h3>
+                                <div className="flex items-center text-xs font-semibold text-slate-600 bg-slate-50 px-2.5 py-1 rounded-full border border-slate-200/80">
+                                    <MapPin size={12} className="mr-1 text-[#0D5C3A] shrink-0" />
+                                    <span>{sanitizeText(currentProfile.location ? currentProfile.location.split(',')[0] : 'Abidjan')}</span>
                                 </div>
-                                <span className="text-xs sm:text-sm font-semibold tracking-tight text-[#F7F3EB] font-sans">
-                                    Spiritual Compatibility
+                            </div>
+
+                            {/* B. Les 3 Badges de Foi en Français */}
+                            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+                                <span className="bg-[#EAF3EE] text-[#0D4A2D] text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-[#C2D6CA] flex items-center gap-1 shrink-0">
+                                    <span>✝</span>
+                                    <span>{sanitizeText(currentProfile.denomination || 'Chrétien')}</span>
+                                </span>
+                                <span className="bg-[#EAF3EE] text-[#0D4A2D] text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-[#C2D6CA] flex items-center gap-1 shrink-0">
+                                    <span>⛪</span>
+                                    <span>{sanitizeText(currentProfile.church_involvement || (currentProfile.gender === 'F' ? 'Engagée en paroisse' : 'Engagé en paroisse'))}</span>
+                                </span>
+                                <span className="bg-[#EAF3EE] text-[#0D4A2D] text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-[#C2D6CA] flex items-center gap-1 shrink-0">
+                                    <span>🕊️</span>
+                                    <span>{sanitizeText(currentProfile.spiritual_status || (currentProfile.gender === 'F' ? 'Croyante' : 'Croyant'))}</span>
                                 </span>
                             </div>
-                            <span className="text-xl font-black text-[#F5CD6D] tracking-tight relative z-10">
-                                {currentProfile.percentage || 92}%
-                            </span>
-                        </div>
 
-                        {/* D. Lecteur Audio du Témoignage */}
-                        <div className="bg-[#FAF5EC] text-slate-800 rounded-[18px] py-2 px-3.5 border border-[#EAE0D0] flex items-center justify-between shadow-2xs">
-                            <button
-                                type="button"
-                                onClick={(e) => toggleAudioPlayback(e, currentProfile.id)}
-                                className="w-8 h-8 rounded-full bg-[#E5DAC9] text-[#0C4328] flex items-center justify-center hover:bg-[#D8CABA] transition shadow-xs cursor-pointer shrink-0"
-                                title="Écouter le témoignage audio"
-                            >
-                                {playingAudioId === currentProfile.id ? (
-                                    <Pause size={13} fill="currentColor" />
-                                ) : (
-                                    <Play size={13} className="ml-0.5" fill="currentColor" />
-                                )}
-                            </button>
+                            {/* C. Bannière Compatibilité Spirituelle (Vert Forêt Impérial & Lueur Dorée) */}
+                            <div className="bg-gradient-to-r from-[#0C4328] via-[#093520] to-[#082C1A] text-white rounded-2xl py-2 px-3 border border-[#D4A359]/50 flex items-center justify-between shadow-[0_4px_16px_rgba(13,92,58,0.2)] relative overflow-hidden">
+                                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-[#D4A359]/20 via-transparent to-transparent pointer-events-none" />
 
-                            {/* Onde sonore dorée */}
-                            <div className="flex items-center gap-0.5 mx-3 flex-1 h-5 justify-center overflow-hidden">
-                                {[25, 45, 65, 35, 80, 55, 95, 70, 85, 45, 90, 65, 35, 75, 50, 65, 40, 25].map((h, i) => (
-                                    <span
-                                        key={i}
-                                        className={`w-0.5 sm:w-1 bg-[#D4A359] rounded-full transition-all ${
-                                            playingAudioId === currentProfile.id ? `wave-animate-${(i % 6) + 1}` : ''
-                                        }`}
-                                        style={{ height: `${h}%` }}
-                                    />
-                                ))}
+                                <div className="flex items-center gap-2 relative z-10">
+                                    {/* Médaillon Doré Boussole / Croix Lumineuse */}
+                                    <div className="w-6 h-6 rounded-full border border-[#E5C178] bg-[#0A3620] flex items-center justify-center shadow-inner shrink-0">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                                            <circle cx="12" cy="12" r="9" stroke="#E5C178" strokeWidth="1.6" />
+                                            <path d="M12 4 L12 20 M4 12 L20 12" stroke="#E5C178" strokeWidth="1.6" />
+                                            <circle cx="12" cy="12" r="2.2" fill="#E5C178" />
+                                        </svg>
+                                    </div>
+                                    <span className="text-xs font-semibold tracking-tight text-[#F7F3EB] font-sans">
+                                        Compatibilité Spirituelle
+                                    </span>
+                                </div>
+                                <span className="text-lg font-black text-[#F5CD6D] tracking-tight relative z-10">
+                                    {currentProfile.percentage}%
+                                </span>
                             </div>
 
-                            <span className="text-xs font-semibold text-slate-700 shrink-0">
-                                Listen
-                            </span>
+                            {/* D. Lecteur Audio du Témoignage */}
+                            <div className="bg-emerald-50/50 text-slate-800 rounded-2xl py-1.5 px-3 border border-emerald-100/90 flex items-center justify-between shadow-2xs">
+                                <button
+                                    type="button"
+                                    onClick={(e) => toggleAudioPlayback(e, currentProfile.id)}
+                                    disabled={!currentProfile.testimonial_audio_url}
+                                    className={`w-7 h-7 rounded-full text-white flex items-center justify-center transition shadow-xs shrink-0 ${
+                                        currentProfile.testimonial_audio_url
+                                            ? 'bg-[#0D5C3A] hover:bg-[#09442B] active:scale-95 cursor-pointer'
+                                            : 'bg-slate-300 cursor-not-allowed opacity-60'
+                                    }`}
+                                    title={currentProfile.testimonial_audio_url ? "Écouter le témoignage audio" : "Aucun témoignage vocal disponible"}
+                                >
+                                    {playingAudioId === currentProfile.id ? (
+                                        <Pause size={12} fill="currentColor" />
+                                    ) : (
+                                        <Play size={12} className="ml-0.5" fill="currentColor" />
+                                    )}
+                                </button>
 
-                            <audio
-                                id={`audio-${currentProfile.id}`}
-                                src={currentProfile.testimonial_audio_url || 'https://assets.mixkit.co/active_storage/sfx/2874/2874-preview.mp3'}
-                                preload="none"
-                            />
-                        </div>
+                                {/* Onde sonore dorée */}
+                                <div className="flex items-center gap-0.5 mx-2.5 flex-1 h-4 justify-center overflow-hidden">
+                                    {[25, 45, 65, 35, 80, 55, 95, 70, 85, 45, 90, 65, 35, 75, 50, 65, 40, 25].map((h, i) => (
+                                        <span
+                                            key={i}
+                                            className={`w-0.5 sm:w-1 bg-[#D4A359] rounded-full transition-all ${
+                                                playingAudioId === currentProfile.id ? `wave-animate-${(i % 6) + 1}` : ''
+                                            }`}
+                                            style={{ height: `${h}%` }}
+                                        />
+                                    ))}
+                                </div>
 
-                        {/* E. Les 3 Boutons d'Action Inférieurs */}
-                        <div className="flex items-center justify-between gap-3 pt-0.5">
-                            {/* Bouton Gauche : Bénédiction (+) */}
-                            <button
-                                type="button"
-                                onClick={() => handleSwipeAction('left')}
-                                disabled={isAlreadyMatched}
-                                className="w-12 h-12 rounded-full bg-[#0D4A2D] border border-[#D4A359]/70 text-[#E5C178] shadow-md shadow-emerald-950/20 flex items-center justify-center transition hover:scale-105 active:scale-95 cursor-pointer shrink-0"
-                                title="Bénir & Passer"
-                            >
-                                <Plus size={24} className="text-[#E5C178]" />
-                            </button>
+                                <span className="text-[11px] font-bold text-[#0D5C3A] shrink-0">
+                                    {playingAudioId === currentProfile.id
+                                        ? 'En écoute'
+                                        : currentProfile.testimonial_audio_url
+                                        ? 'Écouter'
+                                        : 'Non renseigné'}
+                                </span>
 
-                            {/* Bouton Central : Se Connecter */}
-                            <button
-                                type="button"
-                                onClick={() => handleSwipeAction('right')}
-                                disabled={isAlreadyMatched}
-                                className="flex-1 h-12 rounded-full bg-[#0D4A2D] border border-[#D4A359]/75 flex items-center justify-center gap-2 font-bold text-xs sm:text-sm text-white shadow-lg shadow-emerald-950/25 hover:scale-[1.02] active:scale-[0.98] transition cursor-pointer"
-                            >
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="shrink-0">
-                                    <path
-                                        d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
-                                        stroke="#E5C178"
-                                        strokeWidth="1.8"
+                                {currentProfile.testimonial_audio_url && (
+                                    <audio
+                                        id={`audio-${currentProfile.id}`}
+                                        src={currentProfile.testimonial_audio_url}
+                                        preload="none"
+                                        onEnded={() => setPlayingAudioId(null)}
+                                        onError={() => setPlayingAudioId(null)}
                                     />
-                                </svg>
-                                <span className="tracking-wide text-white">Se Connecter</span>
-                            </button>
+                                )}
+                            </div>
 
-                            {/* Bouton Droit : Prière (Mains jointes) */}
-                            <button
-                                type="button"
-                                onClick={() => handlePremiumAction('SUPERLIKE')}
-                                disabled={isAlreadyMatched}
-                                className="w-12 h-12 rounded-full bg-[#0D4A2D] border border-[#D4A359]/70 text-[#E5C178] shadow-md shadow-emerald-950/20 flex items-center justify-center transition hover:scale-105 active:scale-95 cursor-pointer shrink-0"
-                                title="Intercession & Prière"
-                            >
-                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#E5C178" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                                    <path d="M7 21v-4a4 4 0 0 1 4-4h2a4 4 0 0 1 4 4v4" />
-                                    <path d="M10 3.5 C10 2.5 11 2 12 2 C13 2 14 2.5 14 3.5 L14 13 L10 13 Z" />
-                                    <path d="M7.5 7 L10 9" />
-                                    <path d="M16.5 7 L14 9" />
-                                </svg>
-                            </button>
+                            {/* E. Les 3 Boutons d'Action Inférieurs (PARFAITEMENT DÉGAGÉS ET ACCESSIBLES) */}
+                            <div className="flex items-center justify-between gap-3 pt-0.5">
+                                {/* Bouton Gauche : Bénédiction & Passer */}
+                                <button
+                                    type="button"
+                                    onClick={() => handleSwipeAction('left')}
+                                    disabled={isAlreadyMatched}
+                                    className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-white border-2 border-slate-200 text-slate-400 hover:text-amber-700 hover:border-amber-300 hover:bg-amber-50 shadow-md flex items-center justify-center transition hover:scale-105 active:scale-95 cursor-pointer shrink-0"
+                                    title="Bénir & Passer"
+                                >
+                                    <X size={20} className="stroke-[2.5]" />
+                                </button>
+
+                                {/* Bouton Central : Se Connecter */}
+                                <button
+                                    type="button"
+                                    onClick={() => handleSwipeAction('right')}
+                                    disabled={isAlreadyMatched}
+                                    className="flex-1 h-11 sm:h-12 rounded-full bg-gradient-to-r from-[#0D5C3A] via-[#0b4e31] to-[#083D26] border border-[#D4A359]/70 flex items-center justify-center gap-2 font-extrabold text-xs sm:text-sm text-white shadow-md shadow-emerald-950/20 hover:scale-[1.02] active:scale-[0.98] transition cursor-pointer"
+                                >
+                                    <Heart size={16} className="fill-[#F5CD6D] text-[#F5CD6D] shrink-0 animate-pulse" />
+                                    <span className="tracking-wide text-white">Se Connecter</span>
+                                </button>
+
+                                {/* Bouton Droit : Prière d'Intercession */}
+                                <button
+                                    type="button"
+                                    onClick={() => handlePremiumAction('SUPERLIKE')}
+                                    disabled={isAlreadyMatched}
+                                    className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-white border-2 border-[#D4A359]/60 text-[#B98A3C] hover:bg-amber-50 shadow-md flex items-center justify-center transition hover:scale-105 active:scale-95 cursor-pointer shrink-0"
+                                    title="Intercession & Prière"
+                                >
+                                    <Sparkles size={18} className="text-[#B98A3C]" />
+                                </button>
+                            </div>
+
                         </div>
-
                     </div>
                 </div>
-            </div>
-        )}
+            )}
 
             {/* MATCH POPUP */}
             {matchedProfile && (
-                <div className="absolute inset-0 z-50 flex flex-col items-center justify-center p-4 bg-gradient-to-b from-emerald-900/95 to-slate-900/95 backdrop-blur-md rounded-3xl animate-in fade-in zoom-in duration-300">
+                <div className="fixed inset-0 z-[160] flex flex-col items-center justify-center p-4 bg-gradient-to-b from-emerald-900/95 to-slate-900/95 backdrop-blur-md animate-in fade-in zoom-in duration-300">
                     <div className="text-center mb-6">
                         <h2 className="text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 to-white italic" style={{ fontFamily: 'cursive' }}>C'est un Match !</h2>
                         <p className="text-emerald-100 mt-2 text-lg">Vous et {matchedProfile.name} vous plaisez.</p>
@@ -1276,7 +1479,7 @@ export const Matches: React.FC<MatchesProps> = ({ onGoToMessages, onGoToProfile 
 
             {/* PREMIUM MODAL */}
             {showPremiumModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div className="fixed inset-0 z-[170] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowPremiumModal(false)} />
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md relative z-10 overflow-hidden animate-in zoom-in-95 duration-200">
                         <div className="bg-gradient-to-br from-yellow-400 to-orange-500 p-8 text-white text-center">

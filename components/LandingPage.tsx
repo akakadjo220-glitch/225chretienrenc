@@ -173,7 +173,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
   };
 
   return (
-    <div className="bg-slate-50 text-slate-900 min-h-screen relative overflow-hidden pb-20 font-sans">
+    <div className="bg-white text-slate-900 min-h-screen relative overflow-hidden pb-20 font-sans">
       {/* Halo lumineux d'arrière-plan */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-96 bg-gradient-to-b from-emerald-100/50 via-emerald-50/20 to-transparent pointer-events-none blur-3xl"></div>
 

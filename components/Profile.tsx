@@ -19,9 +19,19 @@ const getImlrUrl = (path: string) => {
     return supabase.storage.from('Public').getPublicUrl(path).data.publicUrl;
 };
 
-export const Profile: React.FC = () => {
+interface ProfileProps {
+    initialTab?: 'PROFIL' | 'VERIFICATION' | 'POINTS' | 'SECURITY';
+}
+
+export const Profile: React.FC<ProfileProps> = ({ initialTab = 'PROFIL' }) => {
     const [user, setUser] = useState<User | null>(null);
-    const [profileTab, setProfileTab] = useState<'PROFIL' | 'VERIFICATION' | 'POINTS' | 'SECURITY'>('PROFIL');
+    const [profileTab, setProfileTab] = useState<'PROFIL' | 'VERIFICATION' | 'POINTS' | 'SECURITY'>(initialTab);
+
+    useEffect(() => {
+        if (initialTab) {
+            setProfileTab(initialTab);
+        }
+    }, [initialTab]);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
@@ -76,6 +86,14 @@ export const Profile: React.FC = () => {
     const [hasPendingCertification, setHasPendingCertification] = useState(false);
     const [certNotes, setCertNotes] = useState('');
     const [pendingCertNotes, setPendingCertNotes] = useState('');
+    const [isCertBannerDismissed, setIsCertBannerDismissed] = useState<boolean>(() => {
+        return sessionStorage.getItem('_cert_nudge_dismissed') === 'true';
+    });
+
+    const dismissCertBanner = () => {
+        sessionStorage.setItem('_cert_nudge_dismissed', 'true');
+        setIsCertBannerDismissed(true);
+    };
 
     // États Code PIN 🔒
     const [showSetPinModal, setShowSetPinModal] = useState(false);
@@ -129,6 +147,7 @@ export const Profile: React.FC = () => {
         birthDate: '',
         denomination: '',
         church: '',
+        location: '',
         phone: '',
         baptismYear: '',
         interests: [] as string[]
@@ -198,27 +217,31 @@ export const Profile: React.FC = () => {
                     const { data: model } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle();
 
                     if (model) {
-                        const currentUser: any = {
-                            id: model.id,
-                            name: model.full_name || model.name,
-                            bio: model.bio || '',
-                            birthDate: model.birth_date || '',
-                            email: session.user.email,
-                            role: model.role,
-                            parish: model.parish,
-                            location: model.location || 'Abidjan, Cocody',
-                            latitude: model.latitude || 5.3484,
-                            longitude: model.longitude || -4.0305,
-                            phone: model.phone,
-                            baptismYear: model.baptism_year,
-                            isPremium: model.is_premium,
-                            premiumExpiration: model.premium_expiration,
-                            isInvisible: model.is_invisible || false,
-                            avatarUrl: model.avatar_url ? getImlrUrl(model.avatar_url) : 'https://picsum.photos/id/1012/150/150',
-                            photos: model.photos_urls || [],
-                            verificationStatus: model.verification_status || VerificationStatus.UNVERIFIED,
-                            interests: parseInterests(model.interests)
-                        };
+                            const isRealAvatar = Boolean(model.avatar_url && !model.avatar_url.includes('picsum') && !model.avatar_url.includes('ui-avatars'));
+                            const defaultAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(model.full_name || model.name || 'Membre')}&background=0D5C3A&color=ffffff&size=512&bold=true`;
+
+                            const currentUser: any = {
+                                id: model.id,
+                                name: model.full_name || model.name,
+                                bio: model.bio || '',
+                                birthDate: model.birth_date || '',
+                                email: session.user.email,
+                                role: model.role,
+                                parish: model.parish,
+                                location: model.location || 'Abidjan, Cocody',
+                                latitude: model.latitude || 5.3484,
+                                longitude: model.longitude || -4.0305,
+                                phone: model.phone,
+                                baptismYear: model.baptism_year,
+                                isPremium: model.is_premium,
+                                premiumExpiration: model.premium_expiration,
+                                isInvisible: model.is_invisible || false,
+                                avatarUrl: isRealAvatar ? getImlrUrl(model.avatar_url) : defaultAvatar,
+                                hasRealAvatar: isRealAvatar,
+                                photos: model.photos_urls || [],
+                                verificationStatus: model.verification_status || VerificationStatus.UNVERIFIED,
+                                interests: parseInterests(model.interests)
+                            };
 
                         const { denomination, church } = getDenominationAndChurch(currentUser.parish);
                         setUser(currentUser);
@@ -308,9 +331,6 @@ export const Profile: React.FC = () => {
     useEffect(() => {
         const checkCertStatus = async () => {
             if (user) {
-                if (user.verificationStatus === 'VERIFIED') {
-                    setIsCommunityCertified(true);
-                }
                 try {
                     const { data } = await supabase.from('system_settings').select('value').eq('key', 'certification_requests').maybeSingle();
                     if (data?.value && Array.isArray(data.value)) {
@@ -319,6 +339,7 @@ export const Profile: React.FC = () => {
                             if (userReq.status === 'PENDING') {
                                 setHasPendingCertification(true);
                                 setPendingCertNotes(userReq.notes || '');
+                                setIsCommunityCertified(false);
                             } else if (userReq.status === 'APPROVED') {
                                 setIsCommunityCertified(true);
                                 setHasPendingCertification(false);
@@ -381,14 +402,74 @@ export const Profile: React.FC = () => {
         }
     };
 
+    // --- GESTION DE L'ACTIVATION DE L'ABONNEMENT SELON LA DURÉE ---
+    const activateSubscription = async (addedDays: number, planTitle: string, amountToPay: number, reference: string = `SUBS_${Date.now()}`) => {
+        if (!user) return;
+        try {
+            setIsProcessingPayment(true);
+
+            // Enregistrer la transaction de paiement dans la base de données
+            await supabase.from('payments').insert({
+                user_id: user.id,
+                amount: amountToPay,
+                reference: reference,
+                status: 'success',
+                gateway: 'PAYSTACK'
+            });
+
+            // Calculer la nouvelle date d'expiration en fonction de la durée choisie
+            const now = new Date();
+            let newExpirationDate = new Date();
+            if (user.isPremium && user.premiumExpiration) {
+                const currentExpiration = new Date(user.premiumExpiration);
+                if (currentExpiration > now) {
+                    newExpirationDate = new Date(currentExpiration);
+                }
+            }
+            newExpirationDate.setDate(newExpirationDate.getDate() + addedDays);
+
+            // Mettre à jour le profil Supabase
+            await supabase.from('profiles').update({
+                is_premium: true,
+                premium_expiration: newExpirationDate.toISOString()
+            }).eq('id', user.id);
+
+            // Mettre à jour l'état local immédiatement pour enclencher le compteur
+            setUser(prev => prev ? {
+                ...prev,
+                isPremium: true,
+                premiumExpiration: newExpirationDate.toISOString()
+            } : null);
+
+            setShowPremiumModal(false);
+            setShowRenewalModal(false);
+
+            alert(
+                `🎉 Félicitations ! Votre abonnement Premium (${planTitle}) a été activé avec succès pour ${addedDays} jour(s).\n\n` +
+                `Le compteur de durée restante est désormais actif dans votre onglet Profil.`
+            );
+        } catch (error: any) {
+            console.error("Erreur lors de l'activation de l'abonnement:", error);
+            alert("Erreur lors de l'activation : " + (error.message || error));
+        } finally {
+            setIsProcessingPayment(false);
+        }
+    };
+
     // --- PAYSTACK INTEGRATION ---
     const initPaystack = () => {
         if (!paymentConfig || !paymentConfig.publicKey) {
-            alert("Configuration de paiement manquante. Veuillez contacter l'administrateur.");
+            setupPaystack();
             return;
         }
 
         setIsProcessingPayment(true);
+
+        // Si clé de test placeholder, passer directement à setupPaystack
+        if (paymentConfig.publicKey === 'pk_test_placeholder') {
+            setupPaystack();
+            return;
+        }
 
         // Vérification si Paystack est déjà chargé dans window
         if ((window as any).PaystackPop) {
@@ -404,18 +485,18 @@ export const Profile: React.FC = () => {
             setupPaystack();
         };
         script.onerror = () => {
-            setIsProcessingPayment(false);
-            alert("Erreur de chargement du module de paiement. Vérifiez votre connexion.");
+            setupPaystack();
         };
         document.body.appendChild(script);
     };
 
     const setupPaystack = () => {
         try {
-            if (!user || !paymentConfig) throw new Error("Données manquantes");
+            if (!user) throw new Error("Données utilisateur manquantes");
 
             let amountToPay = 2500;
             let addedDays = 30;
+            let planTitle = '1 Mois (30 Jours)';
 
             if (paymentMode === 'DONATION') {
                 amountToPay = parseInt(customDonationAmount);
@@ -423,18 +504,23 @@ export const Profile: React.FC = () => {
                 if (selectedPlan === 'DAY') {
                     amountToPay = pointsPricingConfig?.premiumDailyPrice || 500;
                     addedDays = 1;
+                    planTitle = 'Pass 24 Heures (1 Jour)';
                 } else if (selectedPlan === 'MONTH') {
                     amountToPay = pointsPricingConfig?.premiumMonthlyPrice || 2500;
                     addedDays = 30;
+                    planTitle = 'Formule 1 Mois (30 Jours)';
                 } else if (selectedPlan === 'QUARTER') {
                     amountToPay = pointsPricingConfig?.premiumQuarterlyPrice || 5000;
                     addedDays = 90;
+                    planTitle = 'Formule 3 Mois (90 Jours)';
                 } else if (selectedPlan === 'SEMIANNUAL') {
                     amountToPay = pointsPricingConfig?.premiumSemiAnnualPrice || 9000;
                     addedDays = 180;
+                    planTitle = 'Formule 6 Mois (180 Jours)';
                 } else if (selectedPlan === 'YEAR') {
                     amountToPay = pointsPricingConfig?.premiumYearlyPrice || 15000;
                     addedDays = 365;
+                    planTitle = 'Formule Annuelle (365 Jours)';
                 }
             }
 
@@ -444,11 +530,20 @@ export const Profile: React.FC = () => {
                 return;
             }
 
+            // Mode démonstration / test si Paystack n'est pas configuré en production
+            const isTestKey = !paymentConfig?.publicKey || paymentConfig.publicKey === 'pk_test_placeholder' || paymentConfig.publicKey.startsWith('pk_test_');
+            if (isTestKey || !(window as any).PaystackPop) {
+                if (paymentMode === 'SUBSCRIPTION') {
+                    activateSubscription(addedDays, planTitle, amountToPay, `TEST_${Date.now()}`);
+                    return;
+                }
+            }
+
             const handler = (window as any).PaystackPop.setup({
-                key: paymentConfig.publicKey,
+                key: paymentConfig?.publicKey || 'pk_test_placeholder',
                 email: user.email,
                 amount: Math.ceil(amountToPay * 100),
-                currency: paymentConfig.currency,
+                currency: paymentConfig?.currency || 'XOF',
                 ref: (paymentMode === 'DONATION' ? 'DON_' : 'SUBS_') + Math.floor((Math.random() * 1000000000) + 1),
                 metadata: {
                     custom_fields: [
@@ -456,44 +551,38 @@ export const Profile: React.FC = () => {
                             display_name: "Nom",
                             variable_name: "name",
                             value: user.name
+                        },
+                        {
+                            display_name: "Formule",
+                            variable_name: "plan",
+                            value: planTitle
                         }
                     ]
                 },
                 callback: async function (response: any) {
-                    try {
-                        await supabase.from('payments').insert({
-                            user_id: user.id,
-                            amount: amountToPay,
-                            reference: response.reference,
-                            status: response.status,
-                            gateway: 'PAYSTACK'
-                        });
-
-                        if (paymentMode === 'SUBSCRIPTION') {
-                            const now = new Date();
-                            let newExpirationDate = new Date();
-                            if (user.isPremium && user.premiumExpiration) {
-                                const currentExpiration = new Date(user.premiumExpiration);
-                                if (currentExpiration > now) newExpirationDate = new Date(currentExpiration);
-                            }
-                            newExpirationDate.setDate(newExpirationDate.getDate() + addedDays);
-                            await supabase.from('profiles').update({ is_premium: true, premium_expiration: newExpirationDate.toISOString() }).eq('id', user.id);
-                            setUser(prev => prev ? { ...prev, isPremium: true, premiumExpiration: newExpirationDate.toISOString() } : null);
-                            alert(`🎉 Paiement réussi ! Votre abonnement Premium a été activé pour ${addedDays} jour(s).`);
-                        } else if (paymentMode === 'DONATION') {
+                    if (paymentMode === 'SUBSCRIPTION') {
+                        await activateSubscription(addedDays, planTitle, amountToPay, response.reference);
+                    } else if (paymentMode === 'DONATION') {
+                        try {
+                            await supabase.from('payments').insert({
+                                user_id: user.id,
+                                amount: amountToPay,
+                                reference: response.reference,
+                                status: response.status,
+                                gateway: 'PAYSTACK'
+                            });
                             const earnedCredits = Math.max(1, Math.floor(amountToPay / 500));
                             const newCredits = (user.credits || 0) + earnedCredits;
                             await supabase.from('profiles').update({ credits: newCredits }).eq('id', user.id);
                             setUser(prev => prev ? { ...prev, credits: newCredits } : null);
                             alert(`💖 Merci pour votre don de ${amountToPay} FCFA ! Vous avez reçu +${earnedCredits} crédits Spotlight.`);
+                            setShowPremiumModal(false);
+                            setShowRenewalModal(false);
+                        } catch (error) {
+                            console.error("Erreur post-don", error);
+                        } finally {
+                            setIsProcessingPayment(false);
                         }
-                        setShowPremiumModal(false);
-                        setShowRenewalModal(false);
-                    } catch (error) {
-                        console.error("Erreur post-paiement", error);
-                        alert("Paiement validé mais erreur lors de l'activation. Contactez le support.");
-                    } finally {
-                        setIsProcessingPayment(false);
                     }
                 },
                 onClose: function () {
@@ -662,14 +751,29 @@ export const Profile: React.FC = () => {
             if (uploadError) throw uploadError;
 
             await supabase.from('profiles').update({ avatar_url: filePath }).eq('id', user.id);
-            setUser({ ...user, avatarUrl: getImlrUrl(filePath) });
+            setUser({ ...user, avatarUrl: getImlrUrl(filePath), hasRealAvatar: true });
         } catch (error) {
             console.error("Erreur upload avatar", error);
             alert("Erreur lors du changement de photo.");
         } finally {
             setIsUploadingAvatar(false);
+            if (avatarInputRef.current) avatarInputRef.current.value = '';
         }
     };
+
+    const handleDeleteAvatar = async () => {
+        if (!user || !user.hasRealAvatar) return;
+        if (!window.confirm("Voulez-vous supprimer votre photo principale ?")) return;
+        try {
+            await supabase.from('profiles').update({ avatar_url: null }).eq('id', user.id);
+            const defaultAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'Membre')}&background=0D5C3A&color=ffffff&size=512&bold=true`;
+            setUser({ ...user, avatarUrl: defaultAvatar, hasRealAvatar: false });
+        } catch (error) {
+            console.error("Erreur suppression avatar", error);
+            alert("Erreur lors de la suppression de la photo principale.");
+        }
+    };
+
     const handleGalleryClick = () => { galleryInputRef.current?.click(); };
     
     const handleDeleteGalleryPhoto = async (indexToDelete: number) => {
@@ -690,10 +794,10 @@ export const Profile: React.FC = () => {
         if (!files || files.length === 0 || !user) return;
 
         const currentGalleryCount = user.photos?.length || 0;
-        const MAX_GALLERY_PHOTOS = 2; // Total max = 1 avatar + 2 galerie = 3 photos au total
+        const MAX_GALLERY_PHOTOS = 2; // Slot 2 et Slot 3
 
         if (currentGalleryCount >= MAX_GALLERY_PHOTOS) {
-            alert("La galerie est limitée à 3 photos au total (1 photo principale + 2 photos secondaires). Supprimez une photo existante pour en ajouter une nouvelle.");
+            alert("Vos 2 photos secondaires sont déjà remplies. Supprimez-en une pour en ajouter une nouvelle.");
             if (galleryInputRef.current) galleryInputRef.current.value = '';
             return;
         }
@@ -707,8 +811,8 @@ export const Profile: React.FC = () => {
             for (let i = 0; i < filesToProcess.length; i++) {
                 const file = filesToProcess[i];
 
-                // --- VÉRIFICATION BIOMÉTRIQUE FACIALE ANTI-IA / ANTI-USURPATION ---
-                if (user.avatarUrl && user.avatarUrl.startsWith('http')) {
+                // --- VÉRIFICATION BIOMÉTRIQUE FACIALE ANTI-IA / ANTI-USURPATION (UNIQUEMENT SI VRAI AVATAR) ---
+                if (user.hasRealAvatar && user.avatarUrl && user.avatarUrl.startsWith('http')) {
                     try {
                         const fileReader = new FileReader();
                         const base64Promise = new Promise<string>((resolve) => {
@@ -1246,7 +1350,9 @@ export const Profile: React.FC = () => {
                                 {user.name || 'Membre Chrétien'}, <span className="text-emerald-300 font-extrabold">{calculateAge(user.birthDate)} ans</span>
                             </h1>
                             {user.verificationStatus === VerificationStatus.VERIFIED && (
-                                <ShieldCheck className="text-amber-400 h-7 w-7 drop-shadow-sm" title="Profil Vérifié" />
+                                <span title="Profil Vérifié" className="inline-flex items-center">
+                                    <ShieldCheck className="text-amber-400 h-7 w-7 drop-shadow-sm" />
+                                </span>
                             )}
                         </div>
 
@@ -1286,11 +1392,17 @@ export const Profile: React.FC = () => {
                 </button>
                 <button
                     onClick={() => setProfileTab('VERIFICATION')}
-                    className={`py-2.5 px-3 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-2 cursor-pointer ${profileTab === 'VERIFICATION' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-50'
+                    className={`py-2.5 px-3 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-2 cursor-pointer relative ${profileTab === 'VERIFICATION' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-50'
                         }`}
                 >
                     <ShieldCheck size={15} />
                     <span>Vérification & Identité</span>
+                    {!isCommunityCertified && (
+                        <span className="relative flex h-2 w-2" title="Sceau Spirituel disponible">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                        </span>
+                    )}
                 </button>
                 <button
                     onClick={() => setProfileTab('POINTS')}
@@ -1577,20 +1689,14 @@ export const Profile: React.FC = () => {
                         );
                     })()}
 
-                    {/* DONS ET PREMIUN RECHARGE BUTTON */}
-                    <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
-                        <div>
-                            <h3 className="font-bold text-slate-800 text-sm">Passer au Niveau Supérieur</h3>
-                            <p className="text-xs text-slate-500 mt-0.5">Soutenez la mission et accédez aux messages directs illimités et super-likes.</p>
-                        </div>
-                        <button
-                            onClick={() => setShowPremiumModal(true)}
-                            className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold text-xs px-5 py-3 rounded-xl shadow-md transition cursor-pointer flex items-center gap-2"
-                        >
-                            <Zap size={16} />
-                            <span>Recharger / Formules Premium</span>
-                        </button>
-                    </div>
+                    {/* 👑 COMPTEUR ET STATUT D'ABONNEMENT SELON LA DURÉE */}
+                    <PremiumCountdownBadge
+                        variant="card"
+                        isPremium={user.isPremium}
+                        expirationDate={user.premiumExpiration}
+                        onUpgradeClick={() => setShowPremiumModal(true)}
+                        userName={user.name}
+                    />
                 </div>
             )}
 
@@ -1650,6 +1756,64 @@ export const Profile: React.FC = () => {
             {/* 👤 TAB 1 : PROFIL & GALERIE */}
             {profileTab === 'PROFIL' && (
                 <div className="space-y-8 animate-in fade-in text-left">
+                    {/* 🕊️ NOTIFICATION & INCITATION : SCEAU SPIRITUEL & CERTIFICAT DE BAPTÊME (FACULTATIF MAIS VALORISÉ) */}
+                    {!isCommunityCertified && !isCertBannerDismissed && (
+                        <div className="relative overflow-hidden bg-gradient-to-r from-amber-500/10 via-amber-100/50 to-yellow-50/80 border border-amber-300/80 rounded-2xl p-4 sm:p-5 shadow-xs transition-all hover:border-amber-400">
+                            <button
+                                type="button"
+                                onClick={dismissCertBanner}
+                                className="absolute top-3 right-3 text-amber-700/60 hover:text-amber-900 p-1 rounded-full hover:bg-amber-200/50 transition cursor-pointer"
+                                title="Fermer ce rappel"
+                            >
+                                <X size={15} />
+                            </button>
+
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pr-6 sm:pr-0">
+                                <div className="flex items-start sm:items-center gap-3.5">
+                                    <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 text-white flex items-center justify-center shrink-0 shadow-sm border border-amber-300/60">
+                                        <span className="text-xl">🕊️</span>
+                                    </div>
+                                    <div>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <h4 className="font-extrabold text-amber-950 text-xs sm:text-sm">
+                                                {hasPendingCertification ? "Demande de Sceau Spirituel en cours" : "Débloquez le Badge Or « Sceau Spirituel »"}
+                                            </h4>
+                                            <span className="text-[10px] bg-amber-200 text-amber-900 font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                                +25% Visibilité
+                                            </span>
+                                            <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full uppercase">
+                                                Facultatif
+                                            </span>
+                                        </div>
+                                        <p className="text-[11px] text-amber-900/80 mt-1 leading-relaxed max-w-xl">
+                                            {hasPendingCertification
+                                                ? "Votre certificat de baptême ou note d'engagement a été soumis à l'équipe paroissiale pour validation."
+                                                : "Ajoutez votre certificat de baptême ou attestation paroissiale dans vos paramètres pour attester votre engagement et booster vos rencontres dans la foi."}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setProfileTab('VERIFICATION')}
+                                    className="self-stretch sm:self-center bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition shadow-sm whitespace-nowrap cursor-pointer flex items-center justify-center gap-1.5 active:scale-95"
+                                >
+                                    <span>{hasPendingCertification ? "Suivre mon dossier" : "Ajouter mon certificat"}</span>
+                                    <span>→</span>
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 👑 COMPTEUR D'ABONNEMENT SELON LA DURÉE */}
+                    <PremiumCountdownBadge
+                        variant="card"
+                        isPremium={user.isPremium}
+                        expirationDate={user.premiumExpiration}
+                        onUpgradeClick={() => setShowPremiumModal(true)}
+                        userName={user.name}
+                    />
+
                     {/* Profile Info Form */}
 
                     <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-8">
@@ -1846,23 +2010,40 @@ export const Profile: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* GALLERY SECTION (Max 3 photos au total = 1 avatar + 2 secondaires) */}
+                    {/* GALLERY SECTION (3 photos obligatoires : 1 Principale + 2 Secondaires) */}
                     {(() => {
-                        const totalPhotosCount = (user.avatarUrl ? 1 : 0) + (user.photos?.length || 0);
-                        const isUnlocked = user.verificationStatus === VerificationStatus.VERIFIED || user.role === 'ADMIN' || totalPhotosCount >= 3;
+                        const hasRealAvatar = Boolean(user.hasRealAvatar || (user.avatarUrl && !user.avatarUrl.includes('ui-avatars') && !user.avatarUrl.includes('picsum')));
+                        const galleryPhotos = user.photos || [];
+                        const totalRealPhotos = (hasRealAvatar ? 1 : 0) + galleryPhotos.length;
+                        const isUnlocked = user.role === 'ADMIN' || totalRealPhotos >= 3;
+
                         return (
                             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-8">
                                 <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex flex-wrap justify-between items-center gap-2">
                                     <h3 className="font-bold text-slate-800 flex items-center">
-                                        <ImageIcon size={18} className="mr-2 text-slate-500" /> Ma Galerie ({totalPhotosCount}/3 photos)
+                                        <ImageIcon size={18} className="mr-2 text-slate-500" /> Ma Galerie ({totalRealPhotos}/3 photos)
                                     </h3>
                                     <button
-                                        onClick={handleGalleryClick}
-                                        disabled={isUploadingGallery || (user.photos && user.photos.length >= 2)}
-                                        className={`text-sm text-white px-3.5 py-1.5 rounded-lg flex items-center font-medium transition cursor-pointer ${isUploadingGallery || (user.photos && user.photos.length >= 2) ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-slate-800 hover:bg-slate-700'}`}
+                                        onClick={() => {
+                                            if (!hasRealAvatar) {
+                                                handleAvatarClick();
+                                            } else {
+                                                handleGalleryClick();
+                                            }
+                                        }}
+                                        disabled={isUploadingGallery || isUploadingAvatar || totalRealPhotos >= 3}
+                                        className={`text-sm text-white px-3.5 py-1.5 rounded-lg flex items-center font-medium transition cursor-pointer ${
+                                            isUploadingGallery || isUploadingAvatar || totalRealPhotos >= 3
+                                                ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                                                : 'bg-slate-800 hover:bg-slate-700'
+                                        }`}
                                     >
-                                        {isUploadingGallery ? <Loader size={14} className="animate-spin mr-1.5" /> : <Plus size={14} className="mr-1.5" />}
-                                        Ajouter des photos
+                                        {isUploadingGallery || isUploadingAvatar ? (
+                                            <Loader size={14} className="animate-spin mr-1.5" />
+                                        ) : (
+                                            <Plus size={14} className="mr-1.5" />
+                                        )}
+                                        {totalRealPhotos >= 3 ? 'Galerie complète (3/3)' : 'Ajouter des photos'}
                                     </button>
                                 </div>
                                 <div className="p-6">
@@ -1874,12 +2055,12 @@ export const Profile: React.FC = () => {
                                             </div>
                                             <div className="space-y-0.5 text-left">
                                                 <div className="font-extrabold text-xs sm:text-sm">
-                                                    {isUnlocked ? 'Condition 4 : Galerie Photo Validée' : `4ème Condition Obligatoire : ${totalPhotosCount}/3 photos`}
+                                                    {isUnlocked ? '4ème Condition : Galerie Photo Validée' : `4ème Condition Obligatoire : ${totalRealPhotos}/3 photos`}
                                                 </div>
                                                 <p className="text-[11px] sm:text-xs opacity-90 leading-tight">
                                                     {isUnlocked
-                                                        ? `Votre galerie contient ${totalPhotosCount}/3 photos. Votre profil est déverrouillé pour les rencontres !`
-                                                        : 'Publiez au moins 3 vraies photos pour débloquer les rencontres.'}
+                                                        ? `Votre galerie contient ${totalRealPhotos}/3 photos réelles. Votre profil est déverrouillé pour les rencontres !`
+                                                        : 'Publiez au moins 3 vraies photos de vous (1 principale + 2 secondaires) pour débloquer les rencontres.'}
                                                 </p>
                                             </div>
                                         </div>
@@ -1889,7 +2070,7 @@ export const Profile: React.FC = () => {
                                                     ? 'bg-emerald-100 text-emerald-800 border-emerald-300' 
                                                     : 'bg-white text-amber-800 border-amber-300'
                                             }`}>
-                                                {isUnlocked ? '✓ Débloqué' : `${3 - totalPhotosCount} photo${3 - totalPhotosCount > 1 ? 's' : ''} manquante${3 - totalPhotosCount > 1 ? 's' : ''}`}
+                                                {isUnlocked ? '✓ Débloqué' : `${Math.max(0, 3 - totalRealPhotos)} photo${(3 - totalRealPhotos) > 1 ? 's' : ''} manquante${(3 - totalRealPhotos) > 1 ? 's' : ''}`}
                                             </span>
                                         </div>
                                     </div>
@@ -1898,37 +2079,105 @@ export const Profile: React.FC = () => {
                                         🔒 Les photos de votre galerie sont automatiquement contrôlées par notre IA faciale biométrique. La 1ère photo est votre photo principale.
                                     </p>
 
+                                    {/* 3 EMPLACEMENTS OBLIGATOIRES VISIBLES EN PERMANENCE */}
                                     <div className="grid grid-cols-3 gap-3 sm:gap-4 max-w-xl">
-                                        {/* Avatar photo principale */}
-                                        <div className="relative aspect-square rounded-xl overflow-hidden group shadow-sm border-2 border-emerald-500">
-                                            <img src={user.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
-                                            <div className="absolute bottom-0 left-0 right-0 bg-emerald-700/90 text-white text-[10px] font-bold text-center py-1">
-                                                Principale
+                                        {/* SLOT 1 : Photo 1 (Principale) */}
+                                        {hasRealAvatar ? (
+                                            <div className="relative aspect-square rounded-xl overflow-hidden group shadow-sm border-2 border-emerald-500 bg-slate-100">
+                                                <img src={user.avatarUrl} alt="Photo Principale" className="w-full h-full object-cover" />
+                                                <div className="absolute bottom-0 left-0 right-0 bg-emerald-700/90 text-white text-[10px] font-bold text-center py-1">
+                                                    Principale
+                                                </div>
+                                                <div className="absolute top-1.5 right-1.5 flex gap-1 opacity-0 group-hover:opacity-100 transition">
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleAvatarClick}
+                                                        className="bg-slate-900/80 hover:bg-slate-900 text-white p-1.5 rounded-full transition shadow-md cursor-pointer"
+                                                        title="Changer la photo principale"
+                                                    >
+                                                        <Camera size={13} />
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleDeleteAvatar}
+                                                        className="bg-red-600/90 hover:bg-red-700 text-white p-1.5 rounded-full transition shadow-md cursor-pointer"
+                                                        title="Supprimer la photo principale"
+                                                    >
+                                                        <Trash2 size={13} />
+                                                    </button>
+                                                </div>
                                             </div>
-                                        </div>
+                                        ) : (
+                                            <div
+                                                onClick={handleAvatarClick}
+                                                className="aspect-square rounded-xl border-2 border-dashed border-amber-300 hover:border-emerald-500 bg-amber-50/50 hover:bg-emerald-50/50 flex flex-col items-center justify-center text-center p-2 cursor-pointer transition group shadow-2xs"
+                                                title="Cliquez pour ajouter votre photo principale"
+                                            >
+                                                <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-700 group-hover:bg-emerald-100 group-hover:text-emerald-700 flex items-center justify-center mb-1 transition">
+                                                    <Camera size={18} />
+                                                </div>
+                                                <span className="text-[11px] font-bold text-slate-800 group-hover:text-emerald-800">Photo 1</span>
+                                                <span className="text-[9px] text-amber-700 font-bold mt-0.5 leading-tight">+ Principale</span>
+                                            </div>
+                                        )}
 
-                                        {/* Photos de la galerie */}
-                                        {user.photos && user.photos.length > 0 && user.photos.map((photo, index) => (
-                                            <div key={index} className="relative aspect-square rounded-xl overflow-hidden group shadow-sm bg-slate-100 border border-slate-200">
-                                                <img src={getImlrUrl(photo)} alt={`Galerie ${index}`} className="w-full h-full object-cover" />
+                                        {/* SLOT 2 : Photo 2 */}
+                                        {galleryPhotos.length >= 1 ? (
+                                            <div className="relative aspect-square rounded-xl overflow-hidden group shadow-sm border border-slate-200 bg-slate-100">
+                                                <img src={getImlrUrl(galleryPhotos[0])} alt="Galerie 2" className="w-full h-full object-cover" />
+                                                <div className="absolute bottom-0 left-0 right-0 bg-slate-800/80 text-white text-[10px] font-bold text-center py-1">
+                                                    Photo 2
+                                                </div>
                                                 <button
-                                                    onClick={() => handleDeleteGalleryPhoto(index)}
+                                                    type="button"
+                                                    onClick={() => handleDeleteGalleryPhoto(0)}
                                                     className="absolute top-1.5 right-1.5 bg-red-600/90 hover:bg-red-700 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition shadow-md cursor-pointer"
                                                     title="Supprimer cette photo"
                                                 >
                                                     <Trash2 size={13} />
                                                 </button>
                                             </div>
-                                        ))}
-
-                                        {/* Bouton Ajouter si slots disponibles */}
-                                        {(!user.photos || user.photos.length < 2) && (
+                                        ) : (
                                             <div
                                                 onClick={handleGalleryClick}
-                                                className="aspect-square rounded-xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 cursor-pointer hover:bg-emerald-50/50 hover:border-emerald-400 hover:text-emerald-600 transition"
+                                                className="aspect-square rounded-xl border-2 border-dashed border-slate-300 hover:border-emerald-500 bg-slate-50/60 hover:bg-emerald-50/50 flex flex-col items-center justify-center text-center p-2 cursor-pointer transition group shadow-2xs"
+                                                title="Cliquez pour ajouter votre 2ème photo"
                                             >
-                                                <Plus size={28} />
-                                                <span className="text-xs mt-1 font-semibold">Ajouter ({user.photos?.length || 0}/2)</span>
+                                                <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 group-hover:bg-emerald-100 group-hover:text-emerald-700 flex items-center justify-center mb-1 transition">
+                                                    <Plus size={18} />
+                                                </div>
+                                                <span className="text-[11px] font-bold text-slate-800 group-hover:text-emerald-800">Photo 2</span>
+                                                <span className="text-[9px] text-slate-500 group-hover:text-emerald-700 mt-0.5 leading-tight">+ Ajouter</span>
+                                            </div>
+                                        )}
+
+                                        {/* SLOT 3 : Photo 3 */}
+                                        {galleryPhotos.length >= 2 ? (
+                                            <div className="relative aspect-square rounded-xl overflow-hidden group shadow-sm border border-slate-200 bg-slate-100">
+                                                <img src={getImlrUrl(galleryPhotos[1])} alt="Galerie 3" className="w-full h-full object-cover" />
+                                                <div className="absolute bottom-0 left-0 right-0 bg-slate-800/80 text-white text-[10px] font-bold text-center py-1">
+                                                    Photo 3
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleDeleteGalleryPhoto(1)}
+                                                    className="absolute top-1.5 right-1.5 bg-red-600/90 hover:bg-red-700 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition shadow-md cursor-pointer"
+                                                    title="Supprimer cette photo"
+                                                >
+                                                    <Trash2 size={13} />
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div
+                                                onClick={handleGalleryClick}
+                                                className="aspect-square rounded-xl border-2 border-dashed border-slate-300 hover:border-emerald-500 bg-slate-50/60 hover:bg-emerald-50/50 flex flex-col items-center justify-center text-center p-2 cursor-pointer transition group shadow-2xs"
+                                                title="Cliquez pour ajouter votre 3ème photo"
+                                            >
+                                                <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 group-hover:bg-emerald-100 group-hover:text-emerald-700 flex items-center justify-center mb-1 transition">
+                                                    <Plus size={18} />
+                                                </div>
+                                                <span className="text-[11px] font-bold text-slate-800 group-hover:text-emerald-800">Photo 3</span>
+                                                <span className="text-[9px] text-slate-500 group-hover:text-emerald-700 mt-0.5 leading-tight">+ Ajouter</span>
                                             </div>
                                         )}
                                     </div>

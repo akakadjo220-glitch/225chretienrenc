@@ -885,8 +885,7 @@ export const Messages: React.FC<MessagesProps> = ({ initialContactId }) => {
     };
 
     return (
-        // FIX MOBILE HEIGHT: use dvh to handle mobile address bars
-        <div className="h-[calc(100dvh-140px)] md:h-[650px] bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden flex font-sans relative">
+        <div className="h-full w-full bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden flex font-sans relative">
 
             {/* INCOMING CALL MODAL */}
             {incomingCall && (
@@ -1418,6 +1417,43 @@ export const Messages: React.FC<MessagesProps> = ({ initialContactId }) => {
                                 );
                             }
 
+                            // QUIZ CHALLENGE CARD
+                            if (msg.type === 'QUIZ_CHALLENGE') {
+                                let data = { score: 0, total: 5, sender_name: '', result_score: null as number | null };
+                                try { data = JSON.parse(msg.text || '{}'); } catch { }
+                                const hasPlayed = data.result_score !== null && data.result_score !== undefined;
+                                return (
+                                    <div key={msg.id} className="flex justify-center my-3 animate-in fade-in zoom-in duration-300">
+                                        <div className="w-full max-w-sm bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-4 shadow-md text-slate-800">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <Trophy className="text-amber-500" size={20} />
+                                                <span className="font-bold text-sm text-amber-900">Défi Quiz Biblique 📖</span>
+                                            </div>
+                                            <p className="text-xs text-slate-700 mb-3">
+                                                {isMe ? `Vous avez lancé un défi avec un score de ${data.score}/${data.total} !` : `${data.sender_name || 'Votre contact'} vous met au défi de battre son score de ${data.score}/${data.total} !`}
+                                            </p>
+                                            {hasPlayed ? (
+                                                <div className="p-2.5 bg-white/80 rounded-xl border border-amber-200 text-xs text-center font-bold text-emerald-700">
+                                                    ✅ Défi relevé ! Score : {data.result_score}/{data.total}
+                                                </div>
+                                            ) : !isMe ? (
+                                                <button
+                                                    onClick={() => handleStartQuizChallenge(msg.id, data.sender_name || 'Contact', data.score)}
+                                                    className="w-full py-2 px-4 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-bold text-xs rounded-xl shadow-sm transition flex items-center justify-center gap-2 cursor-pointer"
+                                                >
+                                                    <Trophy size={14} /> Relever le défi ({data.score}/{data.total})
+                                                </button>
+                                            ) : (
+                                                <div className="text-xs text-amber-700 italic text-center">
+                                                    ⏳ En attente de la réponse de votre contact...
+                                                </div>
+                                            )}
+                                            <div className="text-[10px] text-slate-400 text-right mt-2">{msg.timestamp}</div>
+                                        </div>
+                                    </div>
+                                );
+                            }
+
                             const isScamRiskMsg = !isMe && msg.text ? detectFinancialScam(msg.text).isScamRisk : false;
 
                             return (
@@ -1472,7 +1508,7 @@ export const Messages: React.FC<MessagesProps> = ({ initialContactId }) => {
                                                 <AudioPlayer src={msg.attachmentUrl} isMe={isMe} />
                                             </div>
                                         )}
-                                        {msg.text && msg.type !== 'PRAYER' && msg.type !== 'QUIZ_CHALLENGE' && <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{msg.text}</p>}
+                                        {msg.text && <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{msg.text}</p>}
                                         <div className={`text-[10px] text-right mt-1 opacity-70 flex justify-end items-center space-x-1 ${isMe ? 'text-emerald-100' : 'text-slate-400'}`}>
                                             <span>{msg.timestamp}</span>
                                             {isMe && <span>{msg.isRead ? '••' : '•'}</span>}

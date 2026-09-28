@@ -130,6 +130,7 @@ export const AuthForms: React.FC<AuthFormsProps> = ({ view, onSwitch, onLogin })
     const [isOtpMode, setIsOtpMode] = useState(false);
     const [registeredEmail, setRegisteredEmail] = useState("");
     const [registeredPhone, setRegisteredPhone] = useState("");
+    const [registeredPassword, setRegisteredPassword] = useState("");
     const [otpCode, setOtpCode] = useState("");
     const [otpChannel, setOtpChannel] = useState<'WHATSAPP' | 'EMAIL'>('WHATSAPP');
     const [generatedCode, setGeneratedCode] = useState<string>('');
@@ -614,6 +615,7 @@ export const AuthForms: React.FC<AuthFormsProps> = ({ view, onSwitch, onLogin })
                 setOtpChannel(channelChoice);
                 setRegisteredEmail(email);
                 setRegisteredPhone(phone);
+                setRegisteredPassword(password);
 
                 // 1. Création "Socle" Auth avec Métadonnées Nom/Prénom (avec secours en cas de 422)
                 let userId: string | undefined;
@@ -739,7 +741,10 @@ export const AuthForms: React.FC<AuthFormsProps> = ({ view, onSwitch, onLogin })
 
         try {
             if (cleanOtp === generatedCode || cleanOtp === '123456') {
-                if (typeof window !== 'undefined') sessionStorage.setItem('225_otp_verified', 'true');
+                if (typeof window !== 'undefined') {
+                    sessionStorage.setItem('225_otp_verified', 'true');
+                    sessionStorage.setItem('225_just_registered', 'true');
+                }
                 if (registeredEmail) {
                     try {
                         const { data: prof } = await supabase.from('profiles').select('id').ilike('email', registeredEmail).maybeSingle();
@@ -747,6 +752,18 @@ export const AuthForms: React.FC<AuthFormsProps> = ({ view, onSwitch, onLogin })
                             await supabaseAdmin.auth.admin.updateUserById(prof.id, { email_confirm: true });
                         }
                     } catch (e) {}
+
+                    // Établir la session client authentifiée pour alimenter le dashboard et les profils
+                    if (registeredPassword) {
+                        try {
+                            await supabase.auth.signInWithPassword({
+                                email: registeredEmail,
+                                password: registeredPassword
+                            });
+                        } catch (loginErr) {
+                            console.warn("Connexion automatique après OTP:", loginErr);
+                        }
+                    }
                 }
                 setIsLoading(false);
                 onLogin('USER');

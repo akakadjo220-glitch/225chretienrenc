@@ -246,7 +246,7 @@ export const IntercessionCircle: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      const tagList = [category];
+      const tagList: string[] = [category];
       if (isAnonymous) tagList.push('ANONYMOUS');
 
       const { data, error } = await supabase.from('forum_posts').insert({
@@ -382,7 +382,7 @@ export const IntercessionCircle: React.FC = () => {
   const totalCandles = prayers.reduce((acc, p) => acc + p.candleCount, 0);
 
   return (
-    <div className="max-w-4xl mx-auto p-3 sm:p-4 pb-28 sm:pb-36 space-y-4 animate-in fade-in duration-300">
+    <div className="max-w-4xl mx-auto p-1 sm:p-2 pb-6 space-y-4 animate-in fade-in duration-300">
       
       {/* TOAST DE CONFIRMATION */}
       {toastMessage && (

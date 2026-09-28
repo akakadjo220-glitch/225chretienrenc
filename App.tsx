@@ -7,7 +7,7 @@ import { UserDashboard } from './components/UserDashboard';
 import { VerifyEmailPage } from './components/VerifyEmailPage';
 import { NotificationManager } from './components/NotificationManager';
 import { OnboardingInterests } from './components/OnboardingInterests';
-import { OnboardingPreferences } from './components/OnboardingPreferences';
+import { OnboardingBio } from './components/OnboardingBio';
 
 // 🚀 Code-Splitting pour Vitesse Optimale (Chargement différé de l'Administration)
 const AdminDashboard = React.lazy(() => import('./components/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
@@ -16,9 +16,8 @@ import { SessionTimeoutManager } from './components/SessionTimeoutManager';
 import { UserRole, AppView } from './types';
 import { supabase } from './supabaseClient';
 import { getDeviceFingerprint, getClientIp, fetchBannedIdentifiers, checkIsBlacklisted } from './utils/deviceFingerprint';
-import { initPrivacyShield } from './utils/privacyShield';
 import { PinLockModal } from './components/PinLockModal';
-import { Shield, EyeOff, Heart } from 'lucide-react';
+import { Heart } from 'lucide-react';
 
 const App: React.FC = () => {
   const [currentUserRole, setCurrentUserRole] = useState<UserRole>(UserRole.GUEST);
@@ -26,26 +25,17 @@ const App: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
 
-  // 🔒 États de Sécurité (Bouclier Privacy & PIN Lock)
-  const [isPrivacyBlurred, setIsPrivacyBlurred] = useState(false);
+  // 🔒 États de Sécurité (PIN Lock)
   const [isPinLocked, setIsPinLocked] = useState(false);
   const [savedPinHash, setSavedPinHash] = useState<string | null>(null);
 
-  // Initialisation du Bouclier Anti-Capture et du Code PIN
+  // Initialisation du Code PIN
   useEffect(() => {
     const pin = localStorage.getItem('_225_security_pin');
     setSavedPinHash(pin);
     if (pin && currentUserRole === UserRole.USER) {
       setIsPinLocked(true);
     }
-
-    const cleanup = initPrivacyShield((blurred) => {
-      setIsPrivacyBlurred(blurred);
-    });
-
-    return () => {
-      cleanup();
-    };
   }, [currentUserRole]);
 
   // Enregistrement du Service Worker pour la PWA
@@ -188,14 +178,25 @@ const App: React.FC = () => {
             return;
           }
 
-          // B. PRÉFÉRENCES (HOMME/FEMME)
-          // On vérifie si le champ 'looking_for' est vide
-          const hasNoPreference = !profile.looking_for;
-          if (hasNoPreference) {
-            setCurrentView(AppView.ONBOARDING_PREFERENCES);
+          // B. BIOGRAPHIE / PRÉSENTATION CHRÉTIENNE (ÉTAPE 2 SUR 2)
+          const hasNoBio = !profile.bio || profile.bio.trim().length === 0;
+          if (hasNoBio) {
+            setCurrentView(AppView.ONBOARDING_BIO);
             setCurrentUserRole(role);
             setIsAuthLoading(false);
             return;
+          }
+
+          // 🛡️ COMPLÉMENTARITÉ CHRÉTIENNE STRICTE (AUCUN CHOIX MANUEL) :
+          // Homme cherche obligatoirement Femme, Femme cherche obligatoirement Homme
+          const userGender = profile.gender || 'M';
+          const requiredLookingFor = userGender === 'M' ? 'F' : 'M';
+          if (!profile.looking_for || profile.looking_for !== requiredLookingFor) {
+            await supabase
+              .from('profiles')
+              .update({ looking_for: requiredLookingFor })
+              .eq('id', profile.id);
+            profile.looking_for = requiredLookingFor;
           }
         }
 
@@ -211,6 +212,7 @@ const App: React.FC = () => {
           currentView === AppView.AUTH_REGISTER ||
           currentView === AppView.AUTH_VERIFY_EMAIL ||
           currentView === AppView.ONBOARDING_INTERESTS ||
+          currentView === AppView.ONBOARDING_BIO ||
           currentView === AppView.ONBOARDING_PREFERENCES ||
           currentView === AppView.AUTH_ADMIN_LOGIN
         ) {
@@ -226,6 +228,7 @@ const App: React.FC = () => {
           currentView === AppView.ADMIN_DASHBOARD ||
           currentView === AppView.AUTH_VERIFY_EMAIL ||
           currentView === AppView.ONBOARDING_INTERESTS ||
+          currentView === AppView.ONBOARDING_BIO ||
           currentView === AppView.ONBOARDING_PREFERENCES
         ) {
           setCurrentView(AppView.LANDING);
@@ -321,15 +324,16 @@ const App: React.FC = () => {
     );
   }
 
-  const isUserDashboard = 
+  const isFixedScreenView = 
     currentView === AppView.USER_DASHBOARD || 
-    currentView === AppView.LIKES_YOU || 
     currentView === AppView.MESSAGES || 
-    currentView === AppView.FORUM || 
-    currentView === AppView.PROFILE;
+    currentView === AppView.LIKES_YOU ||
+    currentView === AppView.FORUM ||
+    currentView === AppView.PROFILE ||
+    currentView === AppView.SPEED_DATE;
 
   return (
-    <div className={`bg-white font-sans min-h-screen flex flex-col ${isPrivacyBlurred ? 'privacy-blur-active' : ''}`}>
+    <div className={`bg-white font-sans ${isFixedScreenView ? 'h-[100dvh] overflow-hidden' : 'min-h-screen'} flex flex-col`}>
       {/* Gestionnaire de Notifications & Gestionnaire de Session Inactive */}
       <NotificationManager />
       <SessionTimeoutManager
@@ -349,6 +353,7 @@ const App: React.FC = () => {
       {currentView !== AppView.ADMIN_DASHBOARD &&
         currentView !== AppView.AUTH_VERIFY_EMAIL &&
         currentView !== AppView.ONBOARDING_INTERESTS &&
+        currentView !== AppView.ONBOARDING_BIO &&
         currentView !== AppView.ONBOARDING_PREFERENCES && (
           <Navbar
             currentUserRole={currentUserRole}
@@ -368,14 +373,14 @@ const App: React.FC = () => {
         <VerifyEmailPage onLogout={() => handleNavigate(AppView.LANDING)} />
       )}
 
-      {/* PAGE ONBOARDING INTÉRÊTS */}
+      {/* PAGE ONBOARDING INTÉRÊTS (ÉTAPE 1 SUR 2) */}
       {currentView === AppView.ONBOARDING_INTERESTS && (
-        <OnboardingInterests onComplete={() => setCurrentView(AppView.ONBOARDING_PREFERENCES)} />
+        <OnboardingInterests onComplete={() => setCurrentView(AppView.ONBOARDING_BIO)} />
       )}
 
-      {/* PAGE ONBOARDING PRÉFÉRENCES (NOUVEAU) */}
-      {currentView === AppView.ONBOARDING_PREFERENCES && (
-        <OnboardingPreferences onComplete={() => setCurrentView(AppView.USER_DASHBOARD)} />
+      {/* PAGE ONBOARDING PRÉSENTATION / BIO (ÉTAPE 2 SUR 2 - FINALE) */}
+      {currentView === AppView.ONBOARDING_BIO && (
+        <OnboardingBio onComplete={() => setCurrentView(AppView.USER_DASHBOARD)} />
       )}
 
       {(currentView === AppView.USER_DASHBOARD ||
@@ -407,30 +412,20 @@ const App: React.FC = () => {
         </>
       )}
 
-      {/* Barre de navigation inférieure Mobile (Uniquement si utilisateur connecté) */}
-      {currentUserRole === UserRole.USER && currentView !== AppView.ADMIN_DASHBOARD && (
+      {/* Barre de navigation inférieure Mobile (Uniquement si utilisateur connecté hors onboarding) */}
+      {currentUserRole === UserRole.USER && 
+        currentView !== AppView.ADMIN_DASHBOARD &&
+        currentView !== AppView.ONBOARDING_INTERESTS &&
+        currentView !== AppView.ONBOARDING_BIO &&
+        currentView !== AppView.ONBOARDING_PREFERENCES && (
         <MobileBottomNav
           currentView={currentView}
           onChangeView={handleNavigate}
           onOpenMenu={() => setIsSidebarOpen(prev => !prev)}
+          isMenuOpen={isSidebarOpen}
         />
       )}
 
-      {/* 🛡️ BOUCLIER ANTI-CAPTURE & MASQUE PRIVACY SUR PERTE DE FOCUS */}
-      {isPrivacyBlurred && (
-        <div className="fixed inset-0 z-[200] bg-slate-950/95 backdrop-blur-2xl flex flex-col items-center justify-center text-white p-6 text-center animate-in fade-in duration-200 select-none">
-          <div className="w-20 h-20 bg-emerald-500/20 border border-emerald-400/40 rounded-full flex items-center justify-center mb-4 animate-pulse">
-            <Shield size={40} className="text-emerald-400" />
-          </div>
-          <h3 className="text-2xl font-black text-white">Espace Chrétien Sécurisé 🛡️</h3>
-          <p className="text-xs text-slate-300 mt-2 max-w-sm leading-relaxed">
-            Pour protéger la vie privée et les conversations confidentielles des membres, l'écran est temporairement flouté lors d'un changement d'onglet ou d'une capture.
-          </p>
-          <div className="mt-6 text-[10px] uppercase font-mono tracking-widest text-emerald-400 bg-emerald-950/80 px-4 py-2 rounded-full border border-emerald-800/50">
-            225 Chrétien • Données Protégées
-          </div>
-        </div>
-      )}
 
       {/* 🔒 MODALE DE DÉVERROUILLAGE PIN */}
       {isPinLocked && (

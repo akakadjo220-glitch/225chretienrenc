@@ -12,6 +12,7 @@ export enum AppView {
   AUTH_REGISTER = 'AUTH_REGISTER',
   AUTH_VERIFY_EMAIL = 'AUTH_VERIFY_EMAIL',
   ONBOARDING_INTERESTS = 'ONBOARDING_INTERESTS',
+  ONBOARDING_BIO = 'ONBOARDING_BIO',
   ONBOARDING_PREFERENCES = 'ONBOARDING_PREFERENCES',
   USER_DASHBOARD = 'USER_DASHBOARD',
   ADMIN_DASHBOARD = 'ADMIN_DASHBOARD',
@@ -74,6 +75,7 @@ export interface User {
   liveness_verified?: boolean;
   premiumExpiration?: string;
   avatarUrl?: string;
+  hasRealAvatar?: boolean;
   photos?: string[];
   verificationStatus: VerificationStatus;
   interests?: string[];
@@ -82,10 +84,12 @@ export interface User {
   latitude?: number;
   longitude?: number;
   location?: string;
+  bio?: string;
   status?: UserStatus;
   joinedDate?: string;
   lastActive?: string;
   credits?: number;
+  points?: number;
   boost_expires_at?: string;
   isInvisible?: boolean;
 }
@@ -159,6 +163,9 @@ export interface MatchProfile {
   interests?: string[];
   testimonial_audio_url?: string;
   badges?: string[];
+  church_involvement?: string;
+  spiritual_status?: string;
+  gender?: 'M' | 'F';
   isInvisible?: boolean;
   isSuperLike?: boolean;
   isBoosted?: boolean;
@@ -193,7 +200,7 @@ export interface Message {
   id: string;
   senderId: string;
   text?: string;
-  type: 'TEXT' | 'IMAGE' | 'AUDIO' | 'PRAYER' | 'VIDEO' | 'MENTORSHIP';
+  type: 'TEXT' | 'IMAGE' | 'AUDIO' | 'PRAYER' | 'VIDEO' | 'MENTORSHIP' | 'QUIZ_CHALLENGE';
   attachmentUrl?: string;
   timestamp: string;
   isRead: boolean;

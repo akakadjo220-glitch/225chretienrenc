@@ -194,12 +194,22 @@ const WORKSHEETS = [
   }
 ];
 
+export interface VocationLibraryResource {
+  id: string;
+  title: string;
+  type: 'ARTICLE' | 'PODCAST' | 'VIDEO';
+  category: string;
+  author: string;
+  duration: string;
+  content: string;
+}
+
 // Bibliothèque de ressources spirituelles réelles
-const REAL_VOCATION_RESOURCES = [
+const REAL_VOCATION_RESOURCES: VocationLibraryResource[] = [
   {
     id: 'res-1',
     title: "Les 5 Piliers d'un Foyer Chrétien Épanoui",
-    type: 'ARTICLE' as const,
+    type: 'ARTICLE',
     category: 'MARIAGE',
     author: 'Père Jean-Marc KOFFI',
     duration: '6 min de lecture',
@@ -213,7 +223,7 @@ const REAL_VOCATION_RESOURCES = [
   {
     id: 'res-2',
     title: "Comment Connaître la Volonté de Dieu pour ma Vocation ?",
-    type: 'ARTICLE' as const,
+    type: 'ARTICLE',
     category: 'MINISTERE',
     author: 'Pasteur Samuel YAO',
     duration: '8 min de lecture',
@@ -226,18 +236,27 @@ const REAL_VOCATION_RESOURCES = [
   {
     id: 'res-3',
     title: "Méditation Audio : Consécration & Discernement",
-    type: 'PODCAST' as const,
+    type: 'PODCAST',
     category: 'MISSION',
     author: 'Sœur Marie-Thérèse D.',
     duration: '12 min d\'écoute',
     content: `Méditation guidée sur le Psaume 139 : « Sonde-moi, ô Dieu, et connais mon cœur ! Éprouve-moi, et connais mes pensées ! »
 Prenez ce moment de calme pour remettre vos projets affectifs, professionnels et vocationnels entre les mains du Père Céleste.`
+  },
+  {
+    id: 'res-4',
+    title: "Témoignage Vidéo : Du Célibat au Mariage selon le Cœur de Dieu",
+    type: 'VIDEO',
+    category: 'MARIAGE',
+    author: 'Frère David & Sœur Esther K.',
+    duration: '15 min de visionnage',
+    content: `Un témoignage vibrant et authentique d'un couple ivoirien qui a su persévérer dans la prière et la fidélité avant le mariage. Découvrez leurs précieux conseils sur la gestion des attentes familiales et le discernement mutuel.`
   }
 ];
 
 export const Vocation: React.FC = () => {
   const [activeModal, setActiveModal] = useState<'NONE' | 'CONTACT' | 'TRACK_DETAILS' | 'RESOURCE' | 'REQUEST_MENTOR'>('NONE');
-  const [selectedResource, setSelectedResource] = useState<typeof REAL_VOCATION_RESOURCES[0] | null>(null);
+  const [selectedResource, setSelectedResource] = useState<VocationLibraryResource | null>(null);
   const [selectedTrack, setSelectedTrack] = useState<VocationTrackData | null>(null);
   
   // Contacts Prêtres / Pasteurs

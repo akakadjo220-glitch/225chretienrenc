@@ -9,26 +9,9 @@ const getImlrUrl = (path: string) => {
     return supabase.storage.from('Public').getPublicUrl(path).data.publicUrl;
 };
 
-const MOCK_AVATARS_M = [
-    "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&h=500&fit=crop&q=80",
-    "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=500&fit=crop&q=80",
-    "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&h=500&fit=crop&q=80",
-    "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=400&h=500&fit=crop&q=80",
-    "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=400&h=500&fit=crop&q=80"
-];
-
-const MOCK_AVATARS_F = [
-    "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&h=500&fit=crop&q=80",
-    "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=400&h=500&fit=crop&q=80",
-    "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=500&fit=crop&q=80",
-    "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400&h=500&fit=crop&q=80",
-    "https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?w=400&h=500&fit=crop&q=80"
-];
-
-const getCuratedPlaceholder = (gender: 'M' | 'F' | undefined, id: string) => {
-    const list = gender === 'M' ? MOCK_AVATARS_M : MOCK_AVATARS_F;
-    const index = Math.abs(id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)) % list.length;
-    return list[index];
+const getDefaultAvatar = (name?: string) => {
+    const cleanName = encodeURIComponent(name?.trim() || 'Chrétien');
+    return `https://ui-avatars.com/api/?name=${cleanName}&background=0D5C3A&color=ffffff&size=512&bold=true`;
 };
 
 interface LikesYouProps {
@@ -145,15 +128,16 @@ export const LikesYou: React.FC<LikesYouProps> = ({ onLikeProcessed, onGoToMessa
                     const rName = profile.full_name || profile.name || 'Membre Chrétien';
                     const interests = parseInterests(profile.interests);
                     const isCertif = profile.verification_status === 'VERIFIED';
-                    const avatar = profile.avatar_url ? getImlrUrl(profile.avatar_url) : getCuratedPlaceholder(profile.gender as 'M' | 'F' | undefined, profile.id);
+                    const avatar = profile.avatar_url ? getImlrUrl(profile.avatar_url) : getDefaultAvatar(rName);
 
                     return {
                         id: profile.id,
                         name: rName,
+                        gender: profile.gender,
                         age: profile.baptism_year ? (new Date().getFullYear() - profile.baptism_year + 18) : 26,
                         location: profile.location || 'Abidjan',
                         parish: profile.parish || 'Paroisse Chrétienne',
-                        denomination: profile.denomination || 'Catholique',
+                        denomination: profile.denomination || (profile.parish ? profile.parish.split('-')[0].trim() : 'Chrétien'),
                         bio: profile.bio || 'Recherche une relation sérieuse fondée sur la foi.',
                         imageUrl: avatar,
                         photos: profile.photos && profile.photos.length > 0 ? profile.photos.map(getImlrUrl) : [avatar],
@@ -223,7 +207,7 @@ export const LikesYou: React.FC<LikesYouProps> = ({ onLikeProcessed, onGoToMessa
     if (isLoading) return <div className="flex justify-center items-center h-64"><Loader className="animate-spin text-emerald-600 h-8 w-8" /></div>;
 
     return (
-        <div className="h-full flex flex-col animate-in fade-in pb-20 relative">
+        <div className="h-full w-full flex flex-col animate-in fade-in relative overflow-hidden">
 
             {/* Notification de Like Temps Réel */}
             {newLikeNotification && (
@@ -234,87 +218,91 @@ export const LikesYou: React.FC<LikesYouProps> = ({ onLikeProcessed, onGoToMessa
             )}
 
             {/* Header */}
-            <div className="mb-6 flex justify-between items-center px-2">
+            <div className="mb-4 flex justify-between items-center px-1 shrink-0">
                 <div>
                     <h2 className="text-2xl font-extrabold text-[#0D5C3A] font-display flex items-center">
-                        Coups de cœur <span className="bg-[#FAF6EF] text-[#D4A359] border border-[#D4A359]/40 text-sm px-3 py-0.5 rounded-full ml-3 font-extrabold">{likers.length}</span>
+                        Coups de cœur <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 text-sm px-3 py-0.5 rounded-full ml-3 font-extrabold">{likers.length}</span>
                     </h2>
                     <p className="text-slate-600 text-xs sm:text-sm mt-1">Découvrez qui souhaite faire votre connaissance dans la foi.</p>
                 </div>
                 {!isPremium && (
-                    <div className="bg-[#FAF6EF] text-[#D4A359] border border-[#D4A359]/50 px-3 py-1.5 rounded-xl text-xs font-extrabold flex items-center shadow-xs">
-                        <Lock size={14} className="mr-1.5 text-[#D4A359]" /> Privilège
+                    <div className="bg-amber-50 text-amber-800 border border-amber-200 px-3 py-1.5 rounded-xl text-xs font-extrabold flex items-center shadow-xs">
+                        <Lock size={14} className="mr-1.5 text-amber-600" /> Privilège
                     </div>
                 )}
             </div>
 
-            {/* Liste des Likers */}
-            {likers.length === 0 ? (
-                <div className="bg-[#FAF6EF]/90 rounded-3xl p-10 text-center border border-[#D4A359]/30 shadow-xs my-auto max-w-md mx-auto">
-                    <div className="w-16 h-16 bg-white text-[#D4A359] rounded-full flex items-center justify-center mx-auto mb-4 border border-[#D4A359]/40 shadow-sm">
-                        <Heart size={32} fill="#D4A359" className="text-[#D4A359]" />
-                    </div>
-                    <h3 className="font-extrabold text-lg text-[#0D5C3A] font-display mb-1">Aucun nouveau coup de cœur</h3>
-                    <p className="text-slate-600 text-xs sm:text-sm leading-relaxed">
-                        Gardez confiance et priez ! Votre profil est présenté à des célibataires chrétiens engagés.
-                    </p>
-                </div>
-            ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                    {likers.map((profile) => (
-                        <div key={profile.id} className="bg-white rounded-2xl overflow-hidden border border-slate-200/80 shadow-sm hover:shadow-md transition duration-300 flex flex-col group relative">
-                            <div className="relative aspect-[4/5] overflow-hidden bg-slate-100">
-                                <img
-                                    src={profile.imageUrl}
-                                    alt={profile.name}
-                                    className={`w-full h-full object-cover transition duration-500 group-hover:scale-105 ${!isPremium ? 'blur-md scale-110' : ''}`}
-                                />
-
-                                {!isPremium && (
-                                    <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-md flex flex-col items-center justify-center p-4 text-center text-white">
-                                        <div className="p-3 bg-white/20 rounded-full mb-2">
-                                            <Lock size={20} />
-                                        </div>
-                                        <p className="text-xs font-bold">Activer Premium pour révéler</p>
-                                    </div>
-                                )}
-
-                                {isPremium && profile.badges?.includes('Certifié') && (
-                                    <span className="absolute top-2 left-2 bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center shadow-md">
-                                        <ShieldCheck size={11} className="mr-0.5" /> Certifié
-                                    </span>
-                                )}
+            {/* Conteneur scrollable dynamique de la liste */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar pr-0.5">
+                {likers.length === 0 ? (
+                    <div className="h-full flex items-center justify-center p-4">
+                        <div className="bg-white rounded-3xl p-8 sm:p-10 text-center border border-slate-200/80 shadow-xs max-w-md mx-auto">
+                            <div className="w-16 h-16 bg-emerald-50 text-emerald-700 rounded-full flex items-center justify-center mx-auto mb-4 border border-emerald-200 shadow-sm">
+                                <Heart size={32} fill="#0D5C3A" className="text-[#0D5C3A]" />
                             </div>
+                            <h3 className="font-extrabold text-lg text-[#0D5C3A] font-display mb-1">Aucun nouveau coup de cœur</h3>
+                            <p className="text-slate-600 text-xs sm:text-sm leading-relaxed">
+                                Gardez confiance et priez ! Votre profil est présenté à des célibataires chrétiens engagés.
+                            </p>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4 pb-4">
+                        {likers.map((profile) => (
+                            <div key={profile.id} className="bg-white rounded-2xl overflow-hidden border border-slate-200/80 shadow-sm hover:shadow-md transition duration-300 flex flex-col group relative">
+                                <div className="relative aspect-[4/5] overflow-hidden bg-slate-100">
+                                    <img
+                                        src={profile.imageUrl}
+                                        alt={profile.name}
+                                        className={`w-full h-full object-cover transition duration-500 group-hover:scale-105 ${!isPremium ? 'blur-md scale-110' : ''}`}
+                                    />
 
-                            <div className="p-3 flex-1 flex flex-col justify-between">
-                                <div>
-                                    <h4 className="font-bold text-slate-800 text-sm truncate">
-                                        {isPremium ? profile.name : 'Membre Anonyme'}
-                                    </h4>
-                                    <p className="text-slate-500 text-[11px] truncate">{profile.parish}</p>
+                                    {!isPremium && (
+                                        <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-md flex flex-col items-center justify-center p-4 text-center text-white">
+                                            <div className="p-3 bg-white/20 rounded-full mb-2">
+                                                <Lock size={20} />
+                                            </div>
+                                            <p className="text-xs font-bold">Activer Premium pour révéler</p>
+                                        </div>
+                                    )}
+
+                                    {isPremium && profile.badges?.includes('Certifié') && (
+                                        <span className="absolute top-2 left-2 bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center shadow-md">
+                                            <ShieldCheck size={11} className="mr-0.5" /> Certifié
+                                        </span>
+                                    )}
                                 </div>
 
-                                {isPremium ? (
-                                    <button
-                                        onClick={() => handleMatchBack(profile)}
-                                        disabled={isProcessing}
-                                        className="mt-3 w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 rounded-xl transition shadow-md shadow-emerald-600/20 flex items-center justify-center gap-1.5 active:scale-95"
-                                    >
-                                        <Heart size={14} fill="currentColor" /> Matcher en retour
-                                    </button>
-                                ) : (
-                                    <button
-                                        onClick={() => setShowPremiumModal(true)}
-                                        className="mt-3 w-full bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold py-2 rounded-xl transition shadow-md shadow-amber-500/20 flex items-center justify-center gap-1"
-                                    >
-                                        <Zap size={14} /> Débloquer
-                                    </button>
-                                )}
+                                <div className="p-3 flex-1 flex flex-col justify-between">
+                                    <div>
+                                        <h4 className="font-bold text-slate-800 text-sm truncate">
+                                            {isPremium ? profile.name : 'Membre Anonyme'}
+                                        </h4>
+                                        <p className="text-slate-500 text-[11px] truncate">{profile.parish}</p>
+                                    </div>
+
+                                    {isPremium ? (
+                                        <button
+                                            onClick={() => handleMatchBack(profile)}
+                                            disabled={isProcessing}
+                                            className="mt-3 w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 rounded-xl transition shadow-md shadow-emerald-600/20 flex items-center justify-center gap-1.5 active:scale-95"
+                                        >
+                                            <Heart size={14} fill="currentColor" /> Matcher en retour
+                                        </button>
+                                    ) : (
+                                        <button
+                                            onClick={() => setShowPremiumModal(true)}
+                                            className="mt-3 w-full bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold py-2 rounded-xl transition shadow-md shadow-amber-500/20 flex items-center justify-center gap-1"
+                                        >
+                                            <Zap size={14} /> Débloquer
+                                        </button>
+                                    )}
+                                </div>
                             </div>
-                        </div>
-                    ))}
-                </div>
-            )}
+                        ))}
+                    </div>
+                )}
+            </div>
 
             {/* --- MODAL CELEBRATION MATCH INSTANTANÉ --- */}
             {matchedProfile && (

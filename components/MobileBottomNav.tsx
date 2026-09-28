@@ -5,6 +5,7 @@ interface MobileBottomNavProps {
   currentView: AppView;
   onChangeView: (view: AppView) => void;
   onOpenMenu?: () => void;
+  isMenuOpen?: boolean;
   unreadCount?: number;
   likesCount?: number;
 }
@@ -13,11 +14,16 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   currentView,
   onChangeView,
   onOpenMenu,
+  isMenuOpen = false,
   unreadCount = 0,
   likesCount = 0
 }) => {
   return (
-    <div className="md:hidden fixed bottom-4 left-3 right-3 max-w-[390px] mx-auto z-50 pointer-events-none select-none">
+    <div className={`md:hidden fixed bottom-4 left-3 right-3 max-w-[390px] mx-auto z-40 select-none transition-all duration-300 ease-in-out ${
+      isMenuOpen 
+        ? 'opacity-0 pointer-events-none translate-y-8 scale-90' 
+        : 'opacity-100 pointer-events-none translate-y-0 scale-100'
+    }`}>
       <div className="relative w-full h-[72px] pointer-events-auto">
 
         {/* 1. COURBE DU FOND EN VERRE SATINÉ AVEC BERCEAU SCULPTÉ (DÉCOUPE À L'IDENTIQUE DE LA MAQUETTE) */}
@@ -25,19 +31,19 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
           viewBox="0 0 380 72"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
-          className="absolute inset-0 w-full h-full filter drop-shadow-[0_14px_34px_rgba(180,140,90,0.22)]"
+          className="absolute inset-0 w-full h-full filter drop-shadow-[0_10px_30px_rgba(0,0,0,0.08)]"
           preserveAspectRatio="none"
         >
-          {/* Dégradé doux pour le verre satiné albâtre */}
+          {/* Dégradé blanc pur pour la barre mobile */}
           <defs>
             <linearGradient id="barGlassGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="rgba(255, 255, 255, 0.96)" />
-              <stop offset="100%" stopColor="rgba(252, 248, 242, 0.92)" />
+              <stop offset="0%" stopColor="#ffffff" />
+              <stop offset="100%" stopColor="#ffffff" />
             </linearGradient>
             <linearGradient id="barBorderGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="rgba(226, 214, 196, 0.7)" />
-              <stop offset="50%" stopColor="rgba(212, 163, 89, 0.5)" />
-              <stop offset="100%" stopColor="rgba(226, 214, 196, 0.7)" />
+              <stop offset="0%" stopColor="rgba(226, 232, 240, 0.8)" />
+              <stop offset="50%" stopColor="rgba(203, 213, 225, 0.8)" />
+              <stop offset="100%" stopColor="rgba(226, 232, 240, 0.8)" />
             </linearGradient>
           </defs>
 

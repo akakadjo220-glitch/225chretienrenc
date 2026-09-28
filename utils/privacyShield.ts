@@ -8,59 +8,20 @@ export const initPrivacyShield = (onBlurChange?: (isBlurred: boolean) => void) =
 
   let isBlurredState = false;
 
-  const triggerBlur = (shouldBlur: boolean) => {
-    if (isBlurredState === shouldBlur) return;
-    isBlurredState = shouldBlur;
-    if (onBlurChange) onBlurChange(shouldBlur);
+  const triggerBlur = (_shouldBlur: boolean) => {
+    // Effet noir / flou supprimé selon la demande
+    isBlurredState = false;
+    if (onBlurChange) onBlurChange(false);
   };
 
-  // 1. Détection de la perte de visibilité & Focus (Mobile iOS/Android & PC)
-  // Requis pour iOS Safari / Android Chrome lors des captures ou basculements d'onglets
-  const handleVisibilityChange = () => {
-    if (document.visibilityState === 'hidden' || document.hidden) {
-      triggerBlur(true);
-    } else {
-      triggerBlur(false);
-    }
-  };
+  // 1. Détection de visibilité (sans effet noir)
+  const handleVisibilityChange = () => {};
+  const handleBlur = () => {};
+  const handleFocus = () => {};
+  const handlePageHide = () => {};
 
-  const handleBlur = () => {
-    triggerBlur(true);
-  };
-
-  const handleFocus = () => {
-    triggerBlur(false);
-  };
-
-  const handlePageHide = () => {
-    triggerBlur(true);
-  };
-
-  // 2. Détection clavier des raccourcis de capture et d'impression (Windows & Mac)
-  const handleKeyDown = (e: KeyboardEvent) => {
-    // Windows PrintScreen, Ctrl+P, Mac Cmd+Shift+3/4/5, Ctrl+S
-    const isPrintScreen = e.key === 'PrintScreen' || e.keyCode === 44;
-    const isPrintCombo = (e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P');
-    const isSaveCombo = (e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S');
-    const isMacScreenshot = e.metaKey && e.shiftKey && (e.key === '3' || e.key === '4' || e.key === '5');
-    
-    // Développeurs & Inspecteur (F12, Ctrl+Shift+I / C / J, Ctrl+U)
-    const isDevTools = e.key === 'F12' || 
-      ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'I' || e.key === 'i' || e.key === 'C' || e.key === 'c' || e.key === 'J' || e.key === 'j')) ||
-      ((e.ctrlKey || e.metaKey) && (e.key === 'u' || e.key === 'U'));
-
-    if (isPrintScreen || isPrintCombo || isMacScreenshot || isSaveCombo || isDevTools) {
-      e.preventDefault();
-      e.stopPropagation();
-      triggerBlur(true);
-
-      // Réactiver le focus automatiquement après un délai de protection
-      setTimeout(() => {
-        triggerBlur(false);
-      }, 3000);
-      return false;
-    }
-  };
+  // 2. Détection clavier des raccourcis
+  const handleKeyDown = (_e: KeyboardEvent) => {};
 
   // 3. Empêcher le menu contextuel (clic droit) et l'appui prolongé sur mobile sur les images & médias
   const handleContextMenu = (e: MouseEvent) => {

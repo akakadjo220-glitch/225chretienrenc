@@ -116,7 +116,7 @@ export const Events: React.FC = () => {
     }
 
     return (
-        <div className="space-y-6 animate-in fade-in duration-500 pb-32 sm:pb-36">
+        <div className="space-y-6 animate-in fade-in duration-500 pb-6">
 
             {/* ── Regular Events Header ── */}
             <div className="relative rounded-2xl overflow-hidden bg-emerald-900 shadow-lg">

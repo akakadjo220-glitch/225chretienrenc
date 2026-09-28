@@ -115,7 +115,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     // --- SYSTÈME DE POPUP / MODALE PERSONNALISÉE (REMPLACE WINDOW.CONFIRM & ALERT) ---
     interface CustomDialogState {
         isOpen: boolean;
-        type: 'CONFIRM' | 'ALERT' | 'SUCCESS' | 'DANGER' | 'INFO';
+        type: 'CONFIRM' | 'ALERT' | 'SUCCESS' | 'DANGER' | 'INFO' | 'WARNING';
         title: string;
         message: string;
         confirmText?: string;
@@ -176,7 +176,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     }: {
         title: string;
         message: string;
-        type?: 'SUCCESS' | 'ALERT' | 'DANGER' | 'INFO';
+        type?: 'SUCCESS' | 'ALERT' | 'DANGER' | 'INFO' | 'WARNING';
         onClose?: () => void;
     }) => {
         setCustomDialog({
@@ -1184,7 +1184,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             title: `Bannir ${targetUser.name} ?`,
             message: `Ce profil fait l'objet d'un signalement pour : "${report.reason}". Souhaitez-vous le suspendre immédiatement de la communauté ?`,
             confirmText: "Bannir Définitivement",
-            confirmColor: "bg-red-600 hover:bg-red-700",
+            confirmStyle: "rose",
             onConfirm: async () => {
                 await toggleUserBan(targetUser.id, targetUser.status, targetUser);
                 await resolveReport(report.id);
@@ -3670,11 +3670,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                                     ? 'bg-rose-100 text-rose-700 border border-rose-200' 
                                     : customDialog.type === 'SUCCESS'
                                     ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
-                                    : customDialog.type === 'ALERT'
+                                    : (customDialog.type === 'ALERT' || customDialog.type === 'WARNING')
                                     ? 'bg-amber-100 text-amber-700 border border-amber-200'
                                     : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
                             }`}>
-                                {customDialog.type === 'DANGER' ? '🚨' : customDialog.type === 'SUCCESS' ? '✅' : customDialog.type === 'ALERT' ? '⚠️' : '⚡'}
+                                {customDialog.type === 'DANGER' ? '🚨' : customDialog.type === 'SUCCESS' ? '✅' : (customDialog.type === 'ALERT' || customDialog.type === 'WARNING') ? '⚠️' : '⚡'}
                             </div>
 
                             <div className="space-y-1.5 min-w-0 flex-1">

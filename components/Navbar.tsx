@@ -105,7 +105,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentUserRole, onChangeView, t
   };
 
   return (
-    <nav className={`bg-[#FAF6EF]/90 backdrop-blur-md border-b border-[#E2D6C4] sticky top-0 z-50 text-slate-800 shadow-xs ${
+    <nav className={`bg-white/95 backdrop-blur-md border-b border-slate-100 sticky top-0 z-50 text-slate-800 shadow-xs ${
       currentUserRole !== UserRole.GUEST ? 'hidden md:block' : ''
     }`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
