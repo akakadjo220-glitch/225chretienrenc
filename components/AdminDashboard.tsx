@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { AlertTriangle, UserCheck, DollarSign, Users, LayoutDashboard, Shield, Check, X, Eye, Ban, Trash2, Search, Flag, MapPin, PlusCircle, Settings, LogOut, Play, Calendar, LinkIcon, Edit, FileText, Download, Crown, RefreshCw, CreditCard, CheckCircle, Save, Phone, MessageCircle, Send, Sparkles, Zap, ShieldCheck, Loader } from 'lucide-react';
-import { VerificationStatus, User, UserStatus, Report, Parish, AppEvent, PaymentSettings, PaymentTransaction, DashboardTab, PriestContact } from '../types';
+import { AlertTriangle, UserCheck, DollarSign, Users, LayoutDashboard, Shield, Check, X, Eye, Ban, Trash2, Search, Flag, MapPin, PlusCircle, Settings, LogOut, Play, Calendar, LinkIcon, Edit, FileText, Download, Crown, RefreshCw, CreditCard, CheckCircle, Save, Phone, MessageCircle, Send, Sparkles, Zap, ShieldCheck, Loader, Clock } from 'lucide-react';
+import { VerificationStatus, User, UserStatus, Report, Parish, AppEvent, PaymentSettings, PaymentTransaction, DashboardTab, PriestContact, SessionTimeoutConfig, DEFAULT_SESSION_TIMEOUT } from '../types';
 import { supabase, supabaseAdmin } from '../supabaseClient';
 import { getOpenWAConfig, saveOpenWAConfig, testOpenWAConnection, OpenWAConfig, DEFAULT_OPENWA_CONFIG } from '../openwaClient';
 import { secureLog, maskSecret } from '../securityUtils';
@@ -58,8 +58,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     // Stats & Chart Data
     const [chartData, setChartData] = useState<any[]>([]);
 
-    // Payment States & Pagination
     const [paymentSettings, setPaymentSettings] = useState<PaymentSettings>({ paystack_public_key: '', paystack_secret_key: '', currency: 'XOF', amount: 1500 });
+    const [sessionConfig, setSessionConfig] = useState<SessionTimeoutConfig>(DEFAULT_SESSION_TIMEOUT);
     const [transactions, setTransactions] = useState<PaymentTransaction[]>([]);
     const [txCurrentPage, setTxCurrentPage] = useState<number>(1);
     const [txSearchQuery, setTxSearchQuery] = useState<string>('');
@@ -769,6 +769,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                     });
                 }
 
+                // Charger la configuration des délais de session
+                try {
+                    const { data: timeoutData } = await supabase
+                        .from('system_settings')
+                        .select('value')
+                        .eq('key', 'session_timeout_config')
+                        .maybeSingle();
+                    if (timeoutData?.value) {
+                        setSessionConfig(prev => ({ ...prev, ...timeoutData.value }));
+                    }
+                } catch (err) {}
+
                 const { data: transactionsResult } = await supabase
                     .from('payments')
                     .select('*, user:profiles(full_name)')
@@ -886,9 +898,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             } else {
                 await supabaseAdmin.from('settings').insert([paymentSettings]);
             }
+
+            // Sauvegarde des délais d'inactivité de session
+            await supabase.from('system_settings').upsert({
+                key: 'session_timeout_config',
+                value: sessionConfig,
+                updated_at: new Date().toISOString()
+            }, { onConflict: 'key' });
+
+            if (typeof window !== 'undefined') {
+                localStorage.setItem('225_session_timeout_config', JSON.stringify(sessionConfig));
+                window.dispatchEvent(new CustomEvent('225_session_config_updated', { detail: sessionConfig }));
+            }
+
             triggerAlert({
                 title: "✅ Paramètres Enregistrés",
-                message: "La configuration des passerelles de paiement a été sauvegardée avec succès.",
+                message: "La configuration globale et les délais d'inactivité des sessions ont été sauvegardés avec succès.",
                 type: "SUCCESS"
             });
             loadAllData();
@@ -1747,6 +1772,126 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                             <option value="retinaface">RetinaFace (Haute Tolérance d'Éclairage ⭐)</option>
                             <option value="mtcnn">MTCNN (Standard)</option>
                             <option value="opencv">OpenCV (Ultra Rapide)</option>
+                        </select>
+                    </div>
+
+                    {/* SÉCURITÉ & DÉLAIS DE SESSION PAR TYPE DE COMPTE */}
+                    <div className="md:col-span-2 border-t border-slate-200 pt-6 mt-2">
+                        <div className="flex items-center justify-between mb-1">
+                            <h4 className="text-md font-bold text-slate-800 flex items-center">
+                                <Clock className="mr-2 text-emerald-600 h-5 w-5" /> Délais d'Inactivité & Expiration des Sessions
+                            </h4>
+                            <span className="bg-emerald-100 text-emerald-800 text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-emerald-200">
+                                Cybersécurité Active
+                            </span>
+                        </div>
+                        <p className="text-xs text-slate-500 mb-4">
+                            Configurez la durée maximale d'inactivité avant déconnexion automatique pour chaque type de compte, protégeant les données contre les accès non surveillés.
+                        </p>
+                    </div>
+
+                    {/* Compte Administrateur */}
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                        <div className="flex items-center justify-between mb-1.5">
+                            <label className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                                <span>🛡️ Compte Administrateur</span>
+                            </label>
+                            <span className="text-xs font-extrabold text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-md">
+                                {sessionConfig.admin_minutes} min
+                            </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 mb-2">
+                            Session sensible avec accès aux pièces d'identité et modération. Recommandé : 15 à 30 min.
+                        </p>
+                        <select
+                            value={sessionConfig.admin_minutes}
+                            onChange={e => setSessionConfig({ ...sessionConfig, admin_minutes: Number(e.target.value) })}
+                            className="w-full border border-slate-300 rounded-lg p-2 text-sm bg-white font-medium"
+                        >
+                            <option value={15}>15 minutes (Haute Sécurité)</option>
+                            <option value={30}>30 minutes (Recommandé ⭐)</option>
+                            <option value={45}>45 minutes</option>
+                            <option value={60}>1 heure</option>
+                            <option value={120}>2 heures</option>
+                        </select>
+                    </div>
+
+                    {/* Compte Utilisateur Standard */}
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                        <div className="flex items-center justify-between mb-1.5">
+                            <label className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                                <span>🕊️ Membre Standard (Gratuit)</span>
+                            </label>
+                            <span className="text-xs font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                                {sessionConfig.standard_minutes >= 60 ? `${Math.round(sessionConfig.standard_minutes / 60)}h` : `${sessionConfig.standard_minutes} min`}
+                            </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 mb-2">
+                            Session des membres gratuits pour naviguer et discuter. Recommandé : 1h à 2h.
+                        </p>
+                        <select
+                            value={sessionConfig.standard_minutes}
+                            onChange={e => setSessionConfig({ ...sessionConfig, standard_minutes: Number(e.target.value) })}
+                            className="w-full border border-slate-300 rounded-lg p-2 text-sm bg-white font-medium"
+                        >
+                            <option value={30}>30 minutes</option>
+                            <option value={60}>1 heure</option>
+                            <option value={120}>2 heures (Recommandé ⭐)</option>
+                            <option value={240}>4 heures</option>
+                            <option value={480}>8 heures</option>
+                            <option value={720}>12 heures</option>
+                        </select>
+                    </div>
+
+                    {/* Compte Utilisateur Premium */}
+                    <div className="bg-amber-50/60 p-4 rounded-xl border border-amber-200">
+                        <div className="flex items-center justify-between mb-1.5">
+                            <label className="text-sm font-bold text-amber-900 flex items-center gap-1.5">
+                                <span>⭐ Membre Premium (VIP)</span>
+                            </label>
+                            <span className="text-xs font-extrabold text-amber-800 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-md">
+                                {sessionConfig.premium_minutes >= 1440 ? `${Math.round(sessionConfig.premium_minutes / 1440)} jour(s)` : `${Math.round(sessionConfig.premium_minutes / 60)}h`}
+                            </span>
+                        </div>
+                        <p className="text-[11px] text-amber-800/80 mb-2">
+                            Privilège Premium : session longue et continue pour ne pas interrompre les échanges.
+                        </p>
+                        <select
+                            value={sessionConfig.premium_minutes}
+                            onChange={e => setSessionConfig({ ...sessionConfig, premium_minutes: Number(e.target.value) })}
+                            className="w-full border border-amber-300 rounded-lg p-2 text-sm bg-white font-medium text-amber-950"
+                        >
+                            <option value={120}>2 heures</option>
+                            <option value={360}>6 heures</option>
+                            <option value={720}>12 heures</option>
+                            <option value={1440}>24 heures / 1 jour (Recommandé ⭐)</option>
+                            <option value={2880}>48 heures / 2 jours</option>
+                            <option value={10080}>7 jours (Semaine continue)</option>
+                        </select>
+                    </div>
+
+                    {/* Alerte Préventive */}
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                        <div className="flex items-center justify-between mb-1.5">
+                            <label className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                                <span>⏳ Alerte Préventive</span>
+                            </label>
+                            <span className="text-xs font-extrabold text-slate-700 bg-white border border-slate-200 px-2 py-0.5 rounded-md">
+                                {sessionConfig.warning_minutes} min avant
+                            </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 mb-2">
+                            Temps avant expiration pour afficher la modale avec décompte invitant à prolonger la session.
+                        </p>
+                        <select
+                            value={sessionConfig.warning_minutes}
+                            onChange={e => setSessionConfig({ ...sessionConfig, warning_minutes: Number(e.target.value) })}
+                            className="w-full border border-slate-300 rounded-lg p-2 text-sm bg-white font-medium"
+                        >
+                            <option value={1}>1 minute avant</option>
+                            <option value={2}>2 minutes avant (Recommandé ⭐)</option>
+                            <option value={3}>3 minutes avant</option>
+                            <option value={5}>5 minutes avant</option>
                         </select>
                     </div>
 

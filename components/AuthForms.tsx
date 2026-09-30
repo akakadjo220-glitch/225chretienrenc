@@ -143,6 +143,20 @@ export const AuthForms: React.FC<AuthFormsProps> = ({ view, onSwitch, onLogin })
     const [otpAttemptsCount, setOtpAttemptsCount] = useState<number>(0);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
+    // Suppression stricte de l'ascenseur sur l'écran d'authentification
+    useEffect(() => {
+        document.documentElement.classList.add('overflow-hidden', 'deck-scroll-lock');
+        document.body.classList.add('overflow-hidden', 'deck-scroll-lock');
+        document.body.style.overflow = 'hidden';
+        document.documentElement.style.overflow = 'hidden';
+        return () => {
+            document.documentElement.classList.remove('overflow-hidden', 'deck-scroll-lock');
+            document.body.classList.remove('overflow-hidden', 'deck-scroll-lock');
+            document.body.style.overflow = '';
+            document.documentElement.style.overflow = '';
+        };
+    }, []);
+
     // Canal de connexion sélectionné (WhatsApp par défaut ou Email)
     const [loginChannel, setLoginChannel] = useState<'WHATSAPP' | 'EMAIL'>('WHATSAPP');
 
@@ -964,7 +978,7 @@ export const AuthForms: React.FC<AuthFormsProps> = ({ view, onSwitch, onLogin })
     // --- RENDU MOT DE PASSE OUBLIÉ ---
     if (isForgotPasswordMode) {
         return (
-            <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center p-6 animate-in fade-in zoom-in duration-500 font-sans">
+            <div className="flex-1 min-h-0 w-full bg-slate-50 flex flex-col justify-center items-center p-4 sm:p-6 overflow-y-auto no-scrollbar animate-in fade-in zoom-in duration-500 font-sans">
                 <div className="bg-white p-8 sm:p-10 rounded-3xl shadow-2xl max-w-md w-full border border-slate-100 relative overflow-hidden text-left">
                     <div className="absolute top-0 left-0 w-full h-2 bg-emerald-600"></div>
 
@@ -1212,7 +1226,7 @@ export const AuthForms: React.FC<AuthFormsProps> = ({ view, onSwitch, onLogin })
     // --- RENDU VÉRIFICATION EMAIL / WHATSAPP (OTP) ---
     if (isOtpMode) {
         return (
-            <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center p-6 animate-in fade-in zoom-in duration-500">
+            <div className="flex-1 min-h-0 w-full bg-slate-50 flex flex-col justify-center items-center p-4 sm:p-6 overflow-y-auto no-scrollbar animate-in fade-in zoom-in duration-500 font-sans">
                 <div className="bg-white p-10 rounded-3xl shadow-2xl max-w-md w-full text-center border border-slate-100 relative overflow-hidden">
                     <div className="absolute top-0 left-0 w-full h-2 bg-emerald-500"></div>
                     <div className="bg-emerald-50 p-6 rounded-full inline-flex mb-6 animate-bounce shadow-inner">
@@ -1327,7 +1341,7 @@ export const AuthForms: React.FC<AuthFormsProps> = ({ view, onSwitch, onLogin })
     // --- RENDU PAGE ADMIN ---
     if (isAdminLogin) {
         return (
-            <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 relative overflow-hidden font-sans">
+            <div className="flex-1 min-h-0 w-full bg-slate-50 flex items-center justify-center p-4 relative overflow-y-auto no-scrollbar font-sans">
                 <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-100/50 rounded-full blur-[120px]"></div>
                 <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-emerald-200/30 rounded-full blur-[120px]"></div>
 
@@ -1389,7 +1403,7 @@ export const AuthForms: React.FC<AuthFormsProps> = ({ view, onSwitch, onLogin })
 
     // --- RENDU PAGE UTILISATEUR (Login / Register) ---
     return (
-        <div className="min-h-screen flex font-sans relative bg-slate-50">
+        <div className="flex-1 min-h-0 w-full flex font-sans relative bg-slate-50 overflow-hidden">
 
             {/* Background Mobile Only */}
             <div className="absolute inset-0 lg:hidden z-0 bg-gradient-to-br from-emerald-950 via-slate-900 to-emerald-900 overflow-hidden">
@@ -1434,8 +1448,8 @@ export const AuthForms: React.FC<AuthFormsProps> = ({ view, onSwitch, onLogin })
             </div>
 
             {/* SECTION DROITE : FORMULAIRE */}
-            <div className="w-full lg:w-1/2 flex flex-col justify-center items-center p-4 sm:p-6 lg:p-12 overflow-y-auto relative z-10">
-                <div className="w-full max-w-md space-y-4 animate-in slide-in-from-right-8 duration-700 fade-in bg-white/95 lg:bg-transparent p-5 sm:p-8 lg:p-0 rounded-3xl lg:rounded-none shadow-2xl lg:shadow-none backdrop-blur-md lg:backdrop-blur-none border border-white/20 lg:border-none">
+            <div className="w-full lg:w-1/2 flex flex-col justify-center items-center p-3 sm:p-6 lg:p-12 overflow-y-auto no-scrollbar relative z-10 my-auto">
+                <div className="w-full max-w-md space-y-3.5 sm:space-y-4 animate-in slide-in-from-right-8 duration-700 fade-in bg-white/95 lg:bg-transparent p-4 sm:p-8 lg:p-0 rounded-3xl lg:rounded-none shadow-2xl lg:shadow-none backdrop-blur-md lg:backdrop-blur-none border border-white/20 lg:border-none">
 
                     {/* Header Mobile Inliné & Compact */}
                     <div className="lg:hidden flex items-center justify-center mb-2">

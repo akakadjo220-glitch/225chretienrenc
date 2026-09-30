@@ -21,6 +21,7 @@ import { Heart } from 'lucide-react';
 
 const App: React.FC = () => {
   const [currentUserRole, setCurrentUserRole] = useState<UserRole>(UserRole.GUEST);
+  const [isUserPremium, setIsUserPremium] = useState<boolean>(false);
   const [currentView, setCurrentView] = useState<AppView>(() => {
     if (typeof window !== 'undefined') {
       const saved = sessionStorage.getItem('225_current_view') as AppView;
@@ -210,6 +211,7 @@ const App: React.FC = () => {
 
         // 4. SI TOUT EST OK : ROUTAGE NORMAL
         setCurrentUserRole(role);
+        setIsUserPremium(Boolean(profile.is_premium));
 
         // Si l'utilisateur est un Administrateur, le maintenir toujours sur l'ADMIN_DASHBOARD lors du rafraîchissement
         if (role === UserRole.ADMIN) {
@@ -236,6 +238,7 @@ const App: React.FC = () => {
       } else {
         // DÉCONNECTÉ
         setCurrentUserRole(UserRole.GUEST);
+        setIsUserPremium(false);
         if (
           currentView === AppView.USER_DASHBOARD ||
           currentView === AppView.ADMIN_DASHBOARD ||
@@ -321,6 +324,7 @@ const App: React.FC = () => {
         sessionStorage.removeItem('225_profile_subtab');
       }
       setCurrentUserRole(UserRole.GUEST);
+      setIsUserPremium(false);
       setIsSidebarOpen(false);
     }
 
@@ -358,7 +362,27 @@ const App: React.FC = () => {
     currentView === AppView.LIKES_YOU ||
     currentView === AppView.FORUM ||
     currentView === AppView.PROFILE ||
-    currentView === AppView.SPEED_DATE;
+    currentView === AppView.SPEED_DATE ||
+    currentView === AppView.AUTH_LOGIN ||
+    currentView === AppView.AUTH_REGISTER ||
+    currentView === AppView.AUTH_ADMIN_LOGIN ||
+    currentView === AppView.AUTH_VERIFY_EMAIL;
+
+  // Verrouillage strict du défilement racine pour supprimer l'ascenseur sur les vues fixes
+  useEffect(() => {
+    if (isFixedScreenView) {
+      document.documentElement.classList.add('overflow-hidden', 'deck-scroll-lock');
+      document.body.classList.add('overflow-hidden', 'deck-scroll-lock');
+      document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
+      return () => {
+        document.documentElement.classList.remove('overflow-hidden', 'deck-scroll-lock');
+        document.body.classList.remove('overflow-hidden', 'deck-scroll-lock');
+        document.body.style.overflow = '';
+        document.documentElement.style.overflow = '';
+      };
+    }
+  }, [isFixedScreenView]);
 
   return (
     <div className={`bg-white font-sans ${isFixedScreenView ? 'h-[100dvh] overflow-hidden' : 'min-h-screen'} flex flex-col`}>
@@ -366,6 +390,7 @@ const App: React.FC = () => {
       <NotificationManager />
       <SessionTimeoutManager
         userRole={currentUserRole}
+        isPremium={isUserPremium}
         onSessionExpired={handleSessionExpired}
       />
 

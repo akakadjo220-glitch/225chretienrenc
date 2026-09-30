@@ -61,7 +61,7 @@ export const VerifyEmailPage: React.FC<VerifyEmailPageProps> = ({ onLogout }) =>
     };
 
     return (
-        <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center p-4">
+        <div className="flex-1 min-h-0 w-full bg-slate-50 flex flex-col justify-center items-center p-4 overflow-y-auto no-scrollbar">
             <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full text-center border border-slate-100">
                 <div className="bg-amber-100 p-4 rounded-full inline-flex mb-6">
                     <Mail className="h-10 w-10 text-amber-600" />

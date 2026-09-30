@@ -265,3 +265,18 @@ export interface PaymentTransaction {
   gateway: string;
   date: string;
 }
+
+export interface SessionTimeoutConfig {
+  admin_minutes: number;
+  standard_minutes: number;
+  premium_minutes: number;
+  warning_minutes: number;
+}
+
+export const DEFAULT_SESSION_TIMEOUT: SessionTimeoutConfig = {
+  admin_minutes: 30,       // 30 min pour Admin
+  standard_minutes: 120,   // 2h pour Utilisateur Standard
+  premium_minutes: 1440,   // 24h pour Utilisateur Premium
+  warning_minutes: 2       // Alerte 2 min avant déconnexion
+};
+

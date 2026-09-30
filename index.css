@@ -149,13 +149,15 @@ body {
   min-width: 48px;
 }
 
-/* Utilitaire Masquage Barre de Défilement (Smooth horizontal scroll) */
+/* Utilitaire Masquage Barre de Défilement (Smooth horizontal/vertical scroll sans ascenseur) */
 .no-scrollbar::-webkit-scrollbar {
-  display: none;
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
 }
 .no-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
 }
 
 /* Polices de titres et marques */
