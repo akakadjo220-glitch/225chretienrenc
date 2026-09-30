@@ -482,3 +482,137 @@ body {
   }
 }
 
+/* ==========================================================================
+   ⚡ FLUIDITÉ & SYSTÈME DYNAMIQUE HAUTE PERFORMANCE (60 FPS & TOUCH ENGINE)
+   ========================================================================== */
+
+/* 1. Accélération matérielle GPU & Rendu de texte haute fidélité */
+.gpu-accelerate {
+  transform: translate3d(0, 0, 0);
+  -webkit-transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  perspective: 1000px;
+  will-change: transform, opacity;
+}
+
+/* Défilement fluide à inertie native sur mobile */
+.custom-scrollbar {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+
+/* 2. Transitions d'onglets fluides sans coupure ni blocage de défilement */
+@keyframes tab-fade-slide {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.animate-tab-enter {
+  animation: tab-fade-slide 0.15s ease-out;
+}
+
+/* 3. Retours tactiles immédiats (Tactile Haptic Press) */
+.touch-spring {
+  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.touch-spring:active {
+  transform: scale(0.94);
+}
+
+.touch-press {
+  transition: transform 0.15s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.touch-press:active {
+  transform: scale(0.975);
+}
+
+/* 4. Élévation fluide au survol */
+.hover-elevate {
+  transition: transform 0.24s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.24s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
+}
+
+.hover-elevate:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px -6px rgba(13, 92, 58, 0.12), 0 4px 10px -2px rgba(212, 163, 89, 0.08);
+}
+
+/* 6. Flamme de la Foi Dynamique (Série quotidienne vivante) */
+@keyframes flame-flicker {
+  0%, 100% {
+    transform: scale(1) rotate(0deg);
+  }
+  20% {
+    transform: scale(1.12, 0.94) rotate(-3deg);
+  }
+  40% {
+    transform: scale(0.96, 1.08) rotate(2deg);
+  }
+  60% {
+    transform: scale(1.08, 0.98) rotate(-2deg);
+  }
+  80% {
+    transform: scale(0.98, 1.04) rotate(3deg);
+  }
+}
+
+.animate-flame {
+  display: inline-block;
+  animation: flame-flicker 2.2s ease-in-out infinite;
+  transform-origin: 50% 90%;
+  will-change: transform;
+}
+
+/* 7. Balayage Shimmer de luxe Or & Émeraude (Squelette & cartes actives) */
+@keyframes shimmer-sweep {
+  0% { transform: translateX(-150%); }
+  100% { transform: translateX(150%); }
+}
+
+.shimmer-active {
+  position: relative;
+  overflow: hidden;
+}
+
+.shimmer-active::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-150%);
+  background: linear-gradient(90deg, transparent 0%, rgba(212, 163, 89, 0.18) 50%, transparent 100%);
+  animation: shimmer-sweep 2.4s infinite ease-in-out;
+  pointer-events: none;
+}
+
+/* 8. Pop dynamique pour les badges de notification */
+@keyframes badge-pop {
+  0% { transform: scale(0.5); opacity: 0; }
+  70% { transform: scale(1.16); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.animate-badge-pop {
+  animation: badge-pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+/* 9. Ondulation douce de respiration (Bouton d'action principal) */
+@keyframes breathing-glow {
+  0%, 100% {
+    box-shadow: 0 4px 14px rgba(13, 92, 58, 0.25);
+  }
+  50% {
+    box-shadow: 0 6px 22px rgba(13, 92, 58, 0.42), 0 0 16px rgba(212, 163, 89, 0.3);
+  }
+}
+
+.animate-breathing-glow {
+  animation: breathing-glow 3s ease-in-out infinite;
+}
+
+

@@ -13,7 +13,7 @@ import { OnboardingBio } from './components/OnboardingBio';
 const AdminDashboard = React.lazy(() => import('./components/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { SessionTimeoutManager } from './components/SessionTimeoutManager';
-import { UserRole, AppView } from './types';
+import { UserRole, AppView, DashboardTab } from './types';
 import { supabase } from './supabaseClient';
 import { getDeviceFingerprint, getClientIp, fetchBannedIdentifiers, checkIsBlacklisted } from './utils/deviceFingerprint';
 import { PinLockModal } from './components/PinLockModal';
@@ -130,8 +130,8 @@ const App: React.FC = () => {
           return;
         }
 
-        // DÉTECTION SUPER ADMIN (Email Maître)
-        const isSuperAdmin = user.email === 'chretien0225@gmail.com';
+        // DÉTECTION SUPER ADMIN (Emails Maîtres)
+        const isSuperAdmin = user.email === 'chretien0225@gmail.com' || user.email === 'akacharle2@gmail.com';
 
         // Calcul du rôle réel (Admin DB ou SuperAdmin Hardcodé)
         const role = (profile.role === 'ADMIN' || isSuperAdmin) ? UserRole.ADMIN : UserRole.USER;
@@ -303,6 +303,13 @@ const App: React.FC = () => {
     if ((view === AppView.USER_DASHBOARD || view === AppView.ADMIN_DASHBOARD) && currentUserRole === UserRole.GUEST) {
       setCurrentView(AppView.AUTH_LOGIN);
       return;
+    }
+
+    if (view === AppView.USER_DASHBOARD) {
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('225_active_tab', DashboardTab.MATCHES);
+        window.dispatchEvent(new CustomEvent('225_navigate_matches'));
+      }
     }
 
     // Déconnexion

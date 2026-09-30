@@ -249,7 +249,7 @@ export const LikesYou: React.FC<LikesYouProps> = ({ onLikeProcessed, onGoToMessa
                 ) : (
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4 pb-4">
                         {likers.map((profile) => (
-                            <div key={profile.id} className="bg-white rounded-2xl overflow-hidden border border-slate-200/80 shadow-sm hover:shadow-md transition duration-300 flex flex-col group relative">
+                            <div key={profile.id} className="bg-white rounded-2xl overflow-hidden border border-slate-200/80 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col group relative hover-elevate">
                                 <div className="relative aspect-[4/5] overflow-hidden bg-slate-100">
                                     <img
                                         src={profile.imageUrl}
@@ -267,7 +267,7 @@ export const LikesYou: React.FC<LikesYouProps> = ({ onLikeProcessed, onGoToMessa
                                     )}
 
                                     {isPremium && profile.badges?.includes('Certifié') && (
-                                        <span className="absolute top-2 left-2 bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center shadow-md">
+                                        <span className="absolute top-2 left-2 bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center shadow-md animate-badge-pop">
                                             <ShieldCheck size={11} className="mr-0.5" /> Certifié
                                         </span>
                                     )}
@@ -285,14 +285,14 @@ export const LikesYou: React.FC<LikesYouProps> = ({ onLikeProcessed, onGoToMessa
                                         <button
                                             onClick={() => handleMatchBack(profile)}
                                             disabled={isProcessing}
-                                            className="mt-3 w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 rounded-xl transition shadow-md shadow-emerald-600/20 flex items-center justify-center gap-1.5 active:scale-95"
+                                            className="mt-3 w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 rounded-xl transition shadow-md shadow-emerald-600/20 flex items-center justify-center gap-1.5 touch-spring active:scale-95 cursor-pointer"
                                         >
                                             <Heart size={14} fill="currentColor" /> Matcher en retour
                                         </button>
                                     ) : (
                                         <button
                                             onClick={() => setShowPremiumModal(true)}
-                                            className="mt-3 w-full bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold py-2 rounded-xl transition shadow-md shadow-amber-500/20 flex items-center justify-center gap-1"
+                                            className="mt-3 w-full bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold py-2 rounded-xl transition shadow-md shadow-amber-500/20 flex items-center justify-center gap-1 touch-spring active:scale-95 cursor-pointer"
                                         >
                                             <Zap size={14} /> Débloquer
                                         </button>

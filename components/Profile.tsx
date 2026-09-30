@@ -1234,7 +1234,8 @@ export const Profile: React.FC<ProfileProps> = ({ initialTab = 'PROFIL' }) => {
             // 3. Upload ID File
             const idExt = idFile.name.split('.').pop();
             const idPath = `verifications/${user.id}/id_${Date.now()}.${idExt}`;
-            await supabase.storage.from('Private').upload(idPath, idFile);
+            const { error: idUploadError } = await supabase.storage.from('Private').upload(idPath, idFile, { upsert: true });
+            if (idUploadError) throw idUploadError;
             setUploadProgress(60);
 
             // 4. Upload Baptism File (OPTIONNEL)
@@ -1242,14 +1243,16 @@ export const Profile: React.FC<ProfileProps> = ({ initialTab = 'PROFIL' }) => {
             if (baptismFile) {
                 const baptismExt = baptismFile.name.split('.').pop();
                 baptismPath = `verifications/${user.id}/baptism_${Date.now()}.${baptismExt}`;
-                await supabase.storage.from('Private').upload(baptismPath, baptismFile);
+                const { error: baptismUploadError } = await supabase.storage.from('Private').upload(baptismPath, baptismFile, { upsert: true });
+                if (baptismUploadError) throw baptismUploadError;
             }
             setUploadProgress(80);
 
             // 5. Upload Video Proof
             const videoExt = videoFile.name.split('.').pop();
             const videoPath = `verifications/${user.id}/video_${Date.now()}.${videoExt}`;
-            await supabase.storage.from('Private').upload(videoPath, videoFile);
+            const { error: videoUploadError } = await supabase.storage.from('Private').upload(videoPath, videoFile, { upsert: true });
+            if (videoUploadError) throw videoUploadError;
             setUploadProgress(95);
 
             // 6. Update Profile with PENDING status for Admin review
@@ -1259,13 +1262,15 @@ export const Profile: React.FC<ProfileProps> = ({ initialTab = 'PROFIL' }) => {
                 video_proof_url: videoPath,
                 liveness_video_url: videoPath,
                 ai_match_score: aiMatchScore || 90,
+                ai_verified: aiVerified,
                 updated_at: new Date().toISOString()
             };
             if (baptismPath) {
                 updatePayload.document_baptism_url = baptismPath;
             }
 
-            await supabase.from('profiles').update(updatePayload).eq('id', user.id);
+            const { error: profileUpdateError } = await supabase.from('profiles').update(updatePayload).eq('id', user.id);
+            if (profileUpdateError) throw profileUpdateError;
 
             setUploadProgress(100);
             setTimeout(() => {
@@ -1276,10 +1281,19 @@ export const Profile: React.FC<ProfileProps> = ({ initialTab = 'PROFIL' }) => {
                 setVideoFile(null);
                 if (idPreviewUrl) URL.revokeObjectURL(idPreviewUrl);
                 setIdPreviewUrl(null);
-                alert(
-                    `🎉 Validation biométrique IA réussie (Score DeepFace: ${aiMatchScore || 90}%).\n\n` +
-                    `Votre dossier de vérification (${baptismPath ? 'avec Certificat de Baptême inclus 🕊️' : 'Vérification Membre'}) a été transmis à l'administrateur avec succès pour validation finale !`
-                );
+                const finalScore = aiMatchScore || 90;
+                const isFastTrack = finalScore >= 85;
+                if (isFastTrack) {
+                    alert(
+                        `⚡ EXCELLENT SCORE BIOMÉTRIQUE : ${finalScore}%\n\n` +
+                        `Votre profil bénéficie du Fast-Track Sécurité ! Vos documents (${baptismPath ? 'avec Certificat de Baptême inclus 🕊️' : 'CNI + Vidéo Liveness'}) ont été transmis en priorité haute à l'administrateur pour certification express.`
+                    );
+                } else {
+                    alert(
+                        `📋 DOSSIER TRANSMIS POUR EXAMEN (Score IA : ${finalScore}%)\n\n` +
+                        `Vos documents ont été enregistrés avec succès. En raison d'une variation d'angle ou d'éclairage, notre équipe de modération effectue un examen attentif pour valider votre profil dans les plus brefs délais.`
+                    );
+                }
             }, 1000);
         } catch (error: any) {
             setUploadProgress(0);

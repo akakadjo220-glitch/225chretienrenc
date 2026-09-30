@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { DashboardTab, AppView } from '../types';
-import { Heart, MessageCircle, Users, BookOpen, User, Home, X, Calendar, Lock, Shield, WifiOff, Star, Zap, HeartHandshake, ArrowRight, ShieldCheck, UserCheck, LogOut } from 'lucide-react';
+import { Heart, MessageCircle, Users, BookOpen, User, Home, X, Calendar, Lock, Shield, WifiOff, Star, Zap, HeartHandshake, ArrowRight, ShieldCheck, UserCheck, LogOut, Clock, Check, Camera } from 'lucide-react';
 import { Matches } from './Matches';
 import { Forum } from './Forum';
 import { Vocation } from './Vocation';
@@ -113,6 +113,21 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
 
+  // Écoute de l'événement de navigation directe vers Rencontres
+  useEffect(() => {
+    const handleNavigateMatches = () => {
+      setActiveTab(DashboardTab.MATCHES);
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('225_active_tab', DashboardTab.MATCHES);
+      }
+      if (mainContentRef.current) {
+        mainContentRef.current.scrollTop = 0;
+      }
+    };
+    window.addEventListener('225_navigate_matches', handleNavigateMatches);
+    return () => window.removeEventListener('225_navigate_matches', handleNavigateMatches);
+  }, []);
+
   // Synchronisation dynamique de l'onglet actif avec la vue globale
   useEffect(() => {
     if (currentView === AppView.SPEED_DATE) setActiveTab(DashboardTab.SPEED_DATE);
@@ -122,11 +137,9 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
     else if (currentView === AppView.PROFILE) {
       setActiveTab(DashboardTab.PROFILE);
     } else if (currentView === AppView.USER_DASHBOARD) {
-      const savedTab = typeof window !== 'undefined' ? (sessionStorage.getItem('225_active_tab') as DashboardTab) : null;
-      if (savedTab && savedTab !== DashboardTab.MATCHES) {
-        setActiveTab(savedTab);
-      } else {
-        setActiveTab(DashboardTab.MATCHES);
+      setActiveTab(DashboardTab.MATCHES);
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('225_active_tab', DashboardTab.MATCHES);
       }
     }
   }, [currentView]);
@@ -182,7 +195,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
   };
 
   // 🎯 CALCUL DE L'EFFET DE PROGRESSION DOTÉE (ENDOWED PROGRESS & ZEIGARNIK)
-  const hasRealAvatar = Boolean(currentUser?.avatar_url && !currentUser.avatar_url.includes('ui-avatars') && !currentUser.avatar_url.includes('picsum'));
+  const hasRealAvatar = Boolean(currentUser?.avatar_url && !currentUser.avatar_url.includes('ui-avatars') && !currentUser.avatar_url.includes('picsum') && !currentUser.avatar_url.includes('dicebear') && !currentUser.avatar_url.includes('placeholder'));
   const galleryCount = Array.isArray(currentUser?.photos_urls) ? currentUser.photos_urls.length : (currentUser?.photos?.length || 0);
   const totalRealPhotos = (hasRealAvatar ? 1 : 0) + galleryCount;
   const hasEnoughPhotos = totalRealPhotos >= 3;
@@ -270,7 +283,8 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
     ? getImlrUrl(currentUser.avatar_url)
     : `https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=0D5C3A&color=fff&bold=true`;
   const isPremium = currentUser?.is_premium || false;
-  const isVerified = currentUser?.verification_status === 'VERIFIED';
+  const isVerified = currentUser?.verification_status === 'VERIFIED' || currentUser?.verificationStatus === 'VERIFIED';
+  const isPending = currentUser?.verification_status === 'PENDING' || currentUser?.verificationStatus === 'PENDING';
 
   // Online/Offline listener
   useEffect(() => {
@@ -379,93 +393,176 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
       case DashboardTab.MATCHES:
         if ((!isVerified || !hasEnoughPhotos) && currentUser?.role !== 'ADMIN') {
           return (
-            <div className="flex flex-col items-center justify-center text-center px-4 pt-6 pb-12 sm:pt-10 sm:pb-12 sm:px-8 my-auto animate-in fade-in zoom-in duration-300 relative bg-white/95 rounded-3xl border border-slate-200/80 shadow-xl max-w-xl mx-auto w-full">
-              <div className="bg-gradient-to-br from-amber-400 to-amber-600 p-4 sm:p-5 rounded-full mb-4 relative shadow-lg shadow-amber-500/25 shrink-0 mt-2">
-                <Shield className="h-10 w-10 sm:h-12 sm:w-12 text-white" />
-                <div className="absolute -bottom-1 -right-1 bg-white p-1.5 rounded-full border-2 border-amber-500 shadow-md">
-                  <Lock className="h-4 w-4 text-emerald-700" />
+            <div className="flex flex-col items-center justify-center text-center px-3.5 py-6 sm:px-8 sm:py-10 my-auto animate-in fade-in zoom-in duration-300 relative bg-white/95 rounded-3xl border border-slate-200/80 shadow-xl max-w-lg mx-auto w-full">
+              <div className="bg-gradient-to-br from-amber-400 to-amber-600 p-3.5 sm:p-5 rounded-full mb-3.5 relative shadow-lg shadow-amber-500/25 shrink-0">
+                <Shield className="h-9 w-9 sm:h-12 sm:w-12 text-white" />
+                <div className="absolute -bottom-1 -right-1 bg-white p-1 rounded-full border-2 border-amber-500 shadow-md">
+                  <Lock className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-emerald-700" />
                 </div>
               </div>
 
-              <h3 className="text-xl sm:text-2xl font-extrabold text-slate-900 mb-2 tracking-tight">Porte du Discernement</h3>
-              <p className="text-slate-600 max-w-md mb-6 text-xs sm:text-sm leading-relaxed px-2">
+              <h3 className="text-xl sm:text-2xl font-extrabold text-slate-900 mb-1.5 tracking-tight">Porte du Discernement</h3>
+              <p className="text-slate-600 max-w-md mb-5 text-xs sm:text-sm leading-relaxed px-1">
                 Afin de préserver la pureté et le sérieux des démarches au sein de la communauté <strong>225 Chrétien</strong>, l'accès à l'espace Rencontres requiert la validation de votre profil.
               </p>
 
               {/* État d'Onboarding Checkpoints (Étapes pour terminer la vérification) */}
-              <div className="w-full bg-slate-50/90 rounded-2xl p-4 border border-slate-200 mb-6 space-y-2.5 text-left">
-                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1 px-1">
+              <div className="w-full bg-slate-50/90 rounded-2xl p-2.5 sm:p-4 border border-slate-200/80 mb-4 sm:mb-5 space-y-2 text-left">
+                <p className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-widest px-1">
                   Étapes pour terminer la vérification
                 </p>
 
                 {/* 1. Informations Profil */}
-                <div className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-200/60 shadow-2xs">
-                  <div className="flex items-center space-x-3">
-                    <span className="w-6 h-6 bg-emerald-100 text-emerald-700 font-bold rounded-full flex items-center justify-center text-xs">✓</span>
-                    <span className="text-xs sm:text-sm font-semibold text-slate-800">1. Profil & Engagement chrétien</span>
+                <div className="flex items-center justify-between gap-2.5 p-2.5 sm:p-3 bg-white rounded-xl border border-slate-200/70 shadow-2xs">
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-emerald-500 text-white font-black flex items-center justify-center text-xs shrink-0 shadow-xs shadow-emerald-500/20">
+                      <Check size={14} strokeWidth={3} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs sm:text-sm font-bold text-slate-800 leading-tight truncate">
+                        Profil & Engagement
+                      </p>
+                      <p className="text-[10px] sm:text-[11px] text-slate-500 leading-tight mt-0.5 truncate">
+                        Engagement chrétien validé
+                      </p>
+                    </div>
                   </div>
-                  <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full font-bold uppercase">Validé</span>
+                  <div className="shrink-0">
+                    <span className="inline-flex items-center gap-1 whitespace-nowrap shrink-0 text-[10px] sm:text-[11px] font-black uppercase px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200/80">
+                      <Check size={11} strokeWidth={3} className="text-emerald-600" />
+                      <span>Validé</span>
+                    </span>
+                  </div>
                 </div>
 
                 {/* 2. Pièce d'Identité */}
-                <div className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-200/60 shadow-2xs">
-                  <div className="flex items-center space-x-3">
-                    <span className={`w-6 h-6 font-bold rounded-full flex items-center justify-center text-xs ${
-                      currentUser?.verification_status === 'VERIFIED' ? 'bg-emerald-100 text-emerald-700' :
-                      currentUser?.verification_status === 'PENDING' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'
+                <div className="flex items-center justify-between gap-2.5 p-2.5 sm:p-3 bg-white rounded-xl border border-slate-200/70 shadow-2xs">
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full font-black flex items-center justify-center text-xs shrink-0 shadow-xs ${
+                      isVerified 
+                        ? 'bg-emerald-500 text-white shadow-emerald-500/20' 
+                        : isPending 
+                          ? 'bg-amber-100 text-amber-800 border border-amber-300' 
+                          : 'bg-slate-100 text-slate-500 border border-slate-200'
                     }`}>
-                      {currentUser?.verification_status === 'VERIFIED' ? '✓' : '2'}
-                    </span>
-                    <span className="text-xs sm:text-sm font-semibold text-slate-800">2. Pièce d'identité (CNI / Passeport)</span>
+                      {isVerified ? <Check size={14} strokeWidth={3} /> : '2'}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs sm:text-sm font-bold text-slate-800 leading-tight truncate">
+                        Pièce d'identité
+                      </p>
+                      <p className="text-[10px] sm:text-[11px] text-slate-500 leading-tight mt-0.5 truncate">
+                        CNI ou Passeport
+                      </p>
+                    </div>
                   </div>
-                  <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase ${
-                    currentUser?.verification_status === 'VERIFIED' ? 'bg-emerald-100 text-emerald-800' :
-                    currentUser?.verification_status === 'PENDING' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'
-                  }`}>
-                    {currentUser?.verification_status === 'VERIFIED' ? 'Validé' :
-                     currentUser?.verification_status === 'PENDING' ? 'En cours' : 'À fournir'}
-                  </span>
+                  <div className="shrink-0">
+                    <span className={`inline-flex items-center gap-1 whitespace-nowrap shrink-0 text-[10px] sm:text-[11px] font-black uppercase px-2.5 py-1 rounded-full border ${
+                      isVerified 
+                        ? 'bg-emerald-50 text-emerald-800 border-emerald-200/80' 
+                        : isPending 
+                          ? 'bg-amber-50 text-amber-900 border-amber-200/80' 
+                          : 'bg-slate-100 text-slate-600 border-slate-200/80'
+                    }`}>
+                      {isVerified && <Check size={11} strokeWidth={3} className="text-emerald-600" />}
+                      {isPending && <Clock size={11} className="text-amber-600 shrink-0" />}
+                      <span>{isVerified ? 'Validé' : isPending ? 'En cours' : 'À fournir'}</span>
+                    </span>
+                  </div>
                 </div>
 
                 {/* 3. Liveness video proof */}
-                <div className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-200/60 shadow-2xs">
-                  <div className="flex items-center space-x-3">
-                    <span className={`w-6 h-6 font-bold rounded-full flex items-center justify-center text-xs ${
-                      currentUser?.liveness_verified ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
-                    }`}>
-                      {currentUser?.liveness_verified ? '✓' : '3'}
-                    </span>
-                    <span className="text-xs sm:text-sm font-semibold text-slate-800">3. Preuve de vie vidéo (5 sec)</span>
-                  </div>
-                  <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase ${
-                    currentUser?.liveness_verified ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
-                  }`}>
-                    {currentUser?.liveness_verified ? 'Validé' : 'À fournir'}
-                  </span>
-                </div>
+                {(() => {
+                  const isVideoVerified = Boolean(currentUser?.liveness_verified || isVerified);
+                  const isVideoPending = Boolean(currentUser?.video_proof_url || currentUser?.liveness_video_url || isPending);
+
+                  return (
+                    <div className="flex items-center justify-between gap-2.5 p-2.5 sm:p-3 bg-white rounded-xl border border-slate-200/70 shadow-2xs">
+                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                        <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full font-black flex items-center justify-center text-xs shrink-0 shadow-xs ${
+                          isVideoVerified 
+                            ? 'bg-emerald-500 text-white shadow-emerald-500/20' 
+                            : isVideoPending 
+                              ? 'bg-amber-100 text-amber-800 border border-amber-300' 
+                              : 'bg-slate-100 text-slate-500 border border-slate-200'
+                        }`}>
+                          {isVideoVerified ? <Check size={14} strokeWidth={3} /> : '3'}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs sm:text-sm font-bold text-slate-800 leading-tight truncate">
+                            Preuve de vie vidéo
+                          </p>
+                          <p className="text-[10px] sm:text-[11px] text-slate-500 leading-tight mt-0.5 truncate">
+                            Vidéo sécurisée de 5 sec
+                          </p>
+                        </div>
+                      </div>
+                      <div className="shrink-0">
+                        <span className={`inline-flex items-center gap-1 whitespace-nowrap shrink-0 text-[10px] sm:text-[11px] font-black uppercase px-2.5 py-1 rounded-full border ${
+                          isVideoVerified 
+                            ? 'bg-emerald-50 text-emerald-800 border-emerald-200/80' 
+                            : isVideoPending 
+                              ? 'bg-amber-50 text-amber-900 border-amber-200/80' 
+                              : 'bg-slate-100 text-slate-600 border-slate-200/80'
+                        }`}>
+                          {isVideoVerified && <Check size={11} strokeWidth={3} className="text-emerald-600" />}
+                          {isVideoPending && <Clock size={11} className="text-amber-600 shrink-0" />}
+                          <span>{isVideoVerified ? 'Validé' : isVideoPending ? 'En cours' : 'À fournir'}</span>
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* 4. Galerie photo (3 photos obligatoires) */}
-                <div className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-200/60 shadow-2xs">
-                  <div className="flex items-center space-x-3">
-                    <span className={`w-6 h-6 font-bold rounded-full flex items-center justify-center text-xs ${
-                      hasEnoughPhotos ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
+                <div className="flex items-center justify-between gap-2.5 p-2.5 sm:p-3 bg-white rounded-xl border border-slate-200/70 shadow-2xs">
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full font-black flex items-center justify-center text-xs shrink-0 shadow-xs ${
+                      hasEnoughPhotos 
+                        ? 'bg-emerald-500 text-white shadow-emerald-500/20' 
+                        : 'bg-amber-100 text-amber-800 border border-amber-300'
                     }`}>
-                      {hasEnoughPhotos ? '✓' : '4'}
-                    </span>
-                    <span className="text-xs sm:text-sm font-semibold text-slate-800">4. Galerie photo (3 photos obligatoires)</span>
+                      {hasEnoughPhotos ? <Check size={14} strokeWidth={3} /> : '4'}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs sm:text-sm font-bold text-slate-800 leading-tight truncate">
+                        Galerie photos
+                      </p>
+                      <p className="text-[10px] sm:text-[11px] text-slate-500 leading-tight mt-0.5 truncate">
+                        3 photos réelles obligatoires
+                      </p>
+                    </div>
                   </div>
-                  <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase ${
-                    hasEnoughPhotos ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                  }`}>
-                    {hasEnoughPhotos ? 'Validé' : `${totalRealPhotos}/3 photos`}
-                  </span>
+                  <div className="shrink-0">
+                    <span className={`inline-flex items-center gap-1 whitespace-nowrap shrink-0 text-[10px] sm:text-[11px] font-black uppercase px-2.5 py-1 rounded-full border ${
+                      hasEnoughPhotos 
+                        ? 'bg-emerald-50 text-emerald-800 border-emerald-200/80' 
+                        : 'bg-amber-50 text-amber-900 border-amber-200/80'
+                    }`}>
+                      {hasEnoughPhotos && <Check size={11} strokeWidth={3} className="text-emerald-600" />}
+                      <span>{hasEnoughPhotos ? 'Validé' : `${totalRealPhotos}/3 photos`}</span>
+                    </span>
+                  </div>
                 </div>
               </div>
+
+              {/* Message rassurant si documents soumis en attente */}
+              {isPending && (
+                <div className="w-full bg-amber-50 border border-amber-200/90 rounded-2xl p-3 sm:p-3.5 mb-4 sm:mb-5 text-left flex items-start gap-2.5 shadow-2xs">
+                  <Clock className="h-4 w-4 sm:h-5 sm:w-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="space-y-0.5">
+                    <p className="text-xs font-bold text-amber-950">Documents bien reçus • Examen en cours</p>
+                    <p className="text-[11px] text-amber-800 leading-relaxed">
+                      Votre pièce d'identité et votre vidéo de preuve de vie sont enregistrées. Complétez vos 3 photos de profil pour débloquer les rencontres dès approbation !
+                    </p>
+                  </div>
+                </div>
+              )}
 
               <button
                 type="button"
                 onClick={() => {
-                  const targetSubTab = !isVerified ? 'VERIFICATION' : 'PROFIL';
+                  const targetSubTab = (!isVerified && !isPending) ? 'VERIFICATION' : 'PROFIL';
                   if (typeof window !== 'undefined') {
                     sessionStorage.setItem('225_active_tab', DashboardTab.PROFILE);
                     sessionStorage.setItem('225_profile_subtab', targetSubTab);
@@ -473,13 +570,15 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
                   setProfileInitialTab(targetSubTab);
                   handleTabChange(DashboardTab.PROFILE);
                 }}
-                className="w-full bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white py-3.5 px-6 rounded-xl font-bold shadow-lg shadow-emerald-700/20 active:scale-95 transition flex items-center justify-center gap-2 text-sm cursor-pointer"
+                className="w-full bg-gradient-to-r from-emerald-600 via-emerald-700 to-emerald-800 hover:from-emerald-700 hover:to-emerald-800 text-white py-3.5 px-4 sm:px-6 rounded-xl sm:rounded-2xl font-bold shadow-lg shadow-emerald-700/20 touch-spring active:scale-95 transition-all flex items-center justify-center gap-2 text-xs sm:text-sm cursor-pointer animate-breathing-glow"
               >
                 <ShieldCheck size={18} />
-                <span>
-                  {!isVerified
-                    ? "Compléter ma vérification maintenant"
-                    : "Ajouter mes photos dans mon profil"}
+                <span className="truncate">
+                  {!hasEnoughPhotos
+                    ? `Ajouter mes photos (${totalRealPhotos}/3 photos requises)`
+                    : isPending
+                    ? "Dossier en cours d'examen"
+                    : "Compléter ma vérification maintenant"}
                 </span>
               </button>
             </div>
@@ -538,18 +637,30 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
   const SidebarContent = () => (
     <div className="flex flex-col h-full bg-white border-r border-slate-200/80">
       <div className="p-5 flex-1 overflow-y-auto">
-        {/* User Card */}
-        <div className="flex items-center mb-5 pb-4 border-b border-slate-100">
-          <img src={userAvatar} alt="Profile" className="h-11 w-11 rounded-full object-cover mr-3 border-2 border-emerald-600 shadow-2xs" />
-          <div className="overflow-hidden flex-1">
-            <p className="font-bold text-slate-900 truncate text-sm font-display" title={userName}>{userName}</p>
-            <div className="flex items-center space-x-1.5 mt-0.5">
-              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${isPremium ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-slate-100 text-slate-600'}`}>
-                {isPremium ? 'Premium' : 'Standard'}
-              </span>
-              {isVerified && <Shield size={13} className="text-emerald-600" fill="currentColor" />}
+        {/* User Card avec Série de Foi interactive */}
+        <div className="flex items-center justify-between mb-4 pb-3.5 border-b border-slate-100">
+          <div className="flex items-center overflow-hidden flex-1 mr-2">
+            <img src={userAvatar} alt="Profile" className="h-11 w-11 rounded-full object-cover mr-3 border-2 border-emerald-600 shadow-2xs shrink-0" />
+            <div className="overflow-hidden flex-1">
+              <p className="font-bold text-slate-900 truncate text-sm font-display" title={userName}>{userName}</p>
+              <div className="flex items-center space-x-1.5 mt-0.5">
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${isPremium ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-slate-100 text-slate-600'}`}>
+                  {isPremium ? 'Premium' : 'Standard'}
+                </span>
+                {isVerified && <Shield size={13} className="text-emerald-600" fill="currentColor" />}
+              </div>
             </div>
           </div>
+          {/* Badge Série de Foi Dynamique 🔥 */}
+          <button
+            type="button"
+            onClick={() => setShowPointsModal(true)}
+            className="flex items-center gap-1 bg-amber-50 hover:bg-amber-100 border border-amber-200/80 px-2 py-1 rounded-xl text-amber-900 transition-all touch-spring active:scale-90 cursor-pointer shadow-2xs shrink-0"
+            title="Série de foi quotidienne active"
+          >
+            <span className="text-sm leading-none animate-flame">🔥</span>
+            <span className="text-xs font-black">{streakCount}j</span>
+          </button>
         </div>
 
         {/* Navigation items */}
@@ -706,9 +817,18 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
             ? 'h-full flex flex-col px-2 sm:px-4 pt-1 pb-[114px] md:pb-4 overflow-hidden' 
             : (isMessagesTab || isLikesYouTab)
               ? 'h-full flex flex-col px-2 sm:px-4 pt-2 pb-[88px] md:pb-4 overflow-hidden'
-              : 'h-full flex flex-col px-2 sm:px-4 md:px-6 pt-2 pb-[88px] md:pb-6 overflow-y-auto custom-scrollbar'
+              : 'h-full px-2 sm:px-4 md:px-6 pt-2 overflow-y-auto custom-scrollbar'
         }`}>
-          {renderContent()}
+          <div 
+            key={activeTab} 
+            className={`w-full animate-tab-enter ${
+              (isMatchesTabAndVerified || isMessagesTab || isLikesYouTab)
+                ? 'h-full flex-1 flex flex-col'
+                : 'min-h-full pb-36 sm:pb-32 md:pb-12'
+            }`}
+          >
+            {renderContent()}
+          </div>
         </div>
       </main>
 
@@ -727,16 +847,16 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ currentView, onCha
 const SidebarItem = ({ icon, label, active, onClick, locked, badgeCount }: any) => (
   <button
     onClick={onClick}
-    className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all duration-150 text-left cursor-pointer group ${active
+    className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all duration-150 text-left cursor-pointer group touch-press active:scale-[0.98] ${active
       ? 'bg-emerald-700 text-white font-bold shadow-2xs'
       : 'text-slate-700 hover:bg-emerald-50/80 hover:text-emerald-800 font-semibold'
       }`}
   >
     <div className="flex items-center space-x-3 text-xs sm:text-sm min-w-0">
       <div className="relative shrink-0">
-        <span className={`transition-transform duration-150 inline-block ${active ? 'text-white' : 'text-slate-500 group-hover:text-emerald-700'}`}>{icon}</span>
+        <span className={`transition-transform duration-150 inline-block group-hover:scale-110 ${active ? 'text-white' : 'text-slate-500 group-hover:text-emerald-700'}`}>{icon}</span>
         {badgeCount > 0 && (
-          <span className="absolute -top-1.5 -right-2 bg-emerald-800 text-white text-[9px] font-extrabold px-1.5 py-0.2 rounded-full min-w-[16px] text-center border-2 border-white shadow-2xs">
+          <span className="absolute -top-1.5 -right-2 bg-emerald-800 text-white text-[9px] font-extrabold px-1.5 py-0.2 rounded-full min-w-[16px] text-center border-2 border-white shadow-2xs animate-badge-pop">
             {badgeCount > 99 ? '99+' : badgeCount}
           </span>
         )}

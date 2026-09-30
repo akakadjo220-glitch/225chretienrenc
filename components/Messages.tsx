@@ -1140,7 +1140,7 @@ export const Messages: React.FC<MessagesProps> = ({ initialContactId }) => {
 
             {/* --- LISTE DES MATCHS (GAUCHE) --- */}
             {/* Mobile Logic: Hidden if chat is active. Desktop: Always visible. */}
-            <div className={`w-full md:w-80 border-r border-slate-200 flex flex-col bg-white ${activeContactId ? 'hidden md:flex' : 'flex'}`}>
+            <div className={`w-full md:w-80 border-r border-slate-200 flex flex-col bg-white ${activeContactId ? 'hidden md:flex' : 'flex'} animate-in fade-in duration-150`}>
                 <div className="p-4 border-b border-slate-100 bg-slate-50/50">
                     <h2 className="text-xl font-bold text-slate-800 flex items-center">
                         Messages <span className="ml-2 text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">{conversations.length}</span>
@@ -1178,7 +1178,7 @@ export const Messages: React.FC<MessagesProps> = ({ initialContactId }) => {
                                 <button
                                     key={conv.contactId}
                                     onClick={() => setActiveContactId(conv.contactId)}
-                                    className={`w-full p-3 flex items-center rounded-xl transition-all duration-200 ${activeContactId === conv.contactId ? 'bg-emerald-50 shadow-sm border border-emerald-100' : 'hover:bg-slate-50 border border-transparent'}`}
+                                    className={`w-full p-3 flex items-center rounded-xl transition-all duration-150 touch-press active:scale-[0.98] ${activeContactId === conv.contactId ? 'bg-emerald-50 shadow-sm border border-emerald-100' : 'hover:bg-slate-50 border border-transparent'}`}
                                 >
                                     <div className="relative mr-3">
                                         <img src={conv.contactAvatar} alt={conv.contactName} className="h-12 w-12 rounded-full object-cover border border-slate-200" />
@@ -1212,11 +1212,11 @@ export const Messages: React.FC<MessagesProps> = ({ initialContactId }) => {
             {/* --- ZONE DE CHAT (DROITE) --- */}
             {/* Mobile Logic: Full width if active. Hidden if not active. */}
             {activeContactId && activeUser ? (
-                <div className={`flex flex-col bg-slate-50 h-full ${!activeContactId ? 'hidden md:flex' : 'w-full flex-1'}`}>
+                <div className={`flex flex-col bg-slate-50 h-full ${!activeContactId ? 'hidden md:flex' : 'w-full flex-1'} animate-in fade-in slide-in-from-right-1 duration-150`}>
                     {/* Header */}
                     <div className="px-4 py-3 bg-white border-b border-slate-200 flex justify-between items-center shadow-sm z-10 flex-shrink-0">
                         <div className="flex items-center">
-                            <button onClick={() => setActiveContactId(null)} className="mr-3 md:hidden p-2 -ml-2 text-slate-500 hover:bg-slate-100 rounded-full">
+                            <button onClick={() => setActiveContactId(null)} className="mr-3 md:hidden p-2 -ml-2 text-slate-500 hover:bg-slate-100 rounded-full touch-spring active:scale-90 cursor-pointer">
                                 <ArrowLeft size={20} />
                             </button>
                             <div className="relative mr-3">
@@ -1639,7 +1639,7 @@ export const Messages: React.FC<MessagesProps> = ({ initialContactId }) => {
                                             ? handleSendMessage 
                                             : (isRecording ? stopRecording : startRecording)
                                     }
-                                    className={`p-3 rounded-full shadow-lg transition transform active:scale-95 flex items-center justify-center ${
+                                    className={`p-3 rounded-full shadow-lg transition-all touch-spring active:scale-90 cursor-pointer flex items-center justify-center ${
                                         inputText.trim() || attachedFile || audioBlob 
                                             ? 'bg-emerald-600 text-white hover:bg-emerald-700' 
                                             : (isRecording ? 'bg-red-500 text-white hover:bg-red-600 animate-pulse' : 'bg-emerald-600 text-white hover:bg-emerald-700')

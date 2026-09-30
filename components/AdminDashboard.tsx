@@ -196,6 +196,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
     const [searchUserQuery, setSearchUserQuery] = useState('');
     const [isBypassingUserId, setIsBypassingUserId] = useState<string | null>(null);
+    const [verificationFilter, setVerificationFilter] = useState<'ALL' | 'FAST_TRACK' | 'REVIEW' | 'BAPTISM'>('ALL');
+    const [verificationSearchQuery, setVerificationSearchQuery] = useState('');
+    const [isApprovingAllFastTrack, setIsApprovingAllFastTrack] = useState(false);
 
     // Parish Modal
     const [isParishModalOpen, setIsParishModalOpen] = useState(false);
@@ -786,14 +789,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
             // 6. Build Verification Requests
             const pendingUsers = rawUsers.filter((u: any) => u.verification_status === 'PENDING');
-            const requests = pendingUsers.map((u: any) => {
+            const resolvePrivateDocUrl = async (path: string | null) => {
+                if (!path) return null;
+                if (path.startsWith('http')) return path;
+                try {
+                    const { data: signed } = await supabase.storage.from('Private').createSignedUrl(path, 7200);
+                    return signed?.signedUrl || null;
+                } catch (e) {
+                    return null;
+                }
+            };
+
+            const requests = await Promise.all(pendingUsers.map(async (u: any) => {
                 const videoPath = u.liveness_video_url || u.video_proof_url || u.video_proof;
                 const idPath = u.document_id_url || u.document_id;
                 const baptismPath = u.document_baptism_url || u.document_baptism;
 
-                const videoUrl = videoPath ? getImlrUrl(videoPath) : null;
-                const idUrl = idPath ? getImlrUrl(idPath) : null;
-                const baptismUrl = baptismPath ? getImlrUrl(baptismPath) : null;
+                const [videoUrl, idUrl, baptismUrl] = await Promise.all([
+                    resolvePrivateDocUrl(videoPath),
+                    resolvePrivateDocUrl(idPath),
+                    resolvePrivateDocUrl(baptismPath)
+                ]);
                 const aiScore = typeof u.ai_match_score === 'number' ? u.ai_match_score : 92;
 
                 return {
@@ -820,7 +836,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                         { type: 'BAPTISM', name: 'Certificat de Baptême (Sceau Spirituel)', isRequired: false, url: baptismUrl }
                     ]
                 };
-            });
+            }));
             setVerificationRequests(requests);
 
             // 7. CALCULATE CHART DATA (Last 6 months)
@@ -1000,6 +1016,65 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                 type: "DANGER"
             });
         }
+    };
+
+    const handleQuickApprove = (e: React.MouseEvent, req: any) => {
+        e.stopPropagation();
+        triggerConfirm({
+            title: `⚡ Validation Express : ${req.userName}`,
+            message: `Score biométrique DeepFace : ${req.aiMatchScore}% (≥ 85%). Confirmez-vous l'approbation immédiate de ce profil certifié Niveau 2 ?`,
+            confirmText: "Valider en 1 Clic",
+            confirmStyle: "emerald",
+            onConfirm: async () => {
+                await handleApproveVerification(req.userId);
+            }
+        });
+    };
+
+    const handleApproveAllFastTrack = async () => {
+        const fastTrackList = verificationRequests.filter(r => (r.aiMatchScore || 0) >= 85);
+        if (fastTrackList.length === 0) {
+            triggerAlert({
+                title: "Aucun dossier Fast-Track",
+                message: "Il n'y a aucun dossier avec un score IA ≥ 85% actuellement en attente.",
+                type: "INFO"
+            });
+            return;
+        }
+
+        triggerConfirm({
+            title: `⚡ Valider ${fastTrackList.length} profils Fast-Track ?`,
+            message: `Ces ${fastTrackList.length} membres ont tous obtenu un score de correspondance faciale DeepFace supérieur ou égal à 85%. Ils seront immédiatement certifiés niveau 2.`,
+            confirmText: `Oui, approuver les ${fastTrackList.length} profils`,
+            confirmStyle: "emerald",
+            onConfirm: async () => {
+                setIsApprovingAllFastTrack(true);
+                try {
+                    const ids = fastTrackList.map(r => r.userId);
+                    await supabaseAdmin.from('profiles').update({
+                        verification_status: 'VERIFIED',
+                        liveness_verified: true,
+                        updated_at: new Date().toISOString()
+                    }).in('id', ids);
+
+                    loadAllData();
+                    setSelectedRequest(null);
+                    triggerAlert({
+                        title: "⚡ Fast-Track Terminé !",
+                        message: `${fastTrackList.length} membres ont été certifiés Niveau 2 avec succès.`,
+                        type: "SUCCESS"
+                    });
+                } catch (e: any) {
+                    triggerAlert({
+                        title: "❌ Erreur",
+                        message: "Erreur lors de la validation groupée: " + (e.message || "Erreur inconnue"),
+                        type: "DANGER"
+                    });
+                } finally {
+                    setIsApprovingAllFastTrack(false);
+                }
+            }
+        });
     };
 
     // --- MODIFICATION PREMIUM (CORRIGÉE & SÉCURISÉE) ---
@@ -2002,88 +2077,261 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     };
 
     const renderVerifications = () => {
-        const pendingRequests = verificationRequests;
+        // Triage & Filtering
+        const fastTrackCount = verificationRequests.filter(r => (r.aiMatchScore || 0) >= 85).length;
+        const reviewCount = verificationRequests.filter(r => (r.aiMatchScore || 0) < 85).length;
+        const baptismCount = verificationRequests.filter(r => r.hasBaptismDoc).length;
+        const avgAiScore = verificationRequests.length > 0 
+            ? Math.round(verificationRequests.reduce((acc, r) => acc + (r.aiMatchScore || 0), 0) / verificationRequests.length) 
+            : 0;
+
+        const filteredRequests = verificationRequests.filter(req => {
+            const matchesSearch = !verificationSearchQuery ||
+                req.userName.toLowerCase().includes(verificationSearchQuery.toLowerCase()) ||
+                (req.userEmail && req.userEmail.toLowerCase().includes(verificationSearchQuery.toLowerCase())) ||
+                (req.parish && req.parish.toLowerCase().includes(verificationSearchQuery.toLowerCase()));
+
+            if (!matchesSearch) return false;
+
+            if (verificationFilter === 'FAST_TRACK') return (req.aiMatchScore || 0) >= 85;
+            if (verificationFilter === 'REVIEW') return (req.aiMatchScore || 0) < 85;
+            if (verificationFilter === 'BAPTISM') return req.hasBaptismDoc;
+            return true;
+        });
+
         return (
-            <div className="space-y-6 animate-in fade-in">
-                <div className="flex justify-between items-center text-left">
+            <div className="space-y-6 animate-in fade-in text-left">
+                {/* EN-TÊTE PRINCIPAL & BOUTONS D'ACTION */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
-                        <h2 className="text-xl font-bold text-slate-800">Demandes de Vérification des Membres (Niveau 2)</h2>
-                        <p className="text-xs text-slate-500">Validation biométrique par IA (CNI + Vidéo 5s requises) et examen du Sceau Spirituel (Certificat de baptême facultatif 🕊️).</p>
+                        <div className="flex items-center gap-2">
+                            <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
+                                <ShieldCheck className="text-emerald-600" size={24} />
+                                <span>Triage & Vérification des Membres (Niveau 2)</span>
+                            </h2>
+                            <span className="bg-emerald-100 text-emerald-800 text-xs font-black px-2.5 py-0.5 rounded-full border border-emerald-200">
+                                {verificationRequests.length} en attente
+                            </span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-1">
+                            Architecture Hybride : Triage automatique DeepFace (Biométrie CNI vs Profil) avec validation en 1 clic pour les dossiers à haute confiance.
+                        </p>
                     </div>
-                    <button onClick={loadAllData} className="p-2 bg-white border rounded-xl hover:bg-slate-50 transition cursor-pointer" title="Rafraîchir">
-                        <RefreshCw size={18} />
-                    </button>
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                        {fastTrackCount > 0 && (
+                            <button
+                                onClick={handleApproveAllFastTrack}
+                                disabled={isApprovingAllFastTrack}
+                                className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-extrabold shadow-sm flex items-center gap-2 transition active:scale-95 cursor-pointer disabled:opacity-50"
+                                title="Valider tous les dossiers avec un score biométrique DeepFace supérieur ou égal à 85%"
+                            >
+                                {isApprovingAllFastTrack ? <Loader className="animate-spin h-3.5 w-3.5" /> : <Zap size={14} className="fill-white" />}
+                                <span>Valider Tous les Fast-Track ({fastTrackCount})</span>
+                            </button>
+                        )}
+
+                        <button onClick={loadAllData} className="p-2.5 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition shadow-xs cursor-pointer" title="Rafraîchir les demandes">
+                            <RefreshCw size={16} />
+                        </button>
+                    </div>
+                </div>
+
+                {/* CARTES KPI DE TRIAGE HYBRIDE */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+                    <div
+                        onClick={() => setVerificationFilter('ALL')}
+                        className={`p-4 rounded-2xl border transition cursor-pointer ${verificationFilter === 'ALL' ? 'bg-slate-900 text-white border-slate-900 shadow-md' : 'bg-white text-slate-800 border-slate-200 hover:bg-slate-50'}`}
+                    >
+                        <div className="flex items-center justify-between text-xs font-bold opacity-80 mb-1">
+                            <span>Tous les Dossiers</span>
+                            <Users size={16} />
+                        </div>
+                        <div className="text-2xl font-black">{verificationRequests.length}</div>
+                        <p className={`text-[11px] mt-1 ${verificationFilter === 'ALL' ? 'text-slate-300' : 'text-slate-400'}`}>File totale</p>
+                    </div>
+
+                    <div
+                        onClick={() => setVerificationFilter('FAST_TRACK')}
+                        className={`p-4 rounded-2xl border transition cursor-pointer ${verificationFilter === 'FAST_TRACK' ? 'bg-emerald-600 text-white border-emerald-600 shadow-md' : 'bg-emerald-50/70 text-emerald-950 border-emerald-200 hover:bg-emerald-100/70'}`}
+                    >
+                        <div className="flex items-center justify-between text-xs font-extrabold mb-1">
+                            <span>⚡ Fast-Track IA (≥85%)</span>
+                            <Zap size={16} className={verificationFilter === 'FAST_TRACK' ? 'fill-white' : 'fill-emerald-600 text-emerald-600'} />
+                        </div>
+                        <div className="text-2xl font-black">{fastTrackCount}</div>
+                        <p className={`text-[11px] mt-1 ${verificationFilter === 'FAST_TRACK' ? 'text-emerald-100' : 'text-emerald-700 font-medium'}`}>Recommandés 1-Clic</p>
+                    </div>
+
+                    <div
+                        onClick={() => setVerificationFilter('REVIEW')}
+                        className={`p-4 rounded-2xl border transition cursor-pointer ${verificationFilter === 'REVIEW' ? 'bg-amber-600 text-white border-amber-600 shadow-md' : 'bg-amber-50/70 text-amber-950 border-amber-200 hover:bg-amber-100/70'}`}
+                    >
+                        <div className="flex items-center justify-between text-xs font-extrabold mb-1">
+                            <span>🔍 Examen Requis (&lt;85%)</span>
+                            <Eye size={16} />
+                        </div>
+                        <div className="text-2xl font-black">{reviewCount}</div>
+                        <p className={`text-[11px] mt-1 ${verificationFilter === 'REVIEW' ? 'text-amber-100' : 'text-amber-700 font-medium'}`}>Vérification manuelle</p>
+                    </div>
+
+                    <div
+                        onClick={() => setVerificationFilter('BAPTISM')}
+                        className={`p-4 rounded-2xl border transition cursor-pointer ${verificationFilter === 'BAPTISM' ? 'bg-yellow-600 text-white border-yellow-600 shadow-md' : 'bg-yellow-50/70 text-yellow-950 border-yellow-200 hover:bg-yellow-100/70'}`}
+                    >
+                        <div className="flex items-center justify-between text-xs font-extrabold mb-1">
+                            <span>🕊️ Avec Baptême</span>
+                            <Sparkles size={16} />
+                        </div>
+                        <div className="text-2xl font-black">{baptismCount}</div>
+                        <p className={`text-[11px] mt-1 ${verificationFilter === 'BAPTISM' ? 'text-yellow-100' : 'text-yellow-700 font-medium'}`}>Sceau spirituel joint</p>
+                    </div>
+                </div>
+
+                {/* BARRE D'OUTILS ET RECHERCHE */}
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-xs">
+                    <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
+                        <button
+                            onClick={() => setVerificationFilter('ALL')}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${verificationFilter === 'ALL' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+                        >
+                            Tous ({verificationRequests.length})
+                        </button>
+                        <button
+                            onClick={() => setVerificationFilter('FAST_TRACK')}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1 whitespace-nowrap cursor-pointer ${verificationFilter === 'FAST_TRACK' ? 'bg-emerald-600 text-white' : 'text-emerald-700 hover:bg-emerald-50'}`}
+                        >
+                            <Zap size={12} className="fill-current" />
+                            <span>Fast-Track ({fastTrackCount})</span>
+                        </button>
+                        <button
+                            onClick={() => setVerificationFilter('REVIEW')}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${verificationFilter === 'REVIEW' ? 'bg-amber-600 text-white' : 'text-amber-700 hover:bg-amber-50'}`}
+                        >
+                            À Réexaminer ({reviewCount})
+                        </button>
+                        <button
+                            onClick={() => setVerificationFilter('BAPTISM')}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${verificationFilter === 'BAPTISM' ? 'bg-yellow-600 text-white' : 'text-yellow-700 hover:bg-yellow-50'}`}
+                        >
+                            🕊️ Baptême ({baptismCount})
+                        </button>
+                    </div>
+
+                    <div className="relative w-full sm:w-64">
+                        <input
+                            type="text"
+                            placeholder="Filtrer nom, email, paroisse..."
+                            value={verificationSearchQuery}
+                            onChange={(e) => setVerificationSearchQuery(e.target.value)}
+                            className="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                        />
+                        <Search className="absolute left-3 top-2 text-slate-400" size={14} />
+                    </div>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     {/* TABLEAU DES DEMANDES EN ATTENTE */}
                     <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-x-auto">
                         <table className="min-w-full divide-y divide-slate-200">
-                            <thead className="bg-slate-50/50">
+                            <thead className="bg-slate-50/70">
                                 <tr>
-                                    <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 uppercase">Membre</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Paroisse</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Preuves Fournies</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Score IA</th>
-                                    <th className="px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase">Action</th>
+                                    <th className="px-5 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Membre</th>
+                                    <th className="px-4 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Paroisse</th>
+                                    <th className="px-4 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Dossier</th>
+                                    <th className="px-4 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Score IA</th>
+                                    <th className="px-4 py-3.5 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-slate-200">
-                                {pendingRequests.map(req => (
-                                    <tr key={req.id} className={`transition ${selectedRequest?.id === req.id ? 'bg-emerald-50/40 font-medium' : 'hover:bg-slate-50'}`}>
-                                        <td className="px-5 py-4 whitespace-nowrap">
-                                            <div className="flex items-center">
-                                                <img className="h-10 w-10 rounded-full object-cover border border-slate-200 mr-3" src={req.userAvatar} alt="" />
-                                                <div className="text-left">
-                                                    <div className="text-sm font-bold text-slate-900">{req.userName}</div>
-                                                    <div className="text-xs text-slate-500">{req.userEmail || 'Membre 225 Chrétien'}</div>
+                                {filteredRequests.map(req => {
+                                    const isFastTrack = (req.aiMatchScore || 0) >= 85;
+                                    const isSelected = selectedRequest?.id === req.id;
+
+                                    return (
+                                        <tr
+                                            key={req.id}
+                                            onClick={() => setSelectedRequest(req)}
+                                            className={`transition cursor-pointer ${isSelected ? 'bg-emerald-50/60 border-l-4 border-l-emerald-600' : 'hover:bg-slate-50/80'}`}
+                                        >
+                                            <td className="px-5 py-4 whitespace-nowrap">
+                                                <div className="flex items-center">
+                                                    <img className="h-10 w-10 rounded-full object-cover border-2 border-slate-200 mr-3" src={req.userAvatar} alt="" />
+                                                    <div className="text-left">
+                                                        <div className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                                                            <span>{req.userName}</span>
+                                                            {isFastTrack && (
+                                                                <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black px-1.5 py-0.5 rounded-md flex items-center gap-0.5">
+                                                                    <Zap size={10} className="fill-emerald-800" /> Fast-Track
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <div className="text-xs text-slate-500">{req.userEmail || 'Membre 225 Chrétien'}</div>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-4 py-4 text-xs font-medium text-slate-700 text-left">{req.parish || '—'}</td>
-                                        <td className="px-4 py-4 text-left">
-                                            <div className="flex flex-wrap gap-1 items-center">
-                                                <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-bold px-2 py-0.5 rounded-md">
-                                                    CNI ✓
-                                                </span>
-                                                <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-bold px-2 py-0.5 rounded-md">
-                                                    Vidéo 5s ✓
-                                                </span>
-                                                {req.hasBaptismDoc ? (
-                                                    <span className="bg-gradient-to-r from-amber-100 to-yellow-100 text-amber-900 border border-amber-300 text-[10px] font-extrabold px-2 py-0.5 rounded-md shadow-2xs">
-                                                        🕊️ Baptême Joint
+                                            </td>
+
+                                            <td className="px-4 py-4 text-xs font-medium text-slate-700 text-left">
+                                                {req.parish || '—'}
+                                            </td>
+
+                                            <td className="px-4 py-4 text-left">
+                                                <div className="flex flex-wrap gap-1 items-center">
+                                                    <span className="bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                                                        🪪 CNI
                                                     </span>
-                                                ) : (
-                                                    <span className="bg-slate-100 text-slate-500 text-[10px] font-medium px-2 py-0.5 rounded-md">
-                                                        Sans Baptême
+                                                    <span className="bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                                                        📹 Vidéo
                                                     </span>
-                                                )}
-                                            </div>
-                                        </td>
-                                        <td className="px-4 py-4 text-left">
-                                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-extrabold border ${
-                                                req.aiMatchScore >= 80 
-                                                    ? 'bg-emerald-100 text-emerald-800 border-emerald-300' 
-                                                    : 'bg-amber-100 text-amber-800 border-amber-300'
-                                            }`}>
-                                                🤖 {req.aiMatchScore}%
-                                            </span>
-                                        </td>
-                                        <td className="px-4 py-4 whitespace-nowrap text-right text-xs font-bold">
-                                            <button
-                                                onClick={() => setSelectedRequest(req)}
-                                                className="text-emerald-700 hover:text-emerald-900 bg-emerald-100/70 hover:bg-emerald-200/80 px-3 py-1.5 rounded-xl transition shadow-xs cursor-pointer"
-                                            >
-                                                Examiner
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
-                                {pendingRequests.length === 0 && (
+                                                    {req.hasBaptismDoc ? (
+                                                        <span className="bg-yellow-50 text-yellow-800 border border-yellow-200 text-[10px] font-extrabold px-2 py-0.5 rounded-md">
+                                                            🕊️ Baptême
+                                                        </span>
+                                                    ) : null}
+                                                </div>
+                                            </td>
+
+                                            <td className="px-4 py-4 text-left">
+                                                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-black border shadow-2xs ${
+                                                    isFastTrack
+                                                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                                        : req.aiMatchScore >= 60
+                                                            ? 'bg-amber-100 text-amber-800 border-amber-300'
+                                                            : 'bg-red-100 text-red-800 border-red-300'
+                                                }`}>
+                                                    {isFastTrack ? '🤖' : '⚠️'} {req.aiMatchScore}%
+                                                </span>
+                                            </td>
+
+                                            <td className="px-4 py-4 whitespace-nowrap text-right text-xs font-bold" onClick={(e) => e.stopPropagation()}>
+                                                <div className="flex items-center justify-end gap-1.5">
+                                                    {isFastTrack && (
+                                                        <button
+                                                            onClick={(e) => handleQuickApprove(e, req)}
+                                                            className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-xl font-black text-xs transition shadow-sm flex items-center gap-1 active:scale-95 cursor-pointer"
+                                                            title="Valider immédiatement ce profil sans ouvrir les détails (Fast-Track 1-Clic)"
+                                                        >
+                                                            <Zap size={12} className="fill-white" />
+                                                            <span>1-Clic</span>
+                                                        </button>
+                                                    )}
+                                                    <button
+                                                        onClick={() => setSelectedRequest(req)}
+                                                        className="text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-xl transition cursor-pointer"
+                                                    >
+                                                        Examiner
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+
+                                {filteredRequests.length === 0 && (
                                     <tr>
-                                        <td colSpan={5} className="px-6 py-12 text-center text-slate-400 italic">
+                                        <td colSpan={5} className="px-6 py-14 text-center text-slate-400 italic">
                                             <Shield className="mx-auto text-slate-300 h-10 w-10 mb-2" />
-                                            Aucune demande de vérification en attente.
+                                            {verificationRequests.length === 0 ? "Aucune demande de vérification en attente." : "Aucun dossier ne correspond à ce filtre."}
                                         </td>
                                     </tr>
                                 )}
@@ -2102,9 +2350,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                                     <p className="text-xs text-slate-500">{selectedRequest.userEmail}</p>
 
                                     {/* Score IA DeepFace Highlight Badge */}
-                                    <div className="mt-3 inline-flex items-center gap-1.5 bg-gradient-to-r from-emerald-600 to-teal-700 text-white text-xs font-extrabold px-3 py-1.5 rounded-full shadow-md">
+                                    <div className={`mt-3 inline-flex items-center gap-1.5 text-white text-xs font-extrabold px-3.5 py-1.5 rounded-full shadow-md ${
+                                        selectedRequest.aiMatchScore >= 85
+                                            ? 'bg-gradient-to-r from-emerald-600 to-teal-700'
+                                            : 'bg-gradient-to-r from-amber-600 to-yellow-700'
+                                    }`}>
                                         <span>🤖 Score DeepFace : {selectedRequest.aiMatchScore}%</span>
-                                        <span>(Match Confirmé 🟢)</span>
+                                        <span>({selectedRequest.aiMatchScore >= 85 ? 'Fast-Track 🟢' : 'Examen Requis 🟡'})</span>
                                     </div>
 
                                     {/* Statut Spirituel Badge */}

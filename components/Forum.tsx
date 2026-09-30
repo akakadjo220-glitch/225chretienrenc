@@ -720,21 +720,21 @@ export const Forum: React.FC = () => {
                     <div className="grid grid-cols-3 gap-1.5 pt-2.5 text-slate-700 text-xs sm:text-sm font-semibold">
                         <button 
                             onClick={() => { imageInputRef.current?.click(); setIsCreateModalOpen(true); }}
-                            className="flex items-center justify-center gap-1.5 hover:bg-emerald-50/80 active:bg-emerald-100 text-slate-700 hover:text-emerald-800 py-2 px-1 rounded-xl transition cursor-pointer"
+                            className="flex items-center justify-center gap-1.5 hover:bg-emerald-50/80 active:bg-emerald-100 text-slate-700 hover:text-emerald-800 py-2 px-1 rounded-xl transition cursor-pointer touch-spring active:scale-95"
                         >
                             <ImageIcon size={17} className="text-emerald-600 shrink-0" />
                             <span className="truncate">Photo</span>
                         </button>
                         <button 
                             onClick={() => openComposerWithCategory('Prière')}
-                            className="flex items-center justify-center gap-1.5 hover:bg-amber-50/80 active:bg-amber-100 text-slate-700 hover:text-amber-800 py-2 px-1 rounded-xl transition cursor-pointer"
+                            className="flex items-center justify-center gap-1.5 hover:bg-amber-50/80 active:bg-amber-100 text-slate-700 hover:text-amber-800 py-2 px-1 rounded-xl transition cursor-pointer touch-spring active:scale-95"
                         >
                             <HeartHandshake size={17} className="text-amber-500 shrink-0" />
                             <span className="truncate">Prière</span>
                         </button>
                         <button 
                             onClick={() => openComposerWithCategory('Témoignages')}
-                            className="flex items-center justify-center gap-1.5 hover:bg-indigo-50/80 active:bg-indigo-100 text-slate-700 hover:text-indigo-800 py-2 px-1 rounded-xl transition cursor-pointer"
+                            className="flex items-center justify-center gap-1.5 hover:bg-indigo-50/80 active:bg-indigo-100 text-slate-700 hover:text-indigo-800 py-2 px-1 rounded-xl transition cursor-pointer touch-spring active:scale-95"
                         >
                             <BookOpen size={17} className="text-indigo-600 shrink-0" />
                             <span className="truncate">Témoignage</span>
@@ -778,7 +778,7 @@ export const Forum: React.FC = () => {
                     <button 
                         key={idx} 
                         onClick={() => setSelectedCategory(cat.name)} 
-                        className={`px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all shadow-sm flex items-center gap-1.5 ${selectedCategory === cat.name ? 'bg-emerald-600 text-white scale-105' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}
+                        className={`px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all shadow-2xs flex items-center gap-1.5 touch-spring active:scale-95 cursor-pointer ${selectedCategory === cat.name ? 'bg-emerald-600 text-white scale-105 font-bold' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}
                     >
                         <span>{cat.emoji}</span>
                         <span>{cat.name}</span>
@@ -800,7 +800,7 @@ export const Forum: React.FC = () => {
                         const countOfComments = post.comments || 0;
 
                         return (
-                            <div key={post.id} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                            <div key={post.id} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden hover-elevate transition-all">
                                 {/* Top Header */}
                                 <div className="p-4 flex items-center justify-between">
                                     <div className="flex items-center space-x-3">

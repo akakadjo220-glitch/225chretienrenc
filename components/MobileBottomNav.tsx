@@ -18,6 +18,14 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   unreadCount = 0,
   likesCount = 0
 }) => {
+  const handleGoToMatches = () => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('225_active_tab', 'MATCHES');
+      window.dispatchEvent(new CustomEvent('225_navigate_matches'));
+    }
+    onChangeView(AppView.USER_DASHBOARD);
+  };
+
   return (
     <div className={`md:hidden fixed bottom-4 left-3 right-3 max-w-[390px] mx-auto z-40 select-none transition-all duration-300 ease-in-out ${
       isMenuOpen 
@@ -69,15 +77,15 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
           />
         </svg>
 
-        {/* 2. BOUTON CENTRAL SURÉLEVÉ DANS LE BERCEAU (ORBE ÉMERAUDE + CŒUR 3D PUFFY DORÉ) */}
+        {/* 2. BOUTON CENTRAL SURÉLEVÉ DANS LE BERCEAU (ORBE ÉMERAUDE + CŒUR 3D PUFFY DORÉ NET & STABLE) */}
         <div className="absolute left-1/2 -translate-x-1/2 -top-6 flex flex-col items-center z-20">
           <button
             type="button"
-            onClick={() => onChangeView(AppView.USER_DASHBOARD)}
-            className="w-[58px] h-[58px] rounded-full flex items-center justify-center transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer relative"
+            onClick={handleGoToMatches}
+            className="w-[58px] h-[58px] rounded-full flex items-center justify-center cursor-pointer relative touch-spring hover:scale-105 active:scale-90"
             style={{
               background: 'radial-gradient(circle at 38% 32%, #246B46 0%, #11452B 55%, #082919 100%)',
-              boxShadow: '0 0 0 5px rgba(245, 235, 218, 0.65), 0 10px 24px rgba(13, 62, 39, 0.45), inset 0 2px 4px rgba(255, 255, 255, 0.4)'
+              boxShadow: '0 0 0 5px rgba(245, 235, 218, 0.9), 0 8px 20px rgba(13, 62, 39, 0.35), inset 0 2px 4px rgba(255, 255, 255, 0.4)'
             }}
             title="Rencontres chrétiennes"
           >
@@ -167,14 +175,14 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
           <button
             type="button"
             onClick={() => onChangeView(AppView.MESSAGES)}
-            className={`flex-1 flex flex-col items-center justify-center py-1 transition-all duration-200 active:scale-95 cursor-pointer ${
+            className={`flex-1 flex flex-col items-center justify-center py-1 touch-spring active:scale-90 cursor-pointer ${
               currentView === AppView.MESSAGES
                 ? 'text-[#0D5C3A] font-extrabold'
                 : 'text-slate-800 hover:text-[#0D5C3A] font-semibold'
             }`}
           >
-            <div className="relative mb-1">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <div className="relative mb-0.5">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="transition-transform duration-200">
                 <path
                   d="M 4 12.5 C 4 7.2 7.6 4.2 13.5 4.2 C 18 4.2 20 6.8 20 10.8 C 20 15.2 16.5 18 12 18 C 10.3 18 8.9 17.5 7.6 16.7 L 3.5 18 L 4.6 14.9 C 4.2 14.1 4 13.3 4 12.5 Z"
                   stroke={currentView === AppView.MESSAGES ? '#0D5C3A' : '#164E35'}
@@ -191,26 +199,29 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                 />
               </svg>
               {unreadCount > 0 && (
-                <span className="absolute -top-1.5 -right-2 bg-[#D4A359] text-white text-[9px] font-black px-1.5 py-0.2 rounded-full border border-white shadow-xs">
+                <span className="absolute -top-1.5 -right-2 bg-[#D4A359] text-white text-[9px] font-black px-1.5 py-0.2 rounded-full border border-white shadow-xs animate-badge-pop">
                   {unreadCount > 9 ? '9+' : unreadCount}
                 </span>
               )}
             </div>
             <span className="text-[10px] tracking-tight leading-none">Messages</span>
+            {currentView === AppView.MESSAGES && (
+              <span className="w-1 h-1 rounded-full bg-[#0D5C3A] mt-1 animate-badge-pop" />
+            )}
           </button>
 
           {/* 2. PROFIL (Cercle tête + arche épaules conforme à la maquette) */}
           <button
             type="button"
             onClick={() => onChangeView(AppView.PROFILE)}
-            className={`flex-1 flex flex-col items-center justify-center py-1 transition-all duration-200 active:scale-95 cursor-pointer ${
+            className={`flex-1 flex flex-col items-center justify-center py-1 touch-spring active:scale-90 cursor-pointer ${
               currentView === AppView.PROFILE
                 ? 'text-[#0D5C3A] font-extrabold'
                 : 'text-slate-800 hover:text-[#0D5C3A] font-semibold'
             }`}
           >
-            <div className="relative mb-1">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <div className="relative mb-0.5">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="transition-transform duration-200">
                 <circle
                   cx="12"
                   cy="7.5"
@@ -227,6 +238,9 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
               </svg>
             </div>
             <span className="text-[10px] tracking-tight leading-none">Profil</span>
+            {currentView === AppView.PROFILE && (
+              <span className="w-1 h-1 rounded-full bg-[#0D5C3A] mt-1 animate-badge-pop" />
+            )}
           </button>
 
           {/* ESPACE DU BERCEAU CENTRAL (POUR L'ORBE SURÉLEVÉ) */}
@@ -236,14 +250,14 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
           <button
             type="button"
             onClick={() => onChangeView(AppView.FORUM)}
-            className={`flex-1 flex flex-col items-center justify-center py-1 transition-all duration-200 active:scale-95 cursor-pointer ${
+            className={`flex-1 flex flex-col items-center justify-center py-1 touch-spring active:scale-90 cursor-pointer ${
               currentView === AppView.FORUM
                 ? 'text-[#0D5C3A] font-extrabold'
                 : 'text-slate-800 hover:text-[#0D5C3A] font-semibold'
             }`}
           >
-            <div className="relative mb-1">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <div className="relative mb-0.5">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="transition-transform duration-200">
                 {/* Silhouette principale avant */}
                 <circle
                   cx="9"
@@ -274,6 +288,9 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
               </svg>
             </div>
             <span className="text-[10px] tracking-tight leading-none">Communauté</span>
+            {currentView === AppView.FORUM && (
+              <span className="w-1 h-1 rounded-full bg-[#0D5C3A] mt-1 animate-badge-pop" />
+            )}
           </button>
 
           {/* 5. PARAMÈTRES (Roue dentée à 8 lobes -> Ouvre le Menu de navigation) */}
@@ -286,10 +303,10 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                 onChangeView(AppView.PROFILE);
               }
             }}
-            className="flex-1 flex flex-col items-center justify-center py-1 transition-all duration-200 active:scale-95 cursor-pointer text-slate-800 hover:text-[#0D5C3A] font-semibold"
+            className="flex-1 flex flex-col items-center justify-center py-1 touch-spring active:scale-90 cursor-pointer text-slate-800 hover:text-[#0D5C3A] font-semibold"
             title="Menu & Paramètres"
           >
-            <div className="relative mb-1">
+            <div className="relative mb-0.5">
               <svg
                 width="24"
                 height="24"
@@ -299,12 +316,13 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                 strokeWidth="1.8"
                 strokeLinecap="round"
                 strokeLinejoin="round"
+                className="transition-transform duration-200"
               >
                 <circle cx="12" cy="12" r="3.2" />
                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06-.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
               </svg>
               {likesCount > 0 && (
-                <span className="absolute -top-1.5 -right-2 bg-[#D4A359] text-white text-[9px] font-black px-1.5 py-0.2 rounded-full border border-white shadow-xs">
+                <span className="absolute -top-1.5 -right-2 bg-[#D4A359] text-white text-[9px] font-black px-1.5 py-0.2 rounded-full border border-white shadow-xs animate-badge-pop">
                   {likesCount}
                 </span>
               )}
