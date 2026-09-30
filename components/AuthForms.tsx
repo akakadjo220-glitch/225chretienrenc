@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { AppView } from '../types';
-import { Lock, Mail, User, ShieldAlert, RefreshCw, Loader, AlertCircle, CheckCircle2, ChevronRight, MapPin, Heart, ShieldCheck, HelpCircle, Eye, EyeOff, Calendar, Phone, ArrowLeft, ArrowRight, MessageCircle, Clock, Check } from 'lucide-react';
+import { Lock, Mail, User, ShieldAlert, RefreshCw, Loader, AlertCircle, CheckCircle2, ChevronRight, MapPin, Heart, ShieldCheck, HelpCircle, Eye, EyeOff, Calendar, Phone, ArrowLeft, ArrowRight, MessageCircle, Clock, Check, Church, X } from 'lucide-react';
 import { AVAILABLE_INTERESTS } from '../constants';
 import { supabase, supabaseAdmin } from '../supabaseClient';
 import { sendWhatsAppOtp, formatPhoneNumber } from '../openwaClient';
@@ -115,6 +115,33 @@ export const DENOMINATION_BUBBLES: DenominationBubble[] = [
         parishPlaceholder: 'Ex: Nom de votre église ou communauté...'
     }
 ];
+
+export const POPULAR_PARISHES_BY_DENOMINATION: Record<string, string[]> = {
+    'Catholique': ['St-Jean (Cocody)', 'Ste-Cécile (Vallon)', 'St-Albert le Grand', 'Notre-Dame de la Tendresse', 'St-Jacques (Deux Plateaux)', 'Cathédrale St-Paul'],
+    'Évangélique': ['Temple de la Grâce', 'Église de la Foi', 'Centre Foi Vivante', 'Tabernacle de la Louange', 'Mission Évangélique de Cocody'],
+    'Assemblées de Dieu': ['AD Cocody Angré', 'AD Deux Plateaux', 'AD Yopougon Bethléem', 'AD Temple Canaan', 'AD Riviera Palmeraie'],
+    'Baptiste': ['Église Baptiste Missionnaire Cocody', 'Temple Espérance', 'Église Baptiste Grâce de Dieu'],
+    'Méthodiste': ['Temple du Jubilé (Cocody)', 'Temple de la Résurrection', 'Temple Bethel'],
+    'Autre': ['Communauté Chrétienne Locale', 'Église Évangélique Indépendante']
+};
+
+export const cleanParishPrefix = (raw: string, currentDenom?: string): string => {
+    if (!raw) return '';
+    let cleaned = raw.trim();
+    const denominations = ['Catholique', 'Évangélique', 'Assemblées de Dieu', 'Baptiste', 'Méthodiste', 'Autre', 'Protestant'];
+    let changed = true;
+    while (changed) {
+        changed = false;
+        for (const d of denominations) {
+            const regex = new RegExp(`^${d}\\s*-\\s*`, 'i');
+            if (regex.test(cleaned)) {
+                cleaned = cleaned.replace(regex, '').trim();
+                changed = true;
+            }
+        }
+    }
+    return cleaned;
+};
 
 interface AuthFormsProps {
     view: AppView;
@@ -286,6 +313,21 @@ export const AuthForms: React.FC<AuthFormsProps> = ({ view, onSwitch, onLogin })
     const [selectedInterests, setSelectedInterests] = useState<string[]>(['📖 Bible & Prière', '🎵 Musique / Chorale']);
     const [birthDate, setBirthDate] = useState<string>('2000-01-15');
     const [parishSuggestions, setParishSuggestions] = useState<string[]>([]);
+    const [showParishDropdown, setShowParishDropdown] = useState<boolean>(false);
+
+    // Suggestions filtrées et intelligentes par confession & texte saisi
+    const filteredParishSuggestions = React.useMemo(() => {
+        const baseList = POPULAR_PARISHES_BY_DENOMINATION[selectedDenomination] || POPULAR_PARISHES_BY_DENOMINATION['Catholique'] || [];
+        const allList = [...baseList, ...parishSuggestions];
+        const unique = Array.from(new Set(allList.map(p => cleanParishPrefix(p, selectedDenomination))))
+            .filter(p => p && p.length > 2 && !p.toLowerCase().includes('administration'));
+
+        if (!selectedParish || !selectedParish.trim()) {
+            return unique.slice(0, 5);
+        }
+        const q = selectedParish.toLowerCase().trim();
+        return unique.filter(p => p.toLowerCase().includes(q)).slice(0, 5);
+    }, [selectedDenomination, parishSuggestions, selectedParish]);
 
     // Calcul de l'âge dynamique
     const calculateAge = (dateStr: string) => {
@@ -331,6 +373,7 @@ export const AuthForms: React.FC<AuthFormsProps> = ({ view, onSwitch, onLogin })
             return;
         }
         setError(null);
+        setShowParishDropdown(false);
         setRegisterStep(3);
     };
 
@@ -345,12 +388,14 @@ export const AuthForms: React.FC<AuthFormsProps> = ({ view, onSwitch, onLogin })
                 const { data: profileParishes } = await supabase.from('profiles').select('parish');
                 const userNames = (profileParishes || []).map((p: any) => p.parish).filter(Boolean);
 
-                const combined = Array.from(new Set([...officialNames, ...userNames]));
+                const combined = Array.from(new Set([...officialNames, ...userNames]))
+                    .map(name => cleanParishPrefix(name, selectedDenomination))
+                    .filter(name => name && name.length > 2 && !name.toLowerCase().includes('administration'));
                 setParishSuggestions(combined);
             } catch (e) {}
         };
         fetchParishSuggestions();
-    }, []);
+    }, [selectedDenomination]);
 
     const [allAvailableInterests, setAllAvailableInterests] = useState<string[]>(AVAILABLE_INTERESTS);
 
@@ -590,7 +635,8 @@ export const AuthForms: React.FC<AuthFormsProps> = ({ view, onSwitch, onLogin })
                 const baptismYear = formData.get('baptismYear') as string;
                 const gender = selectedGender || (formData.get('gender') as 'M' | 'F') || 'M';
                 const fullName = `${fName} ${lName}`.trim() || 'Membre Chrétien';
-                const combinedParish = `${denominationInput} - ${parishInput}`;
+                const cleanParish = cleanParishPrefix(parishInput, denominationInput);
+                const combinedParish = `${denominationInput} - ${cleanParish || parishInput}`;
                 const lookingFor = gender === 'M' ? 'F' : 'M';
 
                 if (password && passwordConfirm && password !== passwordConfirm) {
@@ -1812,28 +1858,116 @@ export const AuthForms: React.FC<AuthFormsProps> = ({ view, onSwitch, onLogin })
                                 </div>
                             </div>
 
-                            {/* Paroisse / Église */}
-                            <div className="space-y-1">
-                                <label className="text-xs font-semibold text-slate-600 block ml-1">
-                                    Paroisse / Église ({activeBubble.label}) :
-                                </label>
+                            {/* Paroisse / Église avec Saisie 100% Libre & Suggestions Non Intrusives */}
+                            <div className="space-y-1.5 relative">
+                                <div className="flex justify-between items-center ml-1">
+                                    <label className="text-xs font-semibold text-slate-700 flex items-center gap-1">
+                                        <span>Paroisse ou Église ({activeBubble.label}) :</span>
+                                    </label>
+                                    <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100/90 border border-emerald-300/80 px-2 py-0.5 rounded-md flex items-center gap-1">
+                                        <span>✍️</span> Saisie 100% libre
+                                    </span>
+                                </div>
+
                                 <div className="relative group">
-                                    <MapPin className="absolute left-3 top-3 h-4 w-4 text-slate-400 group-focus-within:text-emerald-500 transition-colors" />
+                                    <Church className="absolute left-3 top-3 h-4 w-4 text-slate-400 group-focus-within:text-emerald-600 transition-colors z-10" />
                                     <input
                                         name="parish"
                                         type="text"
-                                        list="parish-suggestions-list"
+                                        autoComplete="off"
                                         value={selectedParish}
-                                        onChange={(e) => setSelectedParish(e.target.value)}
+                                        onChange={(e) => {
+                                            setSelectedParish(e.target.value);
+                                            setShowParishDropdown(true);
+                                        }}
+                                        onFocus={() => setShowParishDropdown(true)}
                                         required
                                         placeholder={activeBubble.parishPlaceholder}
-                                        className="pl-9 block w-full py-2.5 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-shadow min-h-[42px] bg-white font-medium text-slate-800"
+                                        className="pl-9 pr-8 block w-full py-2.5 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-shadow min-h-[42px] bg-white font-medium text-slate-800"
                                     />
-                                    <datalist id="parish-suggestions-list">
-                                        {parishSuggestions.map((pName, idx) => (
-                                            <option key={idx} value={pName} />
+                                    {selectedParish && (
+                                        <button
+                                            type="button"
+                                            onClick={() => { setSelectedParish(''); setShowParishDropdown(false); }}
+                                            className="absolute right-2.5 top-3 text-slate-400 hover:text-slate-600 p-0.5 rounded-full transition cursor-pointer z-10"
+                                            title="Effacer"
+                                        >
+                                            <X size={14} />
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* Texte explicatif rassurant pour lever tout doute */}
+                                <p className="text-[11px] text-slate-500 leading-tight ml-1">
+                                    ✨ <strong>Vous pouvez taper n'importe quel nom</strong> : écrivez librement le nom de votre paroisse ou église, elle sera acceptée !
+                                </p>
+
+                                {/* Menu déroulant discret (uniquement si l'utilisateur tape et qu'il y a du texte) */}
+                                {showParishDropdown && selectedParish.trim().length > 0 && (
+                                    <div className="absolute top-[66px] left-0 right-0 z-30 bg-white border border-emerald-200 rounded-2xl shadow-xl p-1.5 animate-in fade-in slide-in-from-top-1 duration-150 max-h-48 overflow-y-auto no-scrollbar">
+                                        <div className="flex items-center justify-between px-2.5 py-1 text-[10px] font-bold text-slate-400 border-b border-slate-100 mb-1">
+                                            <span>Suggestions ({activeBubble.label})</span>
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowParishDropdown(false)}
+                                                className="text-slate-400 hover:text-slate-600 text-xs px-1"
+                                            >
+                                                Fermer ✕
+                                            </button>
+                                        </div>
+
+                                        {filteredParishSuggestions.map((item, idx) => (
+                                            <button
+                                                key={idx}
+                                                type="button"
+                                                onClick={() => {
+                                                    setSelectedParish(item);
+                                                    setShowParishDropdown(false);
+                                                }}
+                                                className="w-full text-left px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 transition flex items-center gap-2 cursor-pointer active:scale-[0.99]"
+                                            >
+                                                <Church size={13} className="text-emerald-600 shrink-0" />
+                                                <span className="truncate">{item}</span>
+                                            </button>
                                         ))}
-                                    </datalist>
+
+                                        {/* Bouton de confirmation de saisie libre */}
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowParishDropdown(false)}
+                                            className="w-full text-left px-3 py-2 rounded-xl text-xs font-bold text-emerald-800 bg-emerald-50/80 hover:bg-emerald-100 transition flex items-center gap-2 cursor-pointer mt-1 border border-emerald-200/60"
+                                        >
+                                            <Check size={13} className="text-emerald-700 shrink-0" />
+                                            <span className="truncate">Valider mon église : « <strong>{selectedParish}</strong> »</span>
+                                        </button>
+                                    </div>
+                                )}
+
+                                {/* Puces d'accès rapide (Exemples cliquables en 1 clic) */}
+                                <div className="pt-0.5">
+                                    <span className="text-[10px] font-bold text-slate-400 block mb-1 ml-1">
+                                        Exemples fréquents ({activeBubble.label}) :
+                                    </span>
+                                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+                                        {(POPULAR_PARISHES_BY_DENOMINATION[selectedDenomination] || POPULAR_PARISHES_BY_DENOMINATION['Catholique']).slice(0, 5).map((quickParish) => (
+                                            <button
+                                                key={quickParish}
+                                                type="button"
+                                                onClick={() => {
+                                                    setSelectedParish(quickParish);
+                                                    setShowParishDropdown(false);
+                                                }}
+                                                className={`text-[10px] px-2.5 py-1 rounded-lg font-bold border shrink-0 transition-all cursor-pointer active:scale-95 flex items-center gap-1 ${
+                                                    selectedParish === quickParish
+                                                        ? 'bg-emerald-700 text-white border-emerald-700 shadow-2xs'
+                                                        : 'bg-white hover:bg-slate-50 text-slate-600 border-slate-200 hover:border-emerald-300'
+                                                }`}
+                                            >
+                                                <span>⛪</span>
+                                                <span>{quickParish}</span>
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
 
